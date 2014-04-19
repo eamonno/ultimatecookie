@@ -4,18 +4,21 @@ function UltimateCookie() {
 	this.autoBuyer = setInterval(AutoBuy, 500);
 }
 
+UltimateCookie.prototype.timeToBuy = function(cps, a, b) {
+	//console.log("Aprice: " + a.getPrice() + " Acps: " + a.cps() + " Bprice: " + b.getPrice() + " Bcps: " + b.cps());
+	//console.log("CPS: " + cps + ". Time for " + a.displayName + " then " + b.displayName + " is " + (a.getPrice() / cps + b.getPrice() / (cps + a.cps())) );
+	return a.getPrice() / cps + b.getPrice() / (cps + a.cps());
+}
+
 UltimateCookie.prototype.determineNextBuilding = function() {
 
-	console.log("------------------------------------");
 	var i;
 	var next = Game.ObjectsById[0];
-
-	console.log(next.displayName + " " + (next.getPrice() / next.cps()));
+	var cps = this.effectiveCps();
 
 	for (i = 1; i < Game.ObjectsById.length; ++i) {
-		if (Game.ObjectsById[i].getPrice() / Game.ObjectsById[i].cps() <= next.getPrice() / next.cps()) {
+		if (this.timeToBuy(cps, next, Game.ObjectsById[i]) > this.timeToBuy(cps, Game.ObjectsById[i], next)) {
 			next = Game.ObjectsById[i];
-			console.log(next.displayName + " " + (next.getPrice() / next.cps()));
 		}
 	}
 
@@ -46,7 +49,6 @@ UltimateCookie.prototype.determineNextPurchase = function() {
 
 	if (upgrade != undefined && (upgrade.getPrice() * 10) < building.getPrice()) {
 		console.log("Next upgrade: " + upgrade.name);
-		console.log("Upgrade price: " + upgrade.getPrice() + "  Building price: " + building.getPrice());
 		return upgrade;
 	}
 	console.log("Next building: " + building.displayName + " number " + (building.amount + 1));
@@ -73,7 +75,7 @@ UltimateCookie.prototype.autoBuy = function() {
 
 UltimateCookie.prototype.effectiveCps = function() {
 	// Assume 250 clicks per second
-	return Game.cookiesPs + 250 * Game.mouseCps;
+	return Game.cookiesPs + 250 * Game.mouseCps();
 }
 
 var ultimateCookie = new UltimateCookie();
