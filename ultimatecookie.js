@@ -104,16 +104,43 @@ PurchasableBuilding.prototype.purchase = function() {
 // Class to represent upgrades for cost and buy order evaluation
 //
 
+var cursorIndex = 0;
+var grandmaIndex = 1;
+var farmIndex = 2;
+var factoryIndex = 3;
+
+var baseCpsUpgrades[] = new Array();
+baseCpsUpgrades.push([grandmaIndex, 0.3, "Forwards from grandma"]);
+baseCpsUpgrades.push([farmIndex, 1.0, "Cheap hoes"]);
+baseCpsUpgrades.push([factoryIndex, 4.0, "Sturdier conveyor belts"]);
+
+var doublerUpgrades[] = new Array();
+doublerUpgrades.push([cursorIndex, "Carpal tunnel prevention cream"]);
+doublerUpgrades.push([cursorIndex, "Ambidextrous"]);
+doublerUpgrades.push([grandmaIndex, "Steel-plated rolling pins"]);
+doublerUpgrades.push([grandmaIndex, "Lubricated dentures"]);
+doublerUpgrades.push([farmIndex, "Fertilizer"]);
+
+getScale = function(buildingIndex) {
+	var s = 1;
+	var i;
+	for (i = 0; i < doublerUpgrades.length; ++i) {
+		if (doublerUpgrades[i][0] == buildingIndex && Game.has[doublerUpgrades[i][1]) {
+			s = s * 2;
+		}
+	}
+	return s;
+}
+
 function PurchasableUpgrade(upgrade) {
 	this.upgrade = upgrade;
 
 	// Now set an appropriate CPS function
 	switch (this.upgrade.name) {
 		case "Reinforced index finger":
-			// REVISIT - DOESN'T ACCOUNT FOR SCALING
 			// The mouse gains +1 cookie per click. Cursors gain +0.1 base CpS.
 			this.getCps = function() {
-				return ultimateCookie.clickRate() + getCursors().amount * 0.1;
+				return (ultimateCookie.clickRate() + getCursors().amount * 0.1) * getCursorScale();
 			}
 			break;
 		case "Carpal tunnel prevention cream":
@@ -124,17 +151,15 @@ function PurchasableUpgrade(upgrade) {
 			}
 			break;
 		case "Forwards from grandma":
-			// REVISIT - DOESN'T ACCOUNT FOR SCALING
 			// Grandmas gain +0.3 base CpS.
 			this.getCps = function() {
-				return getGrandmas().amount * 0.3;
+				return getGrandmas().amount * 0.3 * getGrandmaScale();
 			}
 			break;
 		case "Cheap hoes":
-			// REVISIT - DOESN'T ACCOUNT FOR SCALING
 			// Farms gain +1 base CpS.
 			this.getCps = function() {
-				return getFarms().amount * 1.0;
+				return getFarms().amount * 1.0 * getFarmScale();
 			}
 			break;
 		case "Steel-plated rolling pins":
@@ -145,10 +170,9 @@ function PurchasableUpgrade(upgrade) {
 			}
 			break;
 		case "Sturdier conveyor belts":
-			// REVISIT - DOESN'T ACCOUNT FOR SCALING
 			// Factories gain +4 base CpS.
 			this.getCps = function() {
-				return getFactories().amount * 4;
+				return getFactories().amount * 4 * getFactoryScale();
 			}
 			break;
 		case "Fertilizer":
@@ -159,7 +183,8 @@ function PurchasableUpgrade(upgrade) {
 			break;
 		case "Plastic mouse":
 		case "Iron mouse":
-			// Clicking gains +1% of your CpS:
+			// Clicking gains +1% of your CpS.
+			// Tested in game: this doesn't scale with mouse click doublers
 			this.getCps = function() {
 				return ultimateCookie.clickRate() * Game.cookiesPs * 0.01;
 			}
@@ -189,20 +214,56 @@ PurchasableUpgrade.prototype.purchase = function() {
 // Utility Functions to avoid using magic numbers
 //
 
-getCursors = function () {
+getCursors = function() {
 	return Game.ObjectsById[0];
 }
 
-getGrandmas = function () {
+getCursorScale = function() {
+	var s = 1;
+	if (Game.has("Carpal tunnel prevention cream")) {
+		s = s * 2;
+	}
+	if (Game.has("Ambidextrous")) {
+		s = s * 2;
+	}
+	return s;
+}
+
+getGrandmas = function() {
 	return Game.ObjectsById[1];
 }
 
-getFarms = function () {
+getGrandmaScale = function() {
+	var s = 1;
+	if (Game.has("Steel-plated rolling pins")) {
+		s = s * 2;
+	}
+	if (Game.has("Lubricated dentures")) {
+		s = s * 2;
+	}
+	return s;
+}
+
+getFarms = function() {
 	return Game.ObjectsById[2];
+}
+
+getFarmScale = function() {
+	var s = 1;
+	if (Game.has("Fertilizer")) {
+		s = s * 2;
+	}
+	return s;
 }
 
 getFactories = function() {
 	return Game.ObjectsById[3];
+}
+
+getFactoryScale = function() {
+	var s = 1;
+
+	return s;
 }
 
 var ultimateCookie = new UltimateCookie();
