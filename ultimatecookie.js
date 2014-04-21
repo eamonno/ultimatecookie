@@ -1,10 +1,21 @@
+//
+// TO-DO List
+//
+// Adjust for the AutoBuy delay in the autobuy function for very high reset regen rates
+// Implement a proper click rate function
+// Add a version check
+//
+
 function UltimateCookie() {
+	this.AUTO_CLICK_DELAY = 1;
+	this.AUTO_BUY_DELAY = 500;
+
 	this.enable();
 }
 
 UltimateCookie.prototype.enable = function() {
-	this.autoClicker = setInterval(Game.ClickCookie, 1);
-	this.autoBuyer = setInterval(AutoBuy, 500);
+	this.autoClicker = setInterval(Game.ClickCookie, this.AUTO_CLICK_DELAY);
+	this.autoBuyer = setInterval(AutoBuy, this.AUTO_BUY_DELAY);
 }
 
 UltimateCookie.prototype.disable = function() {
@@ -13,8 +24,6 @@ UltimateCookie.prototype.disable = function() {
 }
 
 UltimateCookie.prototype.timeToBuy = function(cps, a, b) {
-	//console.log("Aprice: " + a.getPrice() + " Acps: " + a.cps() + " Bprice: " + b.getPrice() + " Bcps: " + b.cps());
-	//console.log("CPS: " + cps + ". Time for " + a.displayName + " then " + b.displayName + " is " + (a.getPrice() / cps + b.getPrice() / (cps + a.cps())) );
 	return a.getCost() / cps + b.getCost() / (cps + a.getCps());
 }
 
@@ -36,7 +45,6 @@ UltimateCookie.prototype.createPurchaseList = function() {
 }
 
 UltimateCookie.prototype.determineNextPurchase = function() {
-
 	var purchases = this.createPurchaseList();
 	var next = purchases[0];
 	var cps = this.effectiveCps();
@@ -54,7 +62,6 @@ UltimateCookie.prototype.determineNextPurchase = function() {
 }
 
 UltimateCookie.prototype.autoBuy = function() {
-
 	if (this.nextPurchase == undefined) {
 		this.nextPurchase = this.determineNextPurchase();
 	}
@@ -104,24 +111,31 @@ PurchasableBuilding.prototype.purchase = function() {
 // Class to represent upgrades for cost and buy order evaluation
 //
 
-var cursorIndex = 0;
-var grandmaIndex = 1;
-var farmIndex = 2;
-var factoryIndex = 3;
+function UpgradeAnalyser() {
+	// Index into the Game.ObjectsByID array
+	this.CURSOR_INDEX = 0;
+	this.GRANDMA_INDEX = 1;
+	this.FARM_INDEX = 2;
+	this.FACTORY_INDEX = 3;
 
-var baseCpsUpgrades[] = new Array();
-baseCpsUpgrades.push([grandmaIndex, 0.3, "Forwards from grandma"]);
-baseCpsUpgrades.push([farmIndex, 1.0, "Cheap hoes"]);
-baseCpsUpgrades.push([factoryIndex, 4.0, "Sturdier conveyor belts"]);
+	// Base CPS upgrades are those that adjust the base CPS of a building
+	this.baseCpsUpgrades[] = new Array();
+	this.baseCpsUpgrades.push([this.GRANDMA_INDEX, 0.3, "Forwards from grandma"]);
+	this.baseCpsUpgrades.push([this.FARM_INDEX, 1.0, "Cheap hoes"]);
+	this.baseCpsUpgrades.push([this.FACTORY_INDEX, 4.0, "Sturdier conveyor belts"]);
 
-var doublerUpgrades[] = new Array();
-doublerUpgrades.push([cursorIndex, "Carpal tunnel prevention cream"]);
-doublerUpgrades.push([cursorIndex, "Ambidextrous"]);
-doublerUpgrades.push([grandmaIndex, "Steel-plated rolling pins"]);
-doublerUpgrades.push([grandmaIndex, "Lubricated dentures"]);
-doublerUpgrades.push([farmIndex, "Fertilizer"]);
+	// Doubler Upgrades are those that double the productivity of a type of building
+	this.doublerUpgrades[] = new Array();
+	this.doublerUpgrades.push([this.CURSOR_INDEX, "Carpal tunnel prevention cream"]);
+	this.doublerUpgrades.push([this.CURSOR_INDEX, "Ambidextrous"]);
+	this.doublerUpgrades.push([this.GRANDMA_INDEX, "Steel-plated rolling pins"]);
+	this.doublerUpgrades.push([this.GRANDMA_INDEX, "Lubricated dentures"]);
+	this.doublerUpgrades.push([this.FARM_INDEX, "Fertilizer"]);
 
-getScale = function(buildingIndex) {
+
+}
+
+UpgradeAnalyser.prototype.getScale = function(buildingIndex) {
 	var s = 1;
 	var i;
 	for (i = 0; i < doublerUpgrades.length; ++i) {
