@@ -1,9 +1,8 @@
+// To-do
+// Figure out how to get AutoBuy as a member of the UltimateCookie
+
 //
-// TO-DO List
-//
-// Adjust for the AutoBuy delay in the autobuy function for very high reset regen rates
-// Implement a proper click rate function
-// Add a version check
+// UltimateCookie represents the app itself
 //
 
 function UltimateCookie() {
@@ -12,14 +11,6 @@ function UltimateCookie() {
 	this.DEBUG_VERIFY = true;
 
 	this.enable();
-}
-
-//
-// Compare floats, considered equal if they are within 0.0000001% of each other.
-//
-function floatEqual(a, b) {
-	var eps = Math.abs(a - b) * 100000000.0;
-	return eps <= Math.abs(a) && eps <= Math.abs(b);
 }
 
 UltimateCookie.prototype.enable = function() {
@@ -270,6 +261,31 @@ PurchasableBuilding.prototype.purchase = function() {
 // Class to represent upgrades for cost and buy order evaluation
 //
 
+/*************************************************************************/
+/*************************************************************************/
+/*************************************************************************/
+/********** EXPAND THIS **************************************************/
+/*************************************************************************/
+/*************************************************************************/
+/*************************************************************************/
+
+// Upgrade representing buying one of a building type
+function BuildingUpgrade(index) {
+	this.index = index;
+	this.upgradeEval = function(eval) {
+		eval.buildings[this.index].quantity += 1;
+	}
+}
+
+/*************************************************************************/
+/*************************************************************************/
+/*************************************************************************/
+/*************************************************************************/
+/*************************************************************************/
+/*************************************************************************/
+/*************************************************************************/
+
+// Upgrades that increase the base Cps of a building by a certain amount
 function BuildingBaseCpsUpgrade(index, amount) {
 	this.index = index;
 	this.amount = amount;
@@ -367,14 +383,6 @@ function UpgradeInfo() {
 	this.ANTIMATTER_CONDENSER_INDEX = 9;
 	this.PRISM_INDEX = 10;
 
-//	this.buildingMultipliers = new Array(Game.ObjectsById.length);
-
-	// Base CPS upgrades are those that adjust the base CPS of a building
-//	this.baseCpsUpgrades = new Array();
-//	this.baseCpsUpgrades.push([this.GRANDMA_INDEX, 0.3, "Forwards from grandma"]);
-//	this.baseCpsUpgrades.push([this.FARM_INDEX, 1.0, ]);
-//	this.baseCpsUpgrades.push([this.FACTORY_INDEX, 4.0, "Sturdier conveyor belts"]);
-
 	// Create the array of known Upgrade functions
 	this.upgradeFunctions = {};
 
@@ -420,15 +428,18 @@ function UpgradeInfo() {
 	this.upgradeFunctions["Wormholes"] =
 	this.upgradeFunctions["Frequent flyer"] =
 	this.upgradeFunctions["Warp drive"] =
-	this.upgradeFunctions["Chocolate monoliths"] = new BuildingMultiplierUpgrade(this.SHIPMENT_INDEX, 2);
+	this.upgradeFunctions["Chocolate monoliths"] =
+	this.upgradeFunctions["Generation ship"] = new BuildingMultiplierUpgrade(this.SHIPMENT_INDEX, 2);
 	this.upgradeFunctions["Essence of dough"] =
 	this.upgradeFunctions["True chocolate"] =
 	this.upgradeFunctions["Ambrosia"] =
-	this.upgradeFunctions["Aqua crustulae"] = new BuildingMultiplierUpgrade(this.ALCHEMY_LAB_INDEX, 2);
+	this.upgradeFunctions["Aqua crustulae"] =
+	this.upgradeFunctions["Origin crucible"] = new BuildingMultiplierUpgrade(this.ALCHEMY_LAB_INDEX, 2);
 	this.upgradeFunctions["Insane oatling workers"] =
 	this.upgradeFunctions["Soul bond"] =
 	this.upgradeFunctions["Sanity dance"] =
-	this.upgradeFunctions["Brane transplant"] = new BuildingMultiplierUpgrade(this.PORTAL_INDEX, 2);
+	this.upgradeFunctions["Brane transplant"] =
+	this.upgradeFunctions["Deity-sized portals"] = new BuildingMultiplierUpgrade(this.PORTAL_INDEX, 2);
 	this.upgradeFunctions["Time paradox resolver"] =
 	this.upgradeFunctions["Quantum conundrum"] =
 	this.upgradeFunctions["Causality enforcer"] =
@@ -452,16 +463,16 @@ function UpgradeInfo() {
 	this.upgradeFunctions["Macadamia nut cookies"] = new ProductionUpgrade(5);
 	this.upgradeFunctions["White chocolate macadamia nut cookies"] =
 	this.upgradeFunctions["Double-chip cookies"] =
-	this.upgradeFunctions["All chocolate cookies"] = new ProductionUpgrade(10);
+	this.upgradeFunctions["All-chocolate cookies"] = new ProductionUpgrade(10);
 	this.upgradeFunctions["White chocolate-coated cookies"] =
 	this.upgradeFunctions["Dark chocolate-coated cookies"] =
 	this.upgradeFunctions["Eclipse cookies"] =
 	this.upgradeFunctions["Zebra cookies"] =
 	this.upgradeFunctions["Snickerdoodles"] =
-	this.upgradeFunctions["Stroopwafles"] =
+	this.upgradeFunctions["Stroopwafels"] =
 	this.upgradeFunctions["Macaroons"] = new ProductionUpgrade(15);
 	this.upgradeFunctions["Palets"] =
-	this.upgradeFunctions["Sablés"] =
+	this.upgradeFunctions["Sabl&eacute;s"] =
 	this.upgradeFunctions["Madeleines"] =
 	this.upgradeFunctions["Palmiers"] = new ProductionUpgrade(20);
 	this.upgradeFunctions["Shortfoils"] =
@@ -561,7 +572,21 @@ PurchasableUpgrade.prototype.getCpsGain = function() {
 	return e.getEffectiveCps() - ecps;
 }
 
+//
+// Utility stuff and starting the app off
+//
+
+// Compare floats with an epsilon value
+function floatEqual(a, b) {
+	var eps = Math.abs(a - b) * 100000000.0;
+	return eps <= Math.abs(a) && eps <= Math.abs(b);
+}
+
+// Autobuy call back, should be part of the UltimateCookie class
+// but not that important at present
+function AutoBuy() { ultimateCookie.autoBuy(); }
+
+// Create the upgradeInfo and Ultimate Cookie instances
 var upgradeInfo = new UpgradeInfo();
 var ultimateCookie = new UltimateCookie();
 
-function AutoBuy() { ultimateCookie.autoBuy(); }
