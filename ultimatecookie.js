@@ -8,7 +8,7 @@
 
 function UltimateCookie() {
 	this.AUTO_CLICK_DELAY = 1;
-	this.AUTO_BUY_DELAY = 50;
+	this.AUTO_BUY_DELAY = 1000;
 	this.DEBUG_VERIFY = true;
 
 	this.enable();
@@ -68,8 +68,7 @@ UltimateCookie.prototype.determineNextPurchase = function() {
 		if (this.DEBUG_VERIFY) {
 			var e = new Evaluator();
 			e.syncToGame();
-			if (e.getCps() != Game.cookiesPs) {
-				console.log("Evaluator Error - Predicted Cps: " + e.getCps() + ", Actual Cps: " + Game.cookiesPs);
+			if (!e.matchesGame()) {
 				ultimateCookie.disable();
 			}
 		}
@@ -96,20 +95,29 @@ UltimateCookie.prototype.clickRate = function() {
 	return 250;
 }
 
+//
+// Class used to represent a particular building type for the cost Evaluator
+//
+
 function EvaluatorBuilding(baseCost, baseCps, name) {
 	this.baseCost = baseCost;
 	this.baseCps = baseCps;
 	this.name = name;
 	this.quantity = 0;
+	this.multiplier = 1;
 }
 
 EvaluatorBuilding.prototype.getCps = function() {
-	return this.quantity * this.baseCps;
+	return this.quantity * this.baseCps * this.multiplier;
 }
 
 EvaluatorBuilding.prototype.getCost = function() {
-	return this.baseCost * Math.pow(1.15, this.quantity);
+	return Math.ceil(this.baseCost * Math.pow(1.15, this.quantity));
 }
+
+//
+// Cost Evaluator, used to determine upgrade paths
+//
 
 function Evaluator() {
 	this.buildings = new Array();
@@ -124,6 +132,41 @@ function Evaluator() {
 	this.buildings.push(new EvaluatorBuilding(  123456789,    98765.0, "Time Machine"));
 	this.buildings.push(new EvaluatorBuilding( 3999999999,   999999.0, "Antimatter condenser"));
 	this.buildings.push(new EvaluatorBuilding(75000000000, 10000000.0, "Prism"));
+
+	this.cpcBase = 1;
+	this.cpcMultiplier = 1;
+}
+
+Evaluator.prototype.getCpc = function() {
+	return this.cpcBase * this.cpcMultiplier;
+}
+
+//
+// Check that the values in the evaluator match those of the game, for debugging use
+//
+Evaluator.prototype.matchesGame = function() {
+	// Check that Cps matches the game
+	if (this.getCps() != Game.cookiesPs) {
+		console.log("Evaluator Error - Predicted Cps: " + this.getCps() + ", Actual Cps: " + Game.cookiesPs);
+		return false;
+	}
+	// Check the Cpc matches the game
+	if (this.getCpc() != Game.mouseCps()) {
+		console.log("Evaluator Error - Predicted Cpc: " + this.getCpc() + ", Actual Cpc: " + Game.mouseCps());
+		ultimateCookie.disable();
+		return false;
+	}
+	// Check the building costs match the game
+	var i;
+	for (i = 0; i < this.buildings.length; ++i) {
+		if (this.buildings[i].getCost() != Game.ObjectsById[i].getPrice()) {
+			console.log("Evaluator Error - Predicted Building Cost: " + this.buildings[i].getCost() + ", Actual Cost: " + Game.ObjectsById[i].getPrice());
+			ultimateCookie.disable();
+			return false;
+		}
+	}
+	// Default all is fine
+	return true;
 }
 
 //
@@ -139,12 +182,24 @@ Evaluator.prototype.getCps = function() {
 }
 
 //
+// Calculate the effective Cps at the current games click rate
+//
+Evaluator.prototype.getEffectiveCps = function() {
+	return this.getCps() + this.getCpc() * ultimateCookie.clickRate();
+}
+
+//
 // Sync an evaluator with the current in game store
 //
 Evaluator.prototype.syncToGame = function() {
 	var i;
 	for (i = 0; i < Game.ObjectsById.length && i < this.buildings.length; ++i) {
 		this.buildings[i].quantity = Game.ObjectsById[i].amount;
+	}
+	for (i = 0; i < Game.UpgradesById.length; ++i) {
+		if (Game.UpgradesById[i].bought == 1) {
+			upgradeInfo.getUpgradeFunction(Game.UpgradesById[i]).upgradeEval(this);
+		}
 	}
 }
 
@@ -176,48 +231,52 @@ PurchasableBuilding.prototype.purchase = function() {
 // Class to represent upgrades for cost and buy order evaluation
 //
 
-function BaseCpsUpgrade(index, base, amount) {
+function BuildingBaseCpsUpgrade(index, amount) {
 	this.index = index;
-	this.base = base;
 	this.amount = amount;
-	this.getCps = function() {
-		return Game.ObjectsById[this.index].storedTotalCps * this.amount / this.base;
+	this.upgradeEval = function(eval) {
+		eval.buildings[this.index].baseCps += this.amount;
 	}
 }
 
 // Upgrades that double the CPS of a building type
-function DoublerUpgrade(index) {
+function BuildingDoublerUpgrade(index) {
 	this.index = index;
-	this.getCps = function() {
-		return Game.ObjectsById[this.index].storedTotalCps;
+	this.upgradeEval = function(eval) {
+		eval.buildings[this.index].multiplier *= 2;
 	}
 }
 
 // Upgrades that double the CPS of clicking
 function ClickDoublerUpgrade() {
-	this.getCps = function() {
-		return Game.mouseCps() * ultimateCookie.clickRate();
+	this.upgradeEval = function(eval) {
+		eval.cpcMultiplier = eval.cpcMultiplier * 2;
+	}
+}
+
+// Upgrades that base CPC of clicking
+function ClickBaseUpgrade(amount) {
+	this.amount = amount;
+	this.upgradeEval = function(eval) {
+		eval.cpcBase += this.amount;
 	}
 }
 
 // Upgrades that combine the effects of two or more other upgrade types
 function ComboUpgrade(upgrades) {
 	this.upgrades = upgrades;
-	this.getCps = function() {
+	this.upgradeEval = function(eval) {
 		var i;
-		var cps = 0;
 		for (i = 0; i < this.upgrades.length; ++i) {
-			cps = cps + this.upgrades[i].getCps();
+			this.upgrades[i].upgradeEval(eval);
 		}
-		return cps;
 	}
 }
 
 // Unhandled upgrade type, set to 0 cps so basically never bought automatically
 function UnknownUpgrade(name) {
 	console.log("Unknown Upgrade: " + name);
-	this.getCps = function() {
-		return 0;
+	this.upgradeEval = function(eval) {
 	}
 }
 
@@ -228,7 +287,7 @@ function UpgradeInfo() {
 	this.FARM_INDEX = 2;
 	this.FACTORY_INDEX = 3;
 
-	this.buildingMultipliers = new Array(Game.ObjectsById.length);
+//	this.buildingMultipliers = new Array(Game.ObjectsById.length);
 
 	// Base CPS upgrades are those that adjust the base CPS of a building
 //	this.baseCpsUpgrades = new Array();
@@ -239,45 +298,34 @@ function UpgradeInfo() {
 	// Create the array of known Upgrade functions
 	this.upgradeFunctions = {};
 
-	// Base CpS upgrades increase the base cps of a building
-	this.upgradeFunctions["Cheap hoes"] = new BaseCpsUpgrade(this.FARM_INDEX, 4, 1);
+//	// Base CpS upgrades increase the base cps of a building
+//	this.upgradeFunctions["Cheap hoes"] = new BaseCpsUpgrade(this.FARM_INDEX, 4, 1);
 
 	// Doubler Upgrades are those that double the productivity of a type of building
-	this.upgradeFunctions["Steel-plated rolling pins"] = new DoublerUpgrade(this.GRANDMA_INDEX);
-	this.upgradeFunctions["Lubricated dentures"] = new DoublerUpgrade(this.GRANDMA_INDEX);
-	this.upgradeFunctions["Fertilizer"] = new DoublerUpgrade(this.FARM_INDEX);
+//	this.upgradeFunctions["Steel-plated rolling pins"] = new DoublerUpgrade(this.GRANDMA_INDEX);
+//	this.upgradeFunctions["Lubricated dentures"] = new DoublerUpgrade(this.GRANDMA_INDEX);
+//	this.upgradeFunctions["Fertilizer"] = new DoublerUpgrade(this.FARM_INDEX);
 
 	// Combo upgrades, combine a couple of effects
-//	this.upgradeFunctions["Reinforced Index Finger"] = new ComboUpgrade([
-//		new BaseUpgrade(this.CURSOR_INDEX, 0.4, 0.1),
-//		new ClickBaseUpgrade(1)
-//	]);
+	this.upgradeFunctions["Reinforced index finger"] = new ComboUpgrade([
+		new BuildingBaseCpsUpgrade(this.CURSOR_INDEX, 0.1),
+		new ClickBaseUpgrade(1)
+	]);
 	this.upgradeFunctions["Carpal tunnel prevention cream"] = new ComboUpgrade([
-		new DoublerUpgrade(this.CURSOR_INDEX),
+		new BuildingDoublerUpgrade(this.CURSOR_INDEX),
 		new ClickDoublerUpgrade()
 	]);
-	this.upgradeFunctions["Ambidextrous"] = new ComboUpgrade([
-		new DoublerUpgrade(this.CURSOR_INDEX),
-		new ClickDoublerUpgrade()
-	]);
+//	this.upgradeFunctions["Ambidextrous"] = new ComboUpgrade([
+//		new DoublerUpgrade(this.CURSOR_INDEX),
+//		new ClickDoublerUpgrade()
+//	]);
 }
 
-UpgradeInfo.prototype.getUpgradeCpsFunction = function(upgrade) {
+UpgradeInfo.prototype.getUpgradeFunction = function(upgrade) {
 	if (this.upgradeFunctions[upgrade.name] == undefined) {
 		this.upgradeFunctions[upgrade.name] = new UnknownUpgrade(upgrade.name);
 	}
 	return this.upgradeFunctions[upgrade.name];
-}
-
-UpgradeInfo.prototype.getScale = function(buildingIndex) {
-	var s = 1;
-	var i;
-	for (i = 0; i < this.doublerUpgrades.length; ++i) {
-		if (doublerUpgrades[i][0] == buildingIndex && Game.has(doublerUpgrades[i][1])) {
-			s = s * 2;
-		}
-	}
-	return s;
 }
 
 //
@@ -286,7 +334,7 @@ UpgradeInfo.prototype.getScale = function(buildingIndex) {
 
 function PurchasableUpgrade(upgrade) {
 	this.upgrade = upgrade;
-	this.upgradeFunction = upgradeInfo.getUpgradeCpsFunction(upgrade);
+	this.upgradeFunction = upgradeInfo.getUpgradeFunction(upgrade);
 }
 
 PurchasableUpgrade.prototype.toString = function() {
@@ -302,7 +350,15 @@ PurchasableUpgrade.prototype.purchase = function() {
 }
 
 PurchasableUpgrade.prototype.getCps = function() {
-	return this.upgradeFunction.getCps();
+	var e = new Evaluator();
+	e.syncToGame();
+	var ecps = e.getEffectiveCps();
+	this.upgradeFunction.upgradeEval(e);
+
+	if (!this.upgradeFunction instanceof UnknownUpgrade) {
+		console.log("Upgrade: " + this.upgrade.name + ", cps: " + (e.getEffectiveCps() - ecps));
+	}
+	return e.getEffectiveCps() - ecps;
 }
 
 var upgradeInfo = new UpgradeInfo();
