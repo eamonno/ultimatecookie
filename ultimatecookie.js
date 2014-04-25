@@ -440,15 +440,18 @@ function UpgradeInfo() {
 	this.upgradeFunctions["Fertilizer"] =
 	this.upgradeFunctions["Cookie trees"] =
 	this.upgradeFunctions["Genetically-modified cookies"] =
-	this.upgradeFunctions["Gingerbread scarecrows"] = new BuildingMultiplierUpgrade(this.FARM_INDEX, 2);
+	this.upgradeFunctions["Gingerbread scarecrows"] =
+	this.upgradeFunctions["Pulsar sprinklers"] = new BuildingMultiplierUpgrade(this.FARM_INDEX, 2);
 	this.upgradeFunctions["Child labor"] =
 	this.upgradeFunctions["Sweatshop"] =
 	this.upgradeFunctions["Radium reactors"] =
-	this.upgradeFunctions["Recombobulators"] = new BuildingMultiplierUpgrade(this.FACTORY_INDEX, 2);
+	this.upgradeFunctions["Recombobulators"] =
+	this.upgradeFunctions["Deep-bake process"] = new BuildingMultiplierUpgrade(this.FACTORY_INDEX, 2);
 	this.upgradeFunctions["Megadrill"] =
 	this.upgradeFunctions["Ultradrill"] =
 	this.upgradeFunctions["Ultimadrill"] =
-	this.upgradeFunctions["H-bomb mining"] = new BuildingMultiplierUpgrade(this.MINE_INDEX, 2);
+	this.upgradeFunctions["H-bomb mining"] =
+	this.upgradeFunctions["Coreforge"] = new BuildingMultiplierUpgrade(this.MINE_INDEX, 2);
 	this.upgradeFunctions["Wormholes"] =
 	this.upgradeFunctions["Frequent flyer"] =
 	this.upgradeFunctions["Warp drive"] =
@@ -518,6 +521,7 @@ function UpgradeInfo() {
 
 	// Research upgrade functions
 	this.upgradeFunctions["Bingo center/Research facility"] = new BuildingMultiplierUpgrade(this.GRANDMA_INDEX, 4);
+	this.upgradeFunctions["Specialized chocolate chips"] = new ProductionUpgrade(1);
 
 	// Combo upgrades, combine a couple of effects
 	this.upgradeFunctions["Reinforced index finger"] = new ComboUpgrade([
