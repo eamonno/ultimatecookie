@@ -8,10 +8,18 @@
 
 function UltimateCookie() {
 	this.AUTO_CLICK_DELAY = 1;
-	this.AUTO_BUY_DELAY = 1000;
+	this.AUTO_BUY_DELAY = 50;
 	this.DEBUG_VERIFY = true;
 
 	this.enable();
+}
+
+//
+// Compare floats, considered equal if they are within 0.0000001% of each other.
+//
+function floatEqual(a, b) {
+	var eps = Math.abs(a - b) * 100000000.0;
+	return eps <= Math.abs(a) && eps <= Math.abs(b);
 }
 
 UltimateCookie.prototype.enable = function() {
@@ -120,6 +128,7 @@ EvaluatorBuilding.prototype.getCost = function() {
 //
 
 function Evaluator() {
+	// Buildings
 	this.buildings = new Array();
 	this.buildings.push(new EvaluatorBuilding(         15,        0.1, "Cursor"));
 	this.buildings.push(new EvaluatorBuilding(        100,        0.5, "Grandma"));
@@ -128,17 +137,23 @@ function Evaluator() {
 	this.buildings.push(new EvaluatorBuilding(      10000,       40.0, "Mine"));
 	this.buildings.push(new EvaluatorBuilding(      40000,      100.0, "Shipment"));
 	this.buildings.push(new EvaluatorBuilding(     200000,      400.0, "Alchemy lab"));
-	this.buildings.push(new EvaluatorBuilding(    1666666,      666.0, "Portal"));
+	this.buildings.push(new EvaluatorBuilding(    1666666,     6666.0, "Portal"));
 	this.buildings.push(new EvaluatorBuilding(  123456789,    98765.0, "Time Machine"));
 	this.buildings.push(new EvaluatorBuilding( 3999999999,   999999.0, "Antimatter condenser"));
 	this.buildings.push(new EvaluatorBuilding(75000000000, 10000000.0, "Prism"));
 
+	// Mouse click information
 	this.cpcBase = 1;
 	this.cpcMultiplier = 1;
+	this.cpcCpsMultiplier = 0;
+
+	// Heavenly chips
+	this.heavenlyChips = 0;
+	this.heavenlyUnlock = 0;
 }
 
 Evaluator.prototype.getCpc = function() {
-	return this.cpcBase * this.cpcMultiplier;
+	return this.cpcBase * this.cpcMultiplier + this.getCps() * this.cpcCpsMultiplier;
 }
 
 //
@@ -146,12 +161,12 @@ Evaluator.prototype.getCpc = function() {
 //
 Evaluator.prototype.matchesGame = function() {
 	// Check that Cps matches the game
-	if (this.getCps() != Game.cookiesPs) {
+	if (!floatEqual(this.getCps(), Game.cookiesPs)) {
 		console.log("Evaluator Error - Predicted Cps: " + this.getCps() + ", Actual Cps: " + Game.cookiesPs);
 		return false;
 	}
 	// Check the Cpc matches the game
-	if (this.getCpc() != Game.mouseCps()) {
+	if (!floatEqual(this.getCpc(), Game.mouseCps())) {
 		console.log("Evaluator Error - Predicted Cpc: " + this.getCpc() + ", Actual Cpc: " + Game.mouseCps());
 		ultimateCookie.disable();
 		return false;
@@ -159,7 +174,7 @@ Evaluator.prototype.matchesGame = function() {
 	// Check the building costs match the game
 	var i;
 	for (i = 0; i < this.buildings.length; ++i) {
-		if (this.buildings[i].getCost() != Game.ObjectsById[i].getPrice()) {
+		if (!floatEqual(this.buildings[i].getCost(), Game.ObjectsById[i].getPrice())) {
 			console.log("Evaluator Error - Predicted Building Cost: " + this.buildings[i].getCost() + ", Actual Cost: " + Game.ObjectsById[i].getPrice());
 			ultimateCookie.disable();
 			return false;
@@ -178,7 +193,7 @@ Evaluator.prototype.getCps = function() {
 	for (i = 0; i < this.buildings.length; ++i) {
 		cps += this.buildings[i].getCps();
 	}
-	return cps;
+	return cps + cps * this.heavenlyChips * this.heavenlyUnlock * 0.02 ;
 }
 
 //
@@ -201,6 +216,7 @@ Evaluator.prototype.syncToGame = function() {
 			upgradeInfo.getUpgradeFunction(Game.UpgradesById[i]).upgradeEval(this);
 		}
 	}
+	this.heavenlyChips = Game.prestige['Heavenly chips'];
 }
 
 //
@@ -262,6 +278,22 @@ function ClickBaseUpgrade(amount) {
 	}
 }
 
+// Upgrades that base CPC of clicking
+function ClickCpsUpgrade(amount) {
+	this.amount = amount;
+	this.upgradeEval = function(eval) {
+		eval.cpcCpsMultiplier += this.amount;
+	}
+}
+
+// Upgrades that unlock heavenly chip potential
+function HeavenlyUnlockUpgrade(amount) {
+	this.amount = amount;
+	this.upgradeEval = function(eval) {
+		eval.heavenlyUnlock += this.amount;
+	}
+}
+
 // Upgrades that combine the effects of two or more other upgrade types
 function ComboUpgrade(upgrades) {
 	this.upgrades = upgrades;
@@ -286,6 +318,13 @@ function UpgradeInfo() {
 	this.GRANDMA_INDEX = 1;
 	this.FARM_INDEX = 2;
 	this.FACTORY_INDEX = 3;
+	this.MINE_INDEX = 4;
+	this.SHIPMENT_INDEX = 5;
+	this.ALCHEMY_LAB_INDEX = 6;
+	this.PORTAL_INDEX = 7;
+	this.TIME_MACHINE_INDEX = 8;
+	this.ANTIMATTER_CONDENSER_INDEX = 9;
+	this.PRISM_INDEX = 10;
 
 //	this.buildingMultipliers = new Array(Game.ObjectsById.length);
 
@@ -298,27 +337,98 @@ function UpgradeInfo() {
 	// Create the array of known Upgrade functions
 	this.upgradeFunctions = {};
 
-//	// Base CpS upgrades increase the base cps of a building
-//	this.upgradeFunctions["Cheap hoes"] = new BaseCpsUpgrade(this.FARM_INDEX, 4, 1);
+	// Base CpS upgrades increase the base cps of a building
+	this.upgradeFunctions["Forwards from grandma"] = new BuildingBaseCpsUpgrade(this.GRANDMA_INDEX, 0.3);
+	this.upgradeFunctions["Cheap hoes"] = new BuildingBaseCpsUpgrade(this.FARM_INDEX, 1);
+	this.upgradeFunctions["Sturdier conveyor belts"] = new BuildingBaseCpsUpgrade(this.FACTORY_INDEX, 4);
+	this.upgradeFunctions["Sugar gas"] = new BuildingBaseCpsUpgrade(this.MINE_INDEX, 10);
+	this.upgradeFunctions["Vanilla nebulae"] = new BuildingBaseCpsUpgrade(this.SHIPMENT_INDEX, 30);
+	this.upgradeFunctions["Antimony"] = new BuildingBaseCpsUpgrade(this.ALCHEMY_LAB_INDEX, 100);
+	this.upgradeFunctions["Ancient tablet"] = new BuildingBaseCpsUpgrade(this.PORTAL_INDEX, 1666);
+	this.upgradeFunctions["Flux capacitors"] = new BuildingBaseCpsUpgrade(this.TIME_MACHINE_INDEX, 9876);
+	this.upgradeFunctions["Sugar bosons"] = new BuildingBaseCpsUpgrade(this.ANTIMATTER_CONDENSER_INDEX, 99999);
+	this.upgradeFunctions["Gem polish"] = new BuildingBaseCpsUpgrade(this.PRISM_INDEX, 1000000);
 
 	// Doubler Upgrades are those that double the productivity of a type of building
-//	this.upgradeFunctions["Steel-plated rolling pins"] = new DoublerUpgrade(this.GRANDMA_INDEX);
-//	this.upgradeFunctions["Lubricated dentures"] = new DoublerUpgrade(this.GRANDMA_INDEX);
-//	this.upgradeFunctions["Fertilizer"] = new DoublerUpgrade(this.FARM_INDEX);
+	this.upgradeFunctions["Steel-plated rolling pins"] =
+	this.upgradeFunctions["Lubricated dentures"] =
+	this.upgradeFunctions["Farmer grandmas"] =
+	this.upgradeFunctions["Worker grandmas"] =
+	this.upgradeFunctions["Miner grandmas"] =
+	this.upgradeFunctions["Cosmic grandmas"] =
+	this.upgradeFunctions["Prune juice"] =
+	this.upgradeFunctions["Transmuted grandmas"] =
+	this.upgradeFunctions["Double-thick glasses"] =
+	this.upgradeFunctions["Altered grandmas"] =
+	this.upgradeFunctions["Grandmas' grandmas"] =
+	this.upgradeFunctions["Antigrandmas"] =
+	this.upgradeFunctions["Rainbow grandmas"] =
+	this.upgradeFunctions["Aging agents"] = new BuildingDoublerUpgrade(this.GRANDMA_INDEX);
+	this.upgradeFunctions["Fertilizer"] =
+	this.upgradeFunctions["Cookie trees"] =
+	this.upgradeFunctions["Genetically-modified cookies"] =
+	this.upgradeFunctions["Gingerbread scarecrows"] = new BuildingDoublerUpgrade(this.FARM_INDEX);
+	this.upgradeFunctions["Child labor"] =
+	this.upgradeFunctions["Sweatshop"] =
+	this.upgradeFunctions["Radium reactors"] =
+	this.upgradeFunctions["Recombobulators"] = new BuildingDoublerUpgrade(this.FACTORY_INDEX);
+	this.upgradeFunctions["Megadrill"] =
+	this.upgradeFunctions["Ultradrill"] =
+	this.upgradeFunctions["Ultimadrill"] =
+	this.upgradeFunctions["H-bomb mining"] = new BuildingDoublerUpgrade(this.MINE_INDEX);
+	this.upgradeFunctions["Wormholes"] =
+	this.upgradeFunctions["Frequent flyer"] =
+	this.upgradeFunctions["Warp drive"] =
+	this.upgradeFunctions["Chocolate monoliths"] = new BuildingDoublerUpgrade(this.SHIPMENT_INDEX);
+	this.upgradeFunctions["Essence of dough"] =
+	this.upgradeFunctions["True chocolate"] =
+	this.upgradeFunctions["Ambrosia"] =
+	this.upgradeFunctions["Aqua crustulae"] = new BuildingDoublerUpgrade(this.ALCHEMY_LAB_INDEX);
+	this.upgradeFunctions["Insane oatling workers"] =
+	this.upgradeFunctions["Soul bond"] =
+	this.upgradeFunctions["Sanity dance"] =
+	this.upgradeFunctions["Brane transplant"] = new BuildingDoublerUpgrade(this.PORTAL_INDEX);
+	this.upgradeFunctions["Time paradox resolver"] =
+	this.upgradeFunctions["Quantum conundrum"] =
+	this.upgradeFunctions["Causality enforcer"] =
+	this.upgradeFunctions["Yestermorrow comparators"] = new BuildingDoublerUpgrade(this.TIME_MACHINE_INDEX);
+	this.upgradeFunctions["String theory"] =
+	this.upgradeFunctions["Large macaron collider"] =
+	this.upgradeFunctions["Big bang bake"] =
+	this.upgradeFunctions["Reverse cyclotrons"] = new BuildingDoublerUpgrade(this.ANTIMATTER_CONDENSER_INDEX);
+	this.upgradeFunctions["9th color"] =
+	this.upgradeFunctions["Chocolate light"] =
+	this.upgradeFunctions["Grainbow"] =
+	this.upgradeFunctions["Pure cosmic light"] = new BuildingDoublerUpgrade(this.PRISM_INDEX);
 
 	// Combo upgrades, combine a couple of effects
 	this.upgradeFunctions["Reinforced index finger"] = new ComboUpgrade([
 		new BuildingBaseCpsUpgrade(this.CURSOR_INDEX, 0.1),
 		new ClickBaseUpgrade(1)
 	]);
-	this.upgradeFunctions["Carpal tunnel prevention cream"] = new ComboUpgrade([
+
+	// Mouse and Cursor Doublers
+	this.upgradeFunctions["Carpal tunnel prevention cream"] =
+	this.upgradeFunctions["Ambidextrous"] = new ComboUpgrade([
 		new BuildingDoublerUpgrade(this.CURSOR_INDEX),
 		new ClickDoublerUpgrade()
 	]);
-//	this.upgradeFunctions["Ambidextrous"] = new ComboUpgrade([
-//		new DoublerUpgrade(this.CURSOR_INDEX),
-//		new ClickDoublerUpgrade()
-//	]);
+
+	// Clicking gains a percent of CpS
+	this.upgradeFunctions["Plastic mouse"] =
+	this.upgradeFunctions["Iron mouse"] =
+	this.upgradeFunctions["Titanium mouse"] =
+	this.upgradeFunctions["Adamantium mouse"] =
+	this.upgradeFunctions["Unobtainium mouse"] =
+	this.upgradeFunctions["Eludium mouse"] =
+	this.upgradeFunctions["Wishalloy mouse"] = new ClickCpsUpgrade(0.01);
+
+	// Heavenly chip unlocks
+	this.upgradeFunctions["Heavenly chip secret"] = new HeavenlyUnlockUpgrade(0.05);
+	this.upgradeFunctions["Heavenly cookie stand"] = new HeavenlyUnlockUpgrade(0.20);
+	this.upgradeFunctions["Heavenly bakery"] =
+	this.upgradeFunctions["Heavenly confectionery"] =
+	this.upgradeFunctions["Heavenly key"] = new HeavenlyUnlockUpgrade(0.25);
 }
 
 UpgradeInfo.prototype.getUpgradeFunction = function(upgrade) {
@@ -355,9 +465,9 @@ PurchasableUpgrade.prototype.getCps = function() {
 	var ecps = e.getEffectiveCps();
 	this.upgradeFunction.upgradeEval(e);
 
-	if (!this.upgradeFunction instanceof UnknownUpgrade) {
-		console.log("Upgrade: " + this.upgrade.name + ", cps: " + (e.getEffectiveCps() - ecps));
-	}
+//	if ((this.upgradeFunction instanceof UnknownUpgrade) == false) {
+//		console.log("Upgrade: " + this.upgrade.name + ", cps: " + (e.getEffectiveCps() - ecps));
+//	}
 	return e.getEffectiveCps() - ecps;
 }
 
