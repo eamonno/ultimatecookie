@@ -33,7 +33,7 @@ UltimateCookie.prototype.disable = function() {
 }
 
 UltimateCookie.prototype.timeToBuy = function(cps, a, b) {
-	return a.getCost() / cps + b.getCost() / (cps + a.getCps());
+	return Math.max(a.getCost() / cps + b.getCost() / (cps + a.getCpsGain()), this.AUTO_BUY_DELAY * 0.001);
 }
 
 UltimateCookie.prototype.createPurchaseList = function() {
@@ -42,7 +42,7 @@ UltimateCookie.prototype.createPurchaseList = function() {
 	// Add the buildings
 	var i;
 	for (i = 0; i < Game.ObjectsById.length; ++i) {
-		purchases.push(new PurchasableBuilding(Game.ObjectsById[i]));
+		purchases.push(new PurchasableBuilding(i));
 	}
 
 	// Add the upgrades
@@ -61,7 +61,9 @@ UltimateCookie.prototype.determineNextPurchase = function() {
 
 	var i;
 	for (i = 1; i < purchases.length; ++i) {
-		if (this.timeToBuy(cps, next, purchases[i]) > this.timeToBuy(cps, purchases[i], next)) {
+		var tba = this.timeToBuy(cps, next, purchases[i]);
+		var tbb = this.timeToBuy(cps, purchases[i], next);
+		if (tba > tbb || (tba == tbb && next.getCpsGain() < purchases[i].getCpsGain())) {
 			next = purchases[i];
 		}
 	}
@@ -147,9 +149,16 @@ function Evaluator() {
 	this.cpcMultiplier = 1;
 	this.cpcCpsMultiplier = 0;
 
+	// Production multiplier
+	this.productionMultiplier = 0;
+
 	// Heavenly chips
 	this.heavenlyChips = 0;
 	this.heavenlyUnlock = 0;
+
+	// Milk scaling
+	this.milkAmount = 0;
+	this.milkMultipliers = new Array();
 }
 
 Evaluator.prototype.getCpc = function() {
@@ -193,7 +202,13 @@ Evaluator.prototype.getCps = function() {
 	for (i = 0; i < this.buildings.length; ++i) {
 		cps += this.buildings[i].getCps();
 	}
-	return cps + cps * this.heavenlyChips * this.heavenlyUnlock * 0.02 ;
+	var productionScale = this.productionMultiplier * 0.01;
+	var heavenlyScale = this.heavenlyChips * this.heavenlyUnlock * 0.02;
+	var milkScale = 1;
+	for (i = 0; i < this.milkMultipliers.length; ++i) {
+		milkScale *= (1 + this.milkMultipliers[i] * this.milkAmount * 0.01);
+	}
+	return cps * (1 + productionScale + heavenlyScale) * milkScale;
 }
 
 //
@@ -217,30 +232,38 @@ Evaluator.prototype.syncToGame = function() {
 		}
 	}
 	this.heavenlyChips = Game.prestige['Heavenly chips'];
+	this.milkAmount = Game.AchievementsOwned * 4;
 }
 
 //
 // Class to represent buildings for cost and buy order evaluation
 //
 
-function PurchasableBuilding(building) {
-	this.building = building;
+function PurchasableBuilding(index) {
+	this.index = index;
 }
 
 PurchasableBuilding.prototype.toString = function() {
-	return "Building: " + this.building.displayName + " " + (this.building.amount + 1);
+	return "Building: " + Game.ObjectsById[this.index].displayName + " " + (Game.ObjectsById[this.index].amount + 1);
 }
 
 PurchasableBuilding.prototype.getCost = function() {
-	return this.building.getPrice();
+	return Game.ObjectsById[this.index].getPrice();
 }
 
-PurchasableBuilding.prototype.getCps = function() {
-	return this.building.cps();
+PurchasableBuilding.prototype.getCpsGain = function() {
+	var e = new Evaluator();
+	e.syncToGame();
+	var ecps = e.getEffectiveCps();
+	e.buildings[this.index].quantity += 1;
+//	if ((this.upgradeFunction instanceof UnknownUpgrade) == false) {
+//		console.log("Upgrade: " + this.upgrade.name + ", cps: " + (e.getEffectiveCps() - ecps));
+//	}
+	return e.getEffectiveCps() - ecps;
 }
 
 PurchasableBuilding.prototype.purchase = function() {
-	this.building.buy(1);
+	Game.ObjectsById[this.index].buy(1);
 }
 
 //
@@ -256,10 +279,11 @@ function BuildingBaseCpsUpgrade(index, amount) {
 }
 
 // Upgrades that double the CPS of a building type
-function BuildingDoublerUpgrade(index) {
+function BuildingMultiplierUpgrade(index, scale) {
 	this.index = index;
+	this.scale = scale;
 	this.upgradeEval = function(eval) {
-		eval.buildings[this.index].multiplier *= 2;
+		eval.buildings[this.index].multiplier *= scale;
 	}
 }
 
@@ -283,6 +307,23 @@ function ClickCpsUpgrade(amount) {
 	this.amount = amount;
 	this.upgradeEval = function(eval) {
 		eval.cpcCpsMultiplier += this.amount;
+	}
+}
+
+// Upgrades that increase cookie production
+function ProductionUpgrade(amount) {
+	this.amount = amount;
+	this.upgradeEval = function(eval) {
+		eval.productionMultiplier += this.amount;
+	}
+}
+
+// Upgrades that provide a bonus scaling from milk
+function MilkUpgrade(amount) {
+	this.amount = amount;
+	this.upgradeEval = function(eval) {
+		eval.milkMultipliers.push(this.amount);
+		eval.milkMultipliers.sort();
 	}
 }
 
@@ -363,43 +404,85 @@ function UpgradeInfo() {
 	this.upgradeFunctions["Grandmas' grandmas"] =
 	this.upgradeFunctions["Antigrandmas"] =
 	this.upgradeFunctions["Rainbow grandmas"] =
-	this.upgradeFunctions["Aging agents"] = new BuildingDoublerUpgrade(this.GRANDMA_INDEX);
+	this.upgradeFunctions["Aging agents"] = new BuildingMultiplierUpgrade(this.GRANDMA_INDEX, 2);
 	this.upgradeFunctions["Fertilizer"] =
 	this.upgradeFunctions["Cookie trees"] =
 	this.upgradeFunctions["Genetically-modified cookies"] =
-	this.upgradeFunctions["Gingerbread scarecrows"] = new BuildingDoublerUpgrade(this.FARM_INDEX);
+	this.upgradeFunctions["Gingerbread scarecrows"] = new BuildingMultiplierUpgrade(this.FARM_INDEX, 2);
 	this.upgradeFunctions["Child labor"] =
 	this.upgradeFunctions["Sweatshop"] =
 	this.upgradeFunctions["Radium reactors"] =
-	this.upgradeFunctions["Recombobulators"] = new BuildingDoublerUpgrade(this.FACTORY_INDEX);
+	this.upgradeFunctions["Recombobulators"] = new BuildingMultiplierUpgrade(this.FACTORY_INDEX, 2);
 	this.upgradeFunctions["Megadrill"] =
 	this.upgradeFunctions["Ultradrill"] =
 	this.upgradeFunctions["Ultimadrill"] =
-	this.upgradeFunctions["H-bomb mining"] = new BuildingDoublerUpgrade(this.MINE_INDEX);
+	this.upgradeFunctions["H-bomb mining"] = new BuildingMultiplierUpgrade(this.MINE_INDEX, 2);
 	this.upgradeFunctions["Wormholes"] =
 	this.upgradeFunctions["Frequent flyer"] =
 	this.upgradeFunctions["Warp drive"] =
-	this.upgradeFunctions["Chocolate monoliths"] = new BuildingDoublerUpgrade(this.SHIPMENT_INDEX);
+	this.upgradeFunctions["Chocolate monoliths"] = new BuildingMultiplierUpgrade(this.SHIPMENT_INDEX, 2);
 	this.upgradeFunctions["Essence of dough"] =
 	this.upgradeFunctions["True chocolate"] =
 	this.upgradeFunctions["Ambrosia"] =
-	this.upgradeFunctions["Aqua crustulae"] = new BuildingDoublerUpgrade(this.ALCHEMY_LAB_INDEX);
+	this.upgradeFunctions["Aqua crustulae"] = new BuildingMultiplierUpgrade(this.ALCHEMY_LAB_INDEX, 2);
 	this.upgradeFunctions["Insane oatling workers"] =
 	this.upgradeFunctions["Soul bond"] =
 	this.upgradeFunctions["Sanity dance"] =
-	this.upgradeFunctions["Brane transplant"] = new BuildingDoublerUpgrade(this.PORTAL_INDEX);
+	this.upgradeFunctions["Brane transplant"] = new BuildingMultiplierUpgrade(this.PORTAL_INDEX, 2);
 	this.upgradeFunctions["Time paradox resolver"] =
 	this.upgradeFunctions["Quantum conundrum"] =
 	this.upgradeFunctions["Causality enforcer"] =
-	this.upgradeFunctions["Yestermorrow comparators"] = new BuildingDoublerUpgrade(this.TIME_MACHINE_INDEX);
+	this.upgradeFunctions["Yestermorrow comparators"] = new BuildingMultiplierUpgrade(this.TIME_MACHINE_INDEX, 2);
 	this.upgradeFunctions["String theory"] =
 	this.upgradeFunctions["Large macaron collider"] =
 	this.upgradeFunctions["Big bang bake"] =
-	this.upgradeFunctions["Reverse cyclotrons"] = new BuildingDoublerUpgrade(this.ANTIMATTER_CONDENSER_INDEX);
+	this.upgradeFunctions["Reverse cyclotrons"] = new BuildingMultiplierUpgrade(this.ANTIMATTER_CONDENSER_INDEX, 2);
 	this.upgradeFunctions["9th color"] =
 	this.upgradeFunctions["Chocolate light"] =
 	this.upgradeFunctions["Grainbow"] =
-	this.upgradeFunctions["Pure cosmic light"] = new BuildingDoublerUpgrade(this.PRISM_INDEX);
+	this.upgradeFunctions["Pure cosmic light"] = new BuildingMultiplierUpgrade(this.PRISM_INDEX, 2);
+
+	// Cookie production multipliers
+	this.upgradeFunctions["Sugar cookies"] =
+	this.upgradeFunctions["Peanut butter cookies"] =
+	this.upgradeFunctions["Plain cookies"] =
+	this.upgradeFunctions["Oatmeal raisin cookies"] =
+	this.upgradeFunctions["Coconut cookies"] =
+	this.upgradeFunctions["White chocolate cookies"] =
+	this.upgradeFunctions["Macadamia nut cookies"] = new ProductionUpgrade(5);
+	this.upgradeFunctions["White chocolate macadamia nut cookies"] =
+	this.upgradeFunctions["Double-chip cookies"] =
+	this.upgradeFunctions["All chocolate cookies"] = new ProductionUpgrade(10);
+	this.upgradeFunctions["White chocolate-coated cookies"] =
+	this.upgradeFunctions["Dark chocolate-coated cookies"] =
+	this.upgradeFunctions["Eclipse cookies"] =
+	this.upgradeFunctions["Zebra cookies"] =
+	this.upgradeFunctions["Snickerdoodles"] =
+	this.upgradeFunctions["Stroopwafles"] =
+	this.upgradeFunctions["Macaroons"] = new ProductionUpgrade(15);
+	this.upgradeFunctions["Palets"] =
+	this.upgradeFunctions["Sablés"] =
+	this.upgradeFunctions["Madeleines"] =
+	this.upgradeFunctions["Palmiers"] = new ProductionUpgrade(20);
+	this.upgradeFunctions["Shortfoils"] =
+	this.upgradeFunctions["Fig gluttons"] =
+	this.upgradeFunctions["Loreols"] =
+	this.upgradeFunctions["Jaffa cakes"] =
+	this.upgradeFunctions["Grease's cups"] =
+	this.upgradeFunctions["Sagalongs"] =
+	this.upgradeFunctions["Win mints"] =
+	this.upgradeFunctions["Caramoas"] =
+	this.upgradeFunctions["Gingerbread trees"] =
+	this.upgradeFunctions["Gingerbread men"] = new ProductionUpgrade(25);
+	this.upgradeFunctions["Rose macarons"] =
+	this.upgradeFunctions["Lemon macarons"] =
+	this.upgradeFunctions["Chocolate macarons"] =
+	this.upgradeFunctions["Pistachio macarons"] =
+	this.upgradeFunctions["Hazelnut macarons"] =
+	this.upgradeFunctions["Violet macarons"] = new ProductionUpgrade(30);
+
+	// Research upgrade functions
+	this.upgradeFunctions["Bingo center/Research facility"] = new BuildingMultiplierUpgrade(this.GRANDMA_INDEX, 4);
 
 	// Combo upgrades, combine a couple of effects
 	this.upgradeFunctions["Reinforced index finger"] = new ComboUpgrade([
@@ -410,7 +493,7 @@ function UpgradeInfo() {
 	// Mouse and Cursor Doublers
 	this.upgradeFunctions["Carpal tunnel prevention cream"] =
 	this.upgradeFunctions["Ambidextrous"] = new ComboUpgrade([
-		new BuildingDoublerUpgrade(this.CURSOR_INDEX),
+		new BuildingMultiplierUpgrade(this.CURSOR_INDEX, 2),
 		new ClickDoublerUpgrade()
 	]);
 
@@ -422,6 +505,13 @@ function UpgradeInfo() {
 	this.upgradeFunctions["Unobtainium mouse"] =
 	this.upgradeFunctions["Eludium mouse"] =
 	this.upgradeFunctions["Wishalloy mouse"] = new ClickCpsUpgrade(0.01);
+
+	// Milk upgrades
+	this.upgradeFunctions["Kitten helpers"] = new MilkUpgrade(0.05);
+	this.upgradeFunctions["Kitten workers"] = new MilkUpgrade(0.1);
+	this.upgradeFunctions["Kitten engineers"] =
+	this.upgradeFunctions["Kitten overseers"] =
+	this.upgradeFunctions["Kitten managers"] = new MilkUpgrade(0.2);
 
 	// Heavenly chip unlocks
 	this.upgradeFunctions["Heavenly chip secret"] = new HeavenlyUnlockUpgrade(0.05);
@@ -459,7 +549,7 @@ PurchasableUpgrade.prototype.purchase = function() {
 	this.upgrade.buy(0);
 }
 
-PurchasableUpgrade.prototype.getCps = function() {
+PurchasableUpgrade.prototype.getCpsGain = function() {
 	var e = new Evaluator();
 	e.syncToGame();
 	var ecps = e.getEffectiveCps();
