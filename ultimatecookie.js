@@ -33,19 +33,31 @@ UltimateCookie.prototype.createPurchaseList = function() {
 	// Add the buildings
 	var i;
 	for (i = 0; i < Game.ObjectsById.length; ++i) {
-		purchases.push(new PurchasableBuilding(i));
+		purchases.push(new PurchasableBuilding(Game.ObjectsById[i].id));
 	}
 
 	// Add the upgrades
 	for (i = 0; i < Game.UpgradesInStore.length; ++i) {
-		purchases.push(new PurchasableUpgrade(Game.UpgradesInStore[i]));
+		purchases.push(new PurchasableUpgrade(Game.UpgradesInStore[i].id));
 	}
 
 	return purchases;
 }
 
+// Work out what the optimal next purchase is
 UltimateCookie.prototype.determineNextPurchase = function() {
 
+/*
+	var e = new Evaluator();
+	e.syncToGame();
+	var ecps = e.getEffectiveCps();
+	this.upgradeFunction.upgradeEval(e);
+
+//	if ((this.upgradeFunction instanceof UnknownUpgrade) == false) {
+//		console.log("Upgrade: " + this.upgrade.name + ", cps: " + (e.getEffectiveCps() - ecps));
+//	}
+	return e.getEffectiveCps() - ecps;
+*/
 	var purchases = this.createPurchaseList();
 	var next = purchases[0];
 	var cps = this.effectiveCps();
@@ -108,6 +120,16 @@ function EvaluatorBuilding(baseCost, baseCps, name) {
 	this.multiplier = 1;
 }
 
+EvaluatorBuilding.prototype.clone = function() {
+	var eb = new EvaluatorBuilding();
+	eb.baseCost = this.baseCost;
+	eb.baseCps = this.baseCps;
+	eb.name = this.name;
+	eb.quantity = this.quantity;
+	eb.multiplier = this.multiplier;
+	return eb;
+}
+
 EvaluatorBuilding.prototype.getCps = function() {
 	return this.quantity * this.baseCps * this.multiplier;
 }
@@ -123,17 +145,17 @@ EvaluatorBuilding.prototype.getCost = function() {
 function Evaluator() {
 	// Buildings
 	this.buildings = new Array();
-	this.buildings.push(new EvaluatorBuilding(         15,        0.1, "Cursor"));
-	this.buildings.push(new EvaluatorBuilding(        100,        0.5, "Grandma"));
-	this.buildings.push(new EvaluatorBuilding(        500,        4.0, "Farm"));
-	this.buildings.push(new EvaluatorBuilding(       3000,       10.0, "Factory"));
-	this.buildings.push(new EvaluatorBuilding(      10000,       40.0, "Mine"));
-	this.buildings.push(new EvaluatorBuilding(      40000,      100.0, "Shipment"));
-	this.buildings.push(new EvaluatorBuilding(     200000,      400.0, "Alchemy lab"));
-	this.buildings.push(new EvaluatorBuilding(    1666666,     6666.0, "Portal"));
-	this.buildings.push(new EvaluatorBuilding(  123456789,    98765.0, "Time Machine"));
-	this.buildings.push(new EvaluatorBuilding( 3999999999,   999999.0, "Antimatter condenser"));
-	this.buildings.push(new EvaluatorBuilding(75000000000, 10000000.0, "Prism"));
+	this.buildings.push(new EvaluatorBuilding(         15,        0.1));	// Cursor
+	this.buildings.push(new EvaluatorBuilding(        100,        0.5));	// Grandma
+	this.buildings.push(new EvaluatorBuilding(        500,        4.0));	// Farm
+	this.buildings.push(new EvaluatorBuilding(       3000,       10.0));	// Factory
+	this.buildings.push(new EvaluatorBuilding(      10000,       40.0));	// Mine
+	this.buildings.push(new EvaluatorBuilding(      40000,      100.0));	// Shipment
+	this.buildings.push(new EvaluatorBuilding(     200000,      400.0));	// Alchemy lab
+	this.buildings.push(new EvaluatorBuilding(    1666666,     6666.0));	// Portal
+	this.buildings.push(new EvaluatorBuilding(  123456789,    98765.0));	// Time Machine
+	this.buildings.push(new EvaluatorBuilding( 3999999999,   999999.0));	// Antimatter condenser
+	this.buildings.push(new EvaluatorBuilding(75000000000, 10000000.0));	// Prism
 
 	// Mouse click information
 	this.cpcBase = 1;
@@ -150,6 +172,24 @@ function Evaluator() {
 	// Milk scaling
 	this.milkAmount = 0;
 	this.milkMultipliers = new Array();
+}
+
+// Create a clone of an Evaluator
+Evaluator.prototype.clone = function() {
+	Evaluator e = new Evaluator();
+	var i;
+	for (i = 0; i < this.buildings.length; ++i) {
+		e.buildings[i] = this.buildings[i].clone();
+	}
+	e.cpcBase = this.cpcBase;
+	e.cpcMultiplier = this.cpcMultiplier;
+	e.cpcCpsMultiplier = this.cpcCpsMultiplier;
+	e.productionMultiplier = this.productionMultiplier;
+	e.heavenlyChips = this.heavenlyChips;
+	e.heavenlyUnlock = this.heavenlyUnlock;
+	e.milkAmount = this.milkAmount;
+	e.milkMultipliers = this.milkMultipliers;
+	return e;
 }
 
 Evaluator.prototype.getCpc = function() {
@@ -227,47 +267,8 @@ Evaluator.prototype.syncToGame = function() {
 }
 
 //
-// Class to represent buildings for cost and buy order evaluation
+// Classes to represent upgrades purely for use in Emulator calculations
 //
-
-function PurchasableBuilding(index) {
-	this.index = index;
-}
-
-PurchasableBuilding.prototype.toString = function() {
-	return "Building: " + Game.ObjectsById[this.index].displayName + " " + (Game.ObjectsById[this.index].amount + 1);
-}
-
-PurchasableBuilding.prototype.getCost = function() {
-	return Game.ObjectsById[this.index].getPrice();
-}
-
-PurchasableBuilding.prototype.getCpsGain = function() {
-	var e = new Evaluator();
-	e.syncToGame();
-	var ecps = e.getEffectiveCps();
-	e.buildings[this.index].quantity += 1;
-//	if ((this.upgradeFunction instanceof UnknownUpgrade) == false) {
-//		console.log("Upgrade: " + this.upgrade.name + ", cps: " + (e.getEffectiveCps() - ecps));
-//	}
-	return e.getEffectiveCps() - ecps;
-}
-
-PurchasableBuilding.prototype.purchase = function() {
-	Game.ObjectsById[this.index].buy(1);
-}
-
-//
-// Class to represent upgrades for cost and buy order evaluation
-//
-
-/*************************************************************************/
-/*************************************************************************/
-/*************************************************************************/
-/********** EXPAND THIS **************************************************/
-/*************************************************************************/
-/*************************************************************************/
-/*************************************************************************/
 
 // Upgrade representing buying one of a building type
 function BuildingUpgrade(index) {
@@ -276,14 +277,6 @@ function BuildingUpgrade(index) {
 		eval.buildings[this.index].quantity += 1;
 	}
 }
-
-/*************************************************************************/
-/*************************************************************************/
-/*************************************************************************/
-/*************************************************************************/
-/*************************************************************************/
-/*************************************************************************/
-/*************************************************************************/
 
 // Upgrades that increase the base Cps of a building by a certain amount
 function BuildingBaseCpsUpgrade(index, amount) {
@@ -385,6 +378,19 @@ function UpgradeInfo() {
 
 	// Create the array of known Upgrade functions
 	this.upgradeFunctions = {};
+
+	// Building upgrade functions
+	this.upgradeFunctions["Cursor"] = new BuildingUpgrade(this.CURSOR_INDEX);
+	this.upgradeFunctions["Grandma"] = new BuildingUpgrade(this.GRANDMA_INDEX);
+	this.upgradeFunctions["Farm"] = new BuildingUpgrade(this.FARM_INDEX);
+	this.upgradeFunctions["Factory"] = new BuildingUpgrade(this.FACTORY_INDEX);
+	this.upgradeFunctions["Mine"] = new BuildingUpgrade(this.MINE_INDEX);
+	this.upgradeFunctions["Shipment"] = new BuildingUpgrade(this.SHIPMENT_INDEX);
+	this.upgradeFunctions["Alchemy lab"] = new BuildingUpgrade(this.ALCHEMY_LAB_INDEX);
+	this.upgradeFunctions["Portal"] = new BuildingUpgrade(this.PORTAL_INDEX);
+	this.upgradeFunctions["Time machine"] = new BuildingUpgrade(this.TIME_MACHINE_INDEX);
+	this.upgradeFunctions["Antimatter condenser"] = new BuildingUpgrade(this.ANTIMATTER_CONDENSER_INDEX);
+	this.upgradeFunctions["Prism"] = new BuildingUpgrade(this.PRISM_INDEX);
 
 	// Base CpS upgrades increase the base cps of a building
 	this.upgradeFunctions["Forwards from grandma"] = new BuildingBaseCpsUpgrade(this.GRANDMA_INDEX, 0.3);
@@ -540,36 +546,43 @@ UpgradeInfo.prototype.getUpgradeFunction = function(upgrade) {
 }
 
 //
-// Class to represent an individual purchasable upgrade
+// Classes to represent upgrades and tie them to game purchases
 //
 
-function PurchasableUpgrade(upgrade) {
-	this.upgrade = upgrade;
-	this.upgradeFunction = upgradeInfo.getUpgradeFunction(upgrade);
+// Building purchase
+function PurchasableBuilding(index) {
+	this.index = index;
+	this.upgradeFunction = upgradeInfo.getUpgradeFunction(Game.ObjectsById[this.index].name);
+}
+
+PurchasableBuilding.prototype.toString = function() {
+	return "Building: " + Game.ObjectsById[this.index].name + " " + (Game.ObjectsById[this.index].amount + 1);
+}
+
+PurchasableBuilding.prototype.getCost = function() {
+	return Game.ObjectsById[this.index].getPrice();
+}
+
+PurchasableBuilding.prototype.purchase = function() {
+	Game.ObjectsById[this.index].buy(1);
+}
+
+// Upgrade purchase
+function PurchasableUpgrade(index) {
+	this.index = index;
+	this.upgradeFunction = upgradeInfo.getUpgradeFunction(Game.UpgradesById[this.index].name);
 }
 
 PurchasableUpgrade.prototype.toString = function() {
-	return "Upgrade: " + this.upgrade.name;
+	return "Upgrade: " + Game.UpgradesById[this.index].name;
 }
 
 PurchasableUpgrade.prototype.getCost = function() {
-	return this.upgrade.getPrice();
+	return Game.UpgradesById[this.index].getPrice();
 }
 
 PurchasableUpgrade.prototype.purchase = function() {
-	this.upgrade.buy(0);
-}
-
-PurchasableUpgrade.prototype.getCpsGain = function() {
-	var e = new Evaluator();
-	e.syncToGame();
-	var ecps = e.getEffectiveCps();
-	this.upgradeFunction.upgradeEval(e);
-
-//	if ((this.upgradeFunction instanceof UnknownUpgrade) == false) {
-//		console.log("Upgrade: " + this.upgrade.name + ", cps: " + (e.getEffectiveCps() - ecps));
-//	}
-	return e.getEffectiveCps() - ecps;
+	Game.UpgradesById[this.index].buy(0);
 }
 
 //
