@@ -11,7 +11,6 @@ function UltimateCookie() {
 	this.AUTO_BUY_DELAY = 100;
 	this.DEBUG_VERIFY = true;
 
-	this.verifyFails = 0;
 	this.enableAutoBuy();
 	this.enableAutoClick();
 }
