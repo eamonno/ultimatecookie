@@ -439,11 +439,18 @@ function ProductionUpgrade(amount) {
 	}
 }
 
-// Golden cookie upgrades
-function GoldenCookieUpgrade(frequencyScale, durationScale) {
+// Upgrade that makes Golden Cookies appear more often
+function GoldenCookieFrequencyUpgrade(frequencyScale) {
 	this.frequencyScale = frequencyScale;
-	this.durationScale = durationScale;
 	this.upgradeEval = function(eval) {
+		eval.goldenCookieTime /= frequencyScale;
+	}
+}
+
+// Upgrade that makes Golden Cookie effects last twice as long
+function GoldenCookieDurationUpgrade() {
+	this.upgradeEval = function(eval) {
+		eval.frenzyDuration *= 2;
 	}
 }
 
@@ -634,8 +641,8 @@ function UpgradeInfo() {
 
 	// Golden cookie upgrade functions
 	this.upgradeFunctions["Lucky day"] =
-	this.upgradeFunctions["Serendipity"] = new GoldenCookieUpgrade(2, 2);
-	this.upgradeFunctions["Get lucky"] = new GoldenCookieUpgrade(1, 2);
+	this.upgradeFunctions["Serendipity"] = new GoldenCookieFrequencyUpgrade(2);
+	this.upgradeFunctions["Get lucky"] = new GoldenCookieDurationUpgrade();
 
 	// Research upgrade functions
 	this.upgradeFunctions["Bingo center/Research facility"] = new BuildingMultiplierUpgrade(this.GRANDMA_INDEX, 4);
