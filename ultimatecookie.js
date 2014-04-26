@@ -207,7 +207,7 @@ function Evaluator() {
 
 	// Milk scaling
 	this.milkAmount = 0;
-	this.milkMultipliers = new [];
+	this.milkMultipliers = [];
 
 	// Game status indicators
 	this.frenzy = 0
