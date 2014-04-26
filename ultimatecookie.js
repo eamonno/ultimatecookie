@@ -8,7 +8,7 @@
 function UltimateCookie() {
 	this.AUTO_CLICK_GOLDEN_COOKIES = true;
 	this.AUTO_CLICK_DELAY = 1;
-	this.AUTO_BUY_DELAY = 100;
+	this.AUTO_BUY_DELAY = 50;
 	this.DEBUG_VERIFY = true;
 
 	this.enableAutoBuy();
@@ -33,6 +33,7 @@ UltimateCookie.prototype.disableAutoClick = function() {
 	clearInterval(this.autoClicker);
 }
 
+/*
 // Work out how long it would take to purchase a given array of upgrades
 UltimateCookie.prototype.timeToBuy = function(evaluator, upgrades) {
 	// Create a clone of the evaluator to avoid modifying the base
@@ -46,6 +47,7 @@ UltimateCookie.prototype.timeToBuy = function(evaluator, upgrades) {
 	}
 	return timeTaken;
 }
+*/
 
 // Work out how long it would take for a purchase to return on its cost
 UltimateCookie.prototype.timeToBreakEven = function(evaluator, upgrade) {
@@ -137,21 +139,19 @@ UltimateCookie.prototype.autoClick = function() {
 }
 
 UltimateCookie.prototype.autoBuy = function() {
-	var nextPurchase = this.determineNextPurchase();
+	// If recalculateGains is set, game will not match Emulator so just skip this autobuy
+	if (!Game.recalculateGains) {
+		var nextPurchase = this.determineNextPurchase();
 
-	if (Game.cookies > nextPurchase.getCost()) {
-		nextPurchase.purchase();
+		if (Game.cookies > nextPurchase.getCost()) {
+			nextPurchase.purchase();
+		}
 	}
 }
 
-UltimateCookie.prototype.effectiveCps = function() {
-	// Assume 250 clicks per second
-	return Game.cookiesPs + this.clickRate() * Game.mouseCps();
-}
-
 UltimateCookie.prototype.clickRate = function() {
-	// Assume 250 clicks per second for now
-	return 250;
+	// Assume 175 clicks per second for now
+	return 175;
 }
 
 //
@@ -211,10 +211,19 @@ function Evaluator() {
 
 	// Game status indicators
 	this.frenzy = 0
-	this.frenzyPower = 7;
 	this.clickFrenzy = 0;
-	this.clickFrenzyMultiplier = 777;
+
+	// Golden cookie information - only used in estimating value of golden cookie
+	// frequency upgrades
+	this.frenzyDuration = 77;
+	this.goldenCookieTime = 300;
 }
+
+// Evaluator constants
+Evaluator.prototype.FRENZY_MULTIPLIER = 7;			// Frenzy multiplies CpS by 7
+Evaluator.prototype.CLICK_FRENZY_MULTIPLIER = 777;	// Click frenzies give 777x cookier per click
+Evaluator.prototype.LUCKY_COOKIE_BANK_TIME = 1200;	// Lucky provides up to 1200 seconds of CpS based on bank
+Evaluator.prototype.LUCKY_COOKIE_BONUS_TIME = 13;	// Lucky provides 13 additional seconds of CpS regardless
 
 // Create a clone of an Evaluator
 Evaluator.prototype.clone = function() {
@@ -238,9 +247,16 @@ Evaluator.prototype.clone = function() {
 	e.milkAmount = this.milkAmount;
 	e.milkMultipliers = this.milkMultipliers;
 	e.frenzy = this.frenzy;
-	e.frenzyMultiplier = this.frenzyMultiplier;
 	e.clickFrenzy = this.clickFrenzy;
-	e.clickFrenzyMultiplier = this.clickFrenzyMultiplier;
+	e.frenzyDuration = this.frenzyDuration;
+	e.goldenCookieTime = this.goldenCookieTime;
+
+	if (ultimateCookie.VERIFY_DEBUG) {
+		// Make sure the cloning worked
+		if (this.getEffectiveCps() != e.getEffectiveCps()) {
+			console.log("Error cloning Evaluator");
+		}
+	}
 	return e;
 }
 
@@ -274,7 +290,7 @@ Evaluator.prototype.getCpc = function() {
 	var cpc = this.cpcBase * this.cpcMultiplier;	// Base cpc
 	cpc += this.getCps() * this.cpcCpsMultiplier;	// Add in percentage click scaling
 	if (this.clickFrenzy) {	// Increase if click frenzy is active
-		cpc *= this.clickFrenzyMultiplier;
+		cpc *= this.CLICK_FRENZY_MULTIPLIER;
 	}
 	return cpc;
 }
@@ -299,22 +315,49 @@ Evaluator.prototype.getCps = function() {
 	cps *= milkScale;
 	// Scale it for frenzy
 	if (this.frenzy) {
-		cps *= this.frenzyMultiplier;
+		cps *= this.FRENZY_MULTIPLIER;
 	}
 	return cps;
 }
 
 // Estimate the extra CpS contribution from collecting all golden cookies
 // Assumes max click rate and that golden cookies just follow the simple pattern
-// of Frenzy followed by Lucky. Not 100% accurate but near enough to give a decent
-// estimation.
+// of Frenzy followed by Lucky and appear at the minimum spawn time every time.
+// Not 100% accurate but near enough to give a decent estimation.
 Evaluator.prototype.getGoldenCookieCps = function() {
-	return 0;
+	// Get the frenzied and unfrenzied Cps and Cpc
+	var frenzy = this.frenzy;
+	var clickFrenzy = this.clickFrenzy;
+
+	this.frenzy = 0;
+	var unfrenziedCps = this.getCps();
+	var unfrenziedCpc = this.getCpc();
+	this.frenzy = 1;
+	var frenziedCps = this.getCps();
+	var frenziedCpc = this.getCpc();
+
+	this.frenzy = frenzy;
+	this.clickFrenzy = clickFrenzy;
+
+	// Add gains from a single full duration frenzy
+	var totalGain = 0;
+	totalGain += (frenziedCps - unfrenziedCps) * this.frenzyDuration;
+	totalGain += (frenziedCpc - unfrenziedCpc) * this.frenzyDuration * ultimateCookie.clickRate();
+
+	// Add gains from a single lucky cookie
+	if (this.goldenCookieTime < this.frenzyDuration) {
+		totalGain += frenziedCps * (this.LUCKY_COOKIE_BANK_TIME + this.LUCKY_COOKIE_BONUS_TIME);
+	} else {
+		totalGain += unfrenziedCps * (this.LUCKY_COOKIE_BANK_TIME + this.LUCKY_COOKIE_BONUS_TIME);
+	}
+
+	// Divide this total by time it would take to get two golden cookies
+	return totalGain / (this.goldenCookieTime * 2);
 }
 
 // Calculate the effective Cps at the current games click rate
 Evaluator.prototype.getEffectiveCps = function() {
-	return this.getCps() + this.getCpc() * ultimateCookie.clickRate();
+	return this.getCps() + this.getCpc() * ultimateCookie.clickRate() + this.getGoldenCookieCps();
 }
 
 // Sync an evaluator with the current in game store
