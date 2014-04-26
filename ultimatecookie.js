@@ -61,7 +61,7 @@ UltimateCookie.prototype.timeToBreakEven = function(evaluator, upgrade) {
 }
 
 UltimateCookie.prototype.createPurchaseList = function() {
-	var purchases = new Array();
+	var purchases = [];
 
 	// Add the buildings
 	var i;
@@ -180,7 +180,7 @@ EvaluatorBuilding.prototype.getCost = function() {
 
 function Evaluator() {
 	// Buildings
-	this.buildings = new Array();
+	this.buildings = [];
 	this.buildings.push(new EvaluatorBuilding(this,         15,        0.1));	// Cursor
 	this.buildings.push(new EvaluatorBuilding(this,        100,        0.5));	// Grandma
 	this.buildings.push(new EvaluatorBuilding(this,        500,        4.0));	// Farm
@@ -207,7 +207,7 @@ function Evaluator() {
 
 	// Milk scaling
 	this.milkAmount = 0;
-	this.milkMultipliers = new Array();
+	this.milkMultipliers = new [];
 
 	// Game status indicators
 	this.frenzy = 0
