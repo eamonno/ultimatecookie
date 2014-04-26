@@ -87,16 +87,9 @@ UltimateCookie.prototype.determineNextPurchase = function() {
 
 	// Shutdown if out of sync
 	if (this.DEBUG_VERIFY) {
-		// Due to asynchronous nature of javascript the occasional fail can happen,
-		// only stop autobuying if it fails a few times back to back but leave the auto
-		// clicker working
 		if (!currentGame.matchesGame()) {
-			this.verifyFails++;
-			if (this.verifyFails > 2) {
-				ultimateCookie.disableAutoBuy();
-			}
-		} else {
-			this.verifyFails = Math.max(this.verifyFails - 1, 0);
+			ultimateCookie.disableAutoBuy();
+			console.log("Evaluator error: autoBuy disabled.");
 		}
 	}
 
@@ -137,7 +130,9 @@ UltimateCookie.prototype.determineNextPurchase = function() {
 
 UltimateCookie.prototype.autoClick = function() {
 	if (this.AUTO_CLICK_GOLDEN_COOKIES) {
-		Game.goldenCookie.click();
+		if (Game.goldenCookie.life > 0 && Game.goldenCookie.toDie == 0) {
+			Game.goldenCookie.click();
+		}
 	}
 	Game.ClickCookie();
 }
@@ -164,22 +159,12 @@ UltimateCookie.prototype.clickRate = function() {
 // Class used to represent a particular building type for the cost Evaluator
 //
 
-function EvaluatorBuilding(baseCost, baseCps, name) {
+function EvaluatorBuilding(evaluator, baseCost, baseCps) {
+	this.evaluator = evaluator;
 	this.baseCost = baseCost;
 	this.baseCps = baseCps;
-	this.name = name;
 	this.quantity = 0;
 	this.multiplier = 1;
-}
-
-EvaluatorBuilding.prototype.clone = function() {
-	var eb = new EvaluatorBuilding();
-	eb.baseCost = this.baseCost;
-	eb.baseCps = this.baseCps;
-	eb.name = this.name;
-	eb.quantity = this.quantity;
-	eb.multiplier = this.multiplier;
-	return eb;
 }
 
 EvaluatorBuilding.prototype.getCps = function() {
@@ -197,17 +182,17 @@ EvaluatorBuilding.prototype.getCost = function() {
 function Evaluator() {
 	// Buildings
 	this.buildings = new Array();
-	this.buildings.push(new EvaluatorBuilding(         15,        0.1));	// Cursor
-	this.buildings.push(new EvaluatorBuilding(        100,        0.5));	// Grandma
-	this.buildings.push(new EvaluatorBuilding(        500,        4.0));	// Farm
-	this.buildings.push(new EvaluatorBuilding(       3000,       10.0));	// Factory
-	this.buildings.push(new EvaluatorBuilding(      10000,       40.0));	// Mine
-	this.buildings.push(new EvaluatorBuilding(      40000,      100.0));	// Shipment
-	this.buildings.push(new EvaluatorBuilding(     200000,      400.0));	// Alchemy lab
-	this.buildings.push(new EvaluatorBuilding(    1666666,     6666.0));	// Portal
-	this.buildings.push(new EvaluatorBuilding(  123456789,    98765.0));	// Time Machine
-	this.buildings.push(new EvaluatorBuilding( 3999999999,   999999.0));	// Antimatter condenser
-	this.buildings.push(new EvaluatorBuilding(75000000000, 10000000.0));	// Prism
+	this.buildings.push(new EvaluatorBuilding(this,         15,        0.1));	// Cursor
+	this.buildings.push(new EvaluatorBuilding(this,        100,        0.5));	// Grandma
+	this.buildings.push(new EvaluatorBuilding(this,        500,        4.0));	// Farm
+	this.buildings.push(new EvaluatorBuilding(this,       3000,       10.0));	// Factory
+	this.buildings.push(new EvaluatorBuilding(this,      10000,       40.0));	// Mine
+	this.buildings.push(new EvaluatorBuilding(this,      40000,      100.0));	// Shipment
+	this.buildings.push(new EvaluatorBuilding(this,     200000,      400.0));	// Alchemy lab
+	this.buildings.push(new EvaluatorBuilding(this,    1666666,     6666.0));	// Portal
+	this.buildings.push(new EvaluatorBuilding(this,  123456789,    98765.0));	// Time Machine
+	this.buildings.push(new EvaluatorBuilding(this, 3999999999,   999999.0));	// Antimatter condenser
+	this.buildings.push(new EvaluatorBuilding(this,75000000000, 10000000.0));	// Prism
 
 	// Mouse click information
 	this.cpcBase = 1;
@@ -236,8 +221,14 @@ function Evaluator() {
 Evaluator.prototype.clone = function() {
 	var e = new Evaluator();
 	var i;
+	// Clone buildings making sure to set the evaluator reference to the clone
 	for (i = 0; i < this.buildings.length; ++i) {
-		e.buildings[i] = this.buildings[i].clone();
+		e.buildings[i] = new EvaluatorBuilding();
+		e.buildings[i].evaluator = e;
+		e.buildings[i].baseCost = this.buildings[i].baseCost;
+		e.buildings[i].baseCps = this.buildings[i].baseCps;
+		e.buildings[i].quantity = this.buildings[i].quantity;
+		e.buildings[i].multiplier = this.buildings[i].multiplier;
 	}
 	e.cpcBase = this.cpcBase;
 	e.cpcMultiplier = this.cpcMultiplier;
@@ -256,6 +247,7 @@ Evaluator.prototype.clone = function() {
 
 // Check that the values in the evaluator match those of the game, for debugging use
 Evaluator.prototype.matchesGame = function() {
+
 	// Check that Cps matches the game
 	if (!floatEqual(this.getCps(), Game.cookiesPs)) {
 		console.log("Evaluator Error - Predicted Cps: " + this.getCps() + ", Actual Cps: " + Game.cookiesPs);
@@ -608,6 +600,8 @@ function UpgradeInfo() {
 	// this.upgradeFunctions["Persistent memory"] research speed upgrade
 	this.upgradeFunctions["Specialized chocolate chips"] = new ProductionUpgrade(1);
 	this.upgradeFunctions["Designer cocoa beans"] = new ProductionUpgrade(2);
+	this.upgradeFunctions["Ritual rolling pins"] = new BuildingMultiplierUpgrade(this.GRANDMA_INDEX, 2);
+	this.upgradeFunctions["Underworld ovens"] = new ProductionUpgrade(3);
 
 	// Combo upgrades, combine a couple of effects
 	this.upgradeFunctions["Reinforced index finger"] = new ComboUpgrade([
