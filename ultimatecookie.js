@@ -1,15 +1,38 @@
 // To-do
 // Figure out how to get AutoBuy as a member of the UltimateCookie
 
+var Constants = {};
+
+// Configuration constants
+Constants.AUTO_CLICK_GOLDEN_COOKIES = true;
+Constants.AUTO_CLICK_DELAY = 1;
+Constants.AUTO_BUY_DELAY = 50;
+Constants.DEBUG_VERIFY = true;
+
+// Evaluator constants
+Constants.FRENZY_MULTIPLIER = 7;			// Frenzy multiplies CpS by 7
+Constants.CLICK_FRENZY_MULTIPLIER = 777;	// Click frenzies give 777x cookier per click
+Constants.LUCKY_COOKIE_BANK_TIME = 1200;	// Lucky provides up to 1200 seconds of CpS based on bank
+Constants.LUCKY_COOKIE_BONUS_TIME = 13;	// Lucky provides 13 additional seconds of CpS regardless
+
+// Indices into the buildings arrays
+Constants.CURSOR_INDEX = 0;
+Constants.GRANDMA_INDEX = 1;
+Constants.FARM_INDEX = 2;
+Constants.FACTORY_INDEX = 3;
+Constants.MINE_INDEX = 4;
+Constants.SHIPMENT_INDEX = 5;
+Constants.ALCHEMY_LAB_INDEX = 6;
+Constants.PORTAL_INDEX = 7;
+Constants.TIME_MACHINE_INDEX = 8;
+Constants.ANTIMATTER_CONDENSER_INDEX = 9;
+Constants.PRISM_INDEX = 10;
+
 //
 // UltimateCookie represents the app itself
 //
 
 function UltimateCookie() {
-	this.AUTO_CLICK_GOLDEN_COOKIES = true;
-	this.AUTO_CLICK_DELAY = 1;
-	this.AUTO_BUY_DELAY = 50;
-	this.DEBUG_VERIFY = true;
 
 	this.enableAutoBuy();
 	this.enableAutoClick();
@@ -17,12 +40,12 @@ function UltimateCookie() {
 
 UltimateCookie.prototype.enableAutoBuy = function() {
 	var t = this;
-	this.autoBuyer = setInterval(function() { t.autoBuy(); }, this.AUTO_BUY_DELAY);
+	this.autoBuyer = setInterval(function() { t.autoBuy(); }, Constants.AUTO_BUY_DELAY);
 }
 
 UltimateCookie.prototype.enableAutoClick = function() {
 	var t = this;
-	this.autoClicker = setInterval(function() { t.autoClick(); }, this.AUTO_CLICK_DELAY);
+	this.autoClicker = setInterval(function() { t.autoClick(); }, Constants.AUTO_CLICK_DELAY);
 }
 
 UltimateCookie.prototype.disableAutoBuy = function() {
@@ -130,7 +153,7 @@ UltimateCookie.prototype.determineNextPurchase = function() {
 }
 
 UltimateCookie.prototype.autoClick = function() {
-	if (this.AUTO_CLICK_GOLDEN_COOKIES) {
+	if (Constants.AUTO_CLICK_GOLDEN_COOKIES) {
 		if (Game.goldenCookie.life > 0 && Game.goldenCookie.toDie == 0) {
 			Game.goldenCookie.click();
 		}
@@ -155,6 +178,44 @@ UltimateCookie.prototype.clickRate = function() {
 }
 
 //
+// Class used for the X gains Y per building of type Z upgrades
+//
+function BuildingScaler() {
+	// One per building type
+	this.scales = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+}
+
+BuildingScaler.prototype.getScale = function(buildings) {
+	var scale = 0;
+	var i;
+	for (i = 0; i < this.scales.length; ++i) {
+		scale += this.scales[i] * buildings[i].quantity;
+	}
+	return scale;
+}
+
+BuildingScaler.prototype.clone = function() {
+	var i;
+	var bs = new BuildingScaler();
+	for (i = 0; i < this.scales.length; ++i) {
+		bs.scales[i] = this.scales[i];
+	}
+	return bs;
+}
+
+BuildingScaler.prototype.scaleAll = function(amount) {
+	var i;
+	for (i = 0; i < this.scales.length; ++i) {
+		this.scales[i] += amount;
+	}
+}
+
+BuildingScaler.prototype.scaleOne = function(index, amount) {
+	this.scales[index] += amount;
+}
+
+
+//
 // Class used to represent a particular building type for the cost Evaluator
 //
 
@@ -164,10 +225,11 @@ function EvaluatorBuilding(evaluator, baseCost, baseCps) {
 	this.baseCps = baseCps;
 	this.quantity = 0;
 	this.multiplier = 1;
+	this.buildingScaler = new BuildingScaler();
 }
 
 EvaluatorBuilding.prototype.getCps = function() {
-	return this.quantity * this.baseCps * this.multiplier;
+	return this.quantity * (this.baseCps + this.buildingScaler.getScale(this.evaluator.buildings)) * this.multiplier;
 }
 
 EvaluatorBuilding.prototype.getCost = function() {
@@ -197,6 +259,7 @@ function Evaluator() {
 	this.cpcBase = 1;
 	this.cpcMultiplier = 1;
 	this.cpcCpsMultiplier = 0;
+	this.cpcBuildingScaler = new BuildingScaler();
 
 	// Production multiplier
 	this.productionMultiplier = 0;
@@ -219,12 +282,6 @@ function Evaluator() {
 	this.goldenCookieTime = 300;
 }
 
-// Evaluator constants
-Evaluator.prototype.FRENZY_MULTIPLIER = 7;			// Frenzy multiplies CpS by 7
-Evaluator.prototype.CLICK_FRENZY_MULTIPLIER = 777;	// Click frenzies give 777x cookier per click
-Evaluator.prototype.LUCKY_COOKIE_BANK_TIME = 1200;	// Lucky provides up to 1200 seconds of CpS based on bank
-Evaluator.prototype.LUCKY_COOKIE_BONUS_TIME = 13;	// Lucky provides 13 additional seconds of CpS regardless
-
 // Create a clone of an Evaluator
 Evaluator.prototype.clone = function() {
 	var e = new Evaluator();
@@ -237,10 +294,12 @@ Evaluator.prototype.clone = function() {
 		e.buildings[i].baseCps = this.buildings[i].baseCps;
 		e.buildings[i].quantity = this.buildings[i].quantity;
 		e.buildings[i].multiplier = this.buildings[i].multiplier;
+		e.buildings[i].buildingScaler = this.buildings[i].buildingScaler.clone();
 	}
 	e.cpcBase = this.cpcBase;
 	e.cpcMultiplier = this.cpcMultiplier;
 	e.cpcCpsMultiplier = this.cpcCpsMultiplier;
+	e.cpcBuildingScaler = this.cpcBuildingScaler.clone();
 	e.productionMultiplier = this.productionMultiplier;
 	e.heavenlyChips = this.heavenlyChips;
 	e.heavenlyUnlock = this.heavenlyUnlock;
@@ -251,7 +310,7 @@ Evaluator.prototype.clone = function() {
 	e.frenzyDuration = this.frenzyDuration;
 	e.goldenCookieTime = this.goldenCookieTime;
 
-	if (ultimateCookie.VERIFY_DEBUG) {
+	if (Constants.VERIFY_DEBUG) {
 		// Make sure the cloning worked
 		if (this.getEffectiveCps() != e.getEffectiveCps()) {
 			console.log("Error cloning Evaluator");
@@ -287,10 +346,10 @@ Evaluator.prototype.matchesGame = function() {
 
 // Get the current cookies per click amount
 Evaluator.prototype.getCpc = function() {
-	var cpc = this.cpcBase * this.cpcMultiplier;	// Base cpc
+	var cpc = (this.cpcBase + this.cpcBuildingScaler.getScale(this.buildings)) * this.cpcMultiplier;	// Base cpc
 	cpc += this.getCps() * this.cpcCpsMultiplier;	// Add in percentage click scaling
 	if (this.clickFrenzy) {	// Increase if click frenzy is active
-		cpc *= this.CLICK_FRENZY_MULTIPLIER;
+		cpc *= Constants.CLICK_FRENZY_MULTIPLIER;
 	}
 	return cpc;
 }
@@ -315,7 +374,7 @@ Evaluator.prototype.getCps = function() {
 	cps *= milkScale;
 	// Scale it for frenzy
 	if (this.frenzy) {
-		cps *= this.FRENZY_MULTIPLIER;
+		cps *= Constants.FRENZY_MULTIPLIER;
 	}
 	return cps;
 }
@@ -346,9 +405,9 @@ Evaluator.prototype.getGoldenCookieCps = function() {
 
 	// Add gains from a single lucky cookie
 	if (this.goldenCookieTime < this.frenzyDuration) {
-		totalGain += frenziedCps * (this.LUCKY_COOKIE_BANK_TIME + this.LUCKY_COOKIE_BONUS_TIME);
+		totalGain += frenziedCps * (Constants.LUCKY_COOKIE_BANK_TIME + Constants.LUCKY_COOKIE_BONUS_TIME);
 	} else {
-		totalGain += unfrenziedCps * (this.LUCKY_COOKIE_BANK_TIME + this.LUCKY_COOKIE_BONUS_TIME);
+		totalGain += unfrenziedCps * (Constants.LUCKY_COOKIE_BANK_TIME + Constants.LUCKY_COOKIE_BONUS_TIME);
 	}
 
 	// Divide this total by time it would take to get two golden cookies
@@ -471,6 +530,18 @@ function HeavenlyUnlockUpgrade(amount) {
 	}
 }
 
+// Upgrades that increase cursor and mouse cps based on number of buildings owned
+function MultifingerUpgrade(amount) {
+	this.amount = amount;
+	this.upgradeEval = function(eval) {
+		// Scale up all except the excluded type
+		eval.buildings[Constants.CURSOR_INDEX].buildingScaler.scaleAll(this.amount);
+		eval.buildings[Constants.CURSOR_INDEX].buildingScaler.scaleOne(Constants.CURSOR_INDEX, -this.amount);
+		eval.cpcBuildingScaler.scaleAll(this.amount);
+		eval.cpcBuildingScaler.scaleOne(Constants.CURSOR_INDEX, -this.amount);
+	}
+}
+
 // Upgrades that combine the effects of two or more other upgrade types
 function ComboUpgrade(upgrades) {
 	this.upgrades = upgrades;
@@ -491,46 +562,33 @@ function UnknownUpgrade(name) {
 }
 
 function UpgradeInfo() {
-	// Index into the Game.ObjectsByID array
-	this.CURSOR_INDEX = 0;
-	this.GRANDMA_INDEX = 1;
-	this.FARM_INDEX = 2;
-	this.FACTORY_INDEX = 3;
-	this.MINE_INDEX = 4;
-	this.SHIPMENT_INDEX = 5;
-	this.ALCHEMY_LAB_INDEX = 6;
-	this.PORTAL_INDEX = 7;
-	this.TIME_MACHINE_INDEX = 8;
-	this.ANTIMATTER_CONDENSER_INDEX = 9;
-	this.PRISM_INDEX = 10;
-
 	// Create the array of known Upgrade functions
 	this.upgradeFunctions = {};
 
 	// Building upgrade functions
-	this.upgradeFunctions["Cursor"] = new BuildingUpgrade(this.CURSOR_INDEX);
-	this.upgradeFunctions["Grandma"] = new BuildingUpgrade(this.GRANDMA_INDEX);
-	this.upgradeFunctions["Farm"] = new BuildingUpgrade(this.FARM_INDEX);
-	this.upgradeFunctions["Factory"] = new BuildingUpgrade(this.FACTORY_INDEX);
-	this.upgradeFunctions["Mine"] = new BuildingUpgrade(this.MINE_INDEX);
-	this.upgradeFunctions["Shipment"] = new BuildingUpgrade(this.SHIPMENT_INDEX);
-	this.upgradeFunctions["Alchemy lab"] = new BuildingUpgrade(this.ALCHEMY_LAB_INDEX);
-	this.upgradeFunctions["Portal"] = new BuildingUpgrade(this.PORTAL_INDEX);
-	this.upgradeFunctions["Time machine"] = new BuildingUpgrade(this.TIME_MACHINE_INDEX);
-	this.upgradeFunctions["Antimatter condenser"] = new BuildingUpgrade(this.ANTIMATTER_CONDENSER_INDEX);
-	this.upgradeFunctions["Prism"] = new BuildingUpgrade(this.PRISM_INDEX);
+	this.upgradeFunctions["Cursor"] = new BuildingUpgrade(Constants.CURSOR_INDEX);
+	this.upgradeFunctions["Grandma"] = new BuildingUpgrade(Constants.GRANDMA_INDEX);
+	this.upgradeFunctions["Farm"] = new BuildingUpgrade(Constants.FARM_INDEX);
+	this.upgradeFunctions["Factory"] = new BuildingUpgrade(Constants.FACTORY_INDEX);
+	this.upgradeFunctions["Mine"] = new BuildingUpgrade(Constants.MINE_INDEX);
+	this.upgradeFunctions["Shipment"] = new BuildingUpgrade(Constants.SHIPMENT_INDEX);
+	this.upgradeFunctions["Alchemy lab"] = new BuildingUpgrade(Constants.ALCHEMY_LAB_INDEX);
+	this.upgradeFunctions["Portal"] = new BuildingUpgrade(Constants.PORTAL_INDEX);
+	this.upgradeFunctions["Time machine"] = new BuildingUpgrade(Constants.TIME_MACHINE_INDEX);
+	this.upgradeFunctions["Antimatter condenser"] = new BuildingUpgrade(Constants.ANTIMATTER_CONDENSER_INDEX);
+	this.upgradeFunctions["Prism"] = new BuildingUpgrade(Constants.PRISM_INDEX);
 
 	// Base CpS upgrades increase the base cps of a building
-	this.upgradeFunctions["Forwards from grandma"] = new BuildingBaseCpsUpgrade(this.GRANDMA_INDEX, 0.3);
-	this.upgradeFunctions["Cheap hoes"] = new BuildingBaseCpsUpgrade(this.FARM_INDEX, 1);
-	this.upgradeFunctions["Sturdier conveyor belts"] = new BuildingBaseCpsUpgrade(this.FACTORY_INDEX, 4);
-	this.upgradeFunctions["Sugar gas"] = new BuildingBaseCpsUpgrade(this.MINE_INDEX, 10);
-	this.upgradeFunctions["Vanilla nebulae"] = new BuildingBaseCpsUpgrade(this.SHIPMENT_INDEX, 30);
-	this.upgradeFunctions["Antimony"] = new BuildingBaseCpsUpgrade(this.ALCHEMY_LAB_INDEX, 100);
-	this.upgradeFunctions["Ancient tablet"] = new BuildingBaseCpsUpgrade(this.PORTAL_INDEX, 1666);
-	this.upgradeFunctions["Flux capacitors"] = new BuildingBaseCpsUpgrade(this.TIME_MACHINE_INDEX, 9876);
-	this.upgradeFunctions["Sugar bosons"] = new BuildingBaseCpsUpgrade(this.ANTIMATTER_CONDENSER_INDEX, 99999);
-	this.upgradeFunctions["Gem polish"] = new BuildingBaseCpsUpgrade(this.PRISM_INDEX, 1000000);
+	this.upgradeFunctions["Forwards from grandma"] = new BuildingBaseCpsUpgrade(Constants.GRANDMA_INDEX, 0.3);
+	this.upgradeFunctions["Cheap hoes"] = new BuildingBaseCpsUpgrade(Constants.FARM_INDEX, 1);
+	this.upgradeFunctions["Sturdier conveyor belts"] = new BuildingBaseCpsUpgrade(Constants.FACTORY_INDEX, 4);
+	this.upgradeFunctions["Sugar gas"] = new BuildingBaseCpsUpgrade(Constants.MINE_INDEX, 10);
+	this.upgradeFunctions["Vanilla nebulae"] = new BuildingBaseCpsUpgrade(Constants.SHIPMENT_INDEX, 30);
+	this.upgradeFunctions["Antimony"] = new BuildingBaseCpsUpgrade(Constants.ALCHEMY_LAB_INDEX, 100);
+	this.upgradeFunctions["Ancient tablet"] = new BuildingBaseCpsUpgrade(Constants.PORTAL_INDEX, 1666);
+	this.upgradeFunctions["Flux capacitors"] = new BuildingBaseCpsUpgrade(Constants.TIME_MACHINE_INDEX, 9876);
+	this.upgradeFunctions["Sugar bosons"] = new BuildingBaseCpsUpgrade(Constants.ANTIMATTER_CONDENSER_INDEX, 99999);
+	this.upgradeFunctions["Gem polish"] = new BuildingBaseCpsUpgrade(Constants.PRISM_INDEX, 1000000);
 
 	// Doubler Upgrades are those that double the productivity of a type of building
 	this.upgradeFunctions["Steel-plated rolling pins"] =
@@ -546,52 +604,52 @@ function UpgradeInfo() {
 	this.upgradeFunctions["Grandmas' grandmas"] =
 	this.upgradeFunctions["Antigrandmas"] =
 	this.upgradeFunctions["Rainbow grandmas"] =
-	this.upgradeFunctions["Aging agents"] = new BuildingMultiplierUpgrade(this.GRANDMA_INDEX, 2);
+	this.upgradeFunctions["Aging agents"] = new BuildingMultiplierUpgrade(Constants.GRANDMA_INDEX, 2);
 	this.upgradeFunctions["Fertilizer"] =
 	this.upgradeFunctions["Cookie trees"] =
 	this.upgradeFunctions["Genetically-modified cookies"] =
 	this.upgradeFunctions["Gingerbread scarecrows"] =
-	this.upgradeFunctions["Pulsar sprinklers"] = new BuildingMultiplierUpgrade(this.FARM_INDEX, 2);
+	this.upgradeFunctions["Pulsar sprinklers"] = new BuildingMultiplierUpgrade(Constants.FARM_INDEX, 2);
 	this.upgradeFunctions["Child labor"] =
 	this.upgradeFunctions["Sweatshop"] =
 	this.upgradeFunctions["Radium reactors"] =
 	this.upgradeFunctions["Recombobulators"] =
-	this.upgradeFunctions["Deep-bake process"] = new BuildingMultiplierUpgrade(this.FACTORY_INDEX, 2);
+	this.upgradeFunctions["Deep-bake process"] = new BuildingMultiplierUpgrade(Constants.FACTORY_INDEX, 2);
 	this.upgradeFunctions["Megadrill"] =
 	this.upgradeFunctions["Ultradrill"] =
 	this.upgradeFunctions["Ultimadrill"] =
 	this.upgradeFunctions["H-bomb mining"] =
-	this.upgradeFunctions["Coreforge"] = new BuildingMultiplierUpgrade(this.MINE_INDEX, 2);
+	this.upgradeFunctions["Coreforge"] = new BuildingMultiplierUpgrade(Constants.MINE_INDEX, 2);
 	this.upgradeFunctions["Wormholes"] =
 	this.upgradeFunctions["Frequent flyer"] =
 	this.upgradeFunctions["Warp drive"] =
 	this.upgradeFunctions["Chocolate monoliths"] =
-	this.upgradeFunctions["Generation ship"] = new BuildingMultiplierUpgrade(this.SHIPMENT_INDEX, 2);
+	this.upgradeFunctions["Generation ship"] = new BuildingMultiplierUpgrade(Constants.SHIPMENT_INDEX, 2);
 	this.upgradeFunctions["Essence of dough"] =
 	this.upgradeFunctions["True chocolate"] =
 	this.upgradeFunctions["Ambrosia"] =
 	this.upgradeFunctions["Aqua crustulae"] =
-	this.upgradeFunctions["Origin crucible"] = new BuildingMultiplierUpgrade(this.ALCHEMY_LAB_INDEX, 2);
+	this.upgradeFunctions["Origin crucible"] = new BuildingMultiplierUpgrade(Constants.ALCHEMY_LAB_INDEX, 2);
 	this.upgradeFunctions["Insane oatling workers"] =
 	this.upgradeFunctions["Soul bond"] =
 	this.upgradeFunctions["Sanity dance"] =
 	this.upgradeFunctions["Brane transplant"] =
-	this.upgradeFunctions["Deity-sized portals"] = new BuildingMultiplierUpgrade(this.PORTAL_INDEX, 2);
+	this.upgradeFunctions["Deity-sized portals"] = new BuildingMultiplierUpgrade(Constants.PORTAL_INDEX, 2);
 	this.upgradeFunctions["Time paradox resolver"] =
 	this.upgradeFunctions["Quantum conundrum"] =
 	this.upgradeFunctions["Causality enforcer"] =
-	this.upgradeFunctions["Yestermorrow comparators"] = new BuildingMultiplierUpgrade(this.TIME_MACHINE_INDEX, 2);
+	this.upgradeFunctions["Yestermorrow comparators"] = new BuildingMultiplierUpgrade(Constants.TIME_MACHINE_INDEX, 2);
 	//this.upgradeFunctions["Far future enactment"] - Should be last time machine upgrade, not working at present
 	this.upgradeFunctions["String theory"] =
 	this.upgradeFunctions["Large macaron collider"] =
 	this.upgradeFunctions["Big bang bake"] =
 	this.upgradeFunctions["Reverse cyclotrons"] =
-	this.upgradeFunctions["Nanocosmics"] = new BuildingMultiplierUpgrade(this.ANTIMATTER_CONDENSER_INDEX, 2);
+	this.upgradeFunctions["Nanocosmics"] = new BuildingMultiplierUpgrade(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 	this.upgradeFunctions["9th color"] =
 	this.upgradeFunctions["Chocolate light"] =
 	this.upgradeFunctions["Grainbow"] =
 	this.upgradeFunctions["Pure cosmic light"] =
-	this.upgradeFunctions["Glow-in-the-dark"] = new BuildingMultiplierUpgrade(this.PRISM_INDEX, 2);
+	this.upgradeFunctions["Glow-in-the-dark"] = new BuildingMultiplierUpgrade(Constants.PRISM_INDEX, 2);
 
 	// Cookie production multipliers
 	this.upgradeFunctions["Sugar cookies"] =
@@ -645,25 +703,36 @@ function UpgradeInfo() {
 	this.upgradeFunctions["Get lucky"] = new GoldenCookieDurationUpgrade();
 
 	// Research upgrade functions
-	this.upgradeFunctions["Bingo center/Research facility"] = new BuildingMultiplierUpgrade(this.GRANDMA_INDEX, 4);
+	this.upgradeFunctions["Bingo center/Research facility"] = new BuildingMultiplierUpgrade(Constants.GRANDMA_INDEX, 4);
 	// this.upgradeFunctions["Persistent memory"] research speed upgrade
 	this.upgradeFunctions["Specialized chocolate chips"] = new ProductionUpgrade(1);
 	this.upgradeFunctions["Designer cocoa beans"] = new ProductionUpgrade(2);
-	this.upgradeFunctions["Ritual rolling pins"] = new BuildingMultiplierUpgrade(this.GRANDMA_INDEX, 2);
+	this.upgradeFunctions["Ritual rolling pins"] = new BuildingMultiplierUpgrade(Constants.GRANDMA_INDEX, 2);
 	this.upgradeFunctions["Underworld ovens"] = new ProductionUpgrade(3);
 
 	// Combo upgrades, combine a couple of effects
 	this.upgradeFunctions["Reinforced index finger"] = new ComboUpgrade([
-		new BuildingBaseCpsUpgrade(this.CURSOR_INDEX, 0.1),
+		new BuildingBaseCpsUpgrade(Constants.CURSOR_INDEX, 0.1),
 		new ClickBaseUpgrade(1)
 	]);
 
 	// Mouse and Cursor Doublers
 	this.upgradeFunctions["Carpal tunnel prevention cream"] =
 	this.upgradeFunctions["Ambidextrous"] = new ComboUpgrade([
-		new BuildingMultiplierUpgrade(this.CURSOR_INDEX, 2),
+		new BuildingMultiplierUpgrade(Constants.CURSOR_INDEX, 2),
 		new ClickDoublerUpgrade()
 	]);
+
+	// Clicking and Cursors scale with buildings owned
+	this.upgradeFunctions["Thousand fingers"] = new MultifingerUpgrade(0.1);
+	this.upgradeFunctions["Million fingers"] = new MultifingerUpgrade(0.5);
+	this.upgradeFunctions["Billion fingers"] = new MultifingerUpgrade(2);
+	this.upgradeFunctions["Trillion fingers"] = new MultifingerUpgrade(10);
+	this.upgradeFunctions["Quadrillion fingers"] = new MultifingerUpgrade(20);
+	this.upgradeFunctions["Quintillion fingers"] = new MultifingerUpgrade(100);
+	this.upgradeFunctions["Sextillion fingers"] = new MultifingerUpgrade(200);
+	this.upgradeFunctions["Septillion fingers"] = new MultifingerUpgrade(400);
+	this.upgradeFunctions["Octillion fingers"] = new MultifingerUpgrade(800);
 
 	// Clicking gains a percent of CpS
 	this.upgradeFunctions["Plastic mouse"] =
