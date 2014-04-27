@@ -6,7 +6,7 @@ var Constants = {};
 // Configuration constants
 Constants.AUTO_CLICK_GOLDEN_COOKIES = true;
 Constants.AUTO_CLICK_DELAY = 1;
-Constants.AUTO_BUY_DELAY = 1000;
+Constants.AUTO_BUY_DELAY = 50;
 Constants.DEBUG_VERIFY = true;
 
 // Evaluator constants
@@ -137,6 +137,13 @@ UltimateCookie.prototype.determineNextPurchase = function(eval) {
 		}
 	}
 
+	// Nasty Elder Pledge hack for short term
+	for (i = 0; i < purchases.length; ++i) {
+		if (purchases[i].getName() == "Elder Pledge") {
+			next = purchases[i];
+		}
+	}
+
 	if (this.lastDeterminedPurchase == undefined) {
 		this.lastDeterminedPurchase == "";
 	}
@@ -175,8 +182,6 @@ UltimateCookie.prototype.autoBuy = function() {
 		}
 		var nextPurchase = this.determineNextPurchase(currentGame);
 		var cookieBank = currentGame.getCookieBankSize(Game.goldenCookie.time / Game.fps, Game.frenzy / Game.fps);
-
-		console.log("Cookie Bank: " + cookieBank);
 
 		if (Game.cookies - cookieBank > nextPurchase.getCost()) {
 			nextPurchase.purchase();
@@ -602,6 +607,16 @@ function MultifingerUpgrade(amount) {
 	}
 }
 
+// Upgrade that increases cps based on a given building type
+function PerBuildingScalerUpgrade(beneficiary, target, amount) {
+	this.beneficiary = beneficiary;
+	this.target = target;
+	this.amount = amount;
+	this.upgradeEval = function(eval) {
+		eval.buildings[this.beneficiary].buildingScaler.scaleOne(this.target, this.amount);
+	}
+}
+
 // Upgrades that combine the effects of two or more other upgrade types
 function ComboUpgrade(upgrades) {
 	this.upgrades = upgrades;
@@ -767,6 +782,11 @@ function UpgradeInfo() {
 	this.upgradeFunctions["Designer cocoa beans"] = new ProductionUpgrade(2);
 	this.upgradeFunctions["Ritual rolling pins"] = new BuildingMultiplierUpgrade(Constants.GRANDMA_INDEX, 2);
 	this.upgradeFunctions["Underworld ovens"] = new ProductionUpgrade(3);
+	this.upgradeFunctions["One mind"] = new PerBuildingScalerUpgrade(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02);
+	this.upgradeFunctions["Exotic nuts"] = new ProductionUpgrade(4);
+	this.upgradeFunctions["Communal brainsweep"] = new PerBuildingScalerUpgrade(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02);
+	this.upgradeFunctions["Arcane sugar"] = new ProductionUpgrade(4);
+	this.upgradeFunctions["Elder Pact"] = new PerBuildingScalerUpgrade(Constants.GRANDMA_INDEX, Constants.PORTAL_INDEX, 0.05);
 
 	// Combo upgrades, combine a couple of effects
 	this.upgradeFunctions["Reinforced index finger"] = new ComboUpgrade([
