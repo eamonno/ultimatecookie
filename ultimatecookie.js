@@ -140,6 +140,15 @@ UltimateCookie.prototype.determineNextPurchase = function() {
 	}
 */
 
+	// Autobuy the research speed upgrade before the first research item
+	if (next.getName() == "Specialized chocolate chips") {
+		for (i = 0; i < purchases.length; ++i) {
+			if (purchases[i].getName() == "Persistent memory") {
+				next = purchases[i];
+			}
+		}
+	}
+
 	if (this.lastDeterminedPurchase == undefined) {
 		this.lastDeterminedPurchase == "";
 	}
@@ -553,10 +562,8 @@ function ComboUpgrade(upgrades) {
 	}
 }
 
-// Unhandled upgrade type, set to 0 cps so basically never bought automatically
-function UnknownUpgrade(name) {
-	this.name = name;
-	console.log("Unknown upgrade: " + name);
+// Upgrade with no affect on cookie production
+function NonProductionUpgrade() {
 	this.upgradeEval = function(eval) {
 	}
 }
@@ -639,7 +646,7 @@ function UpgradeInfo() {
 	this.upgradeFunctions["Quantum conundrum"] =
 	this.upgradeFunctions["Causality enforcer"] =
 	this.upgradeFunctions["Yestermorrow comparators"] = new BuildingMultiplierUpgrade(Constants.TIME_MACHINE_INDEX, 2);
-	//this.upgradeFunctions["Far future enactment"] - Should be last time machine upgrade, not working at present
+	this.upgradeFunctions["Far future enactment"] = new NonProductionUpgrade();	// Bugged - does nothing
 	this.upgradeFunctions["String theory"] =
 	this.upgradeFunctions["Large macaron collider"] =
 	this.upgradeFunctions["Big bang bake"] =
@@ -704,7 +711,7 @@ function UpgradeInfo() {
 
 	// Research upgrade functions
 	this.upgradeFunctions["Bingo center/Research facility"] = new BuildingMultiplierUpgrade(Constants.GRANDMA_INDEX, 4);
-	// this.upgradeFunctions["Persistent memory"] research speed upgrade
+	this.upgradeFunctions["Persistent memory"] = new NonProductionUpgrade();
 	this.upgradeFunctions["Specialized chocolate chips"] = new ProductionUpgrade(1);
 	this.upgradeFunctions["Designer cocoa beans"] = new ProductionUpgrade(2);
 	this.upgradeFunctions["Ritual rolling pins"] = new BuildingMultiplierUpgrade(Constants.GRANDMA_INDEX, 2);
@@ -760,7 +767,8 @@ function UpgradeInfo() {
 
 UpgradeInfo.prototype.getUpgradeFunction = function(name) {
 	if (this.upgradeFunctions[name] == undefined) {
-		this.upgradeFunctions[name] = new UnknownUpgrade(name);
+		this.upgradeFunctions[name] = new NonProductionUpgrade();
+		console.log("Unknown upgrade: " + name);
 	}
 	return this.upgradeFunctions[name];
 }
@@ -772,11 +780,15 @@ UpgradeInfo.prototype.getUpgradeFunction = function(name) {
 // Building purchase
 function PurchasableBuilding(index) {
 	this.index = index;
-	this.upgradeFunction = upgradeInfo.getUpgradeFunction(Game.ObjectsById[this.index].name);
+	this.upgradeFunction = upgradeInfo.getUpgradeFunction(this.getName());
+}
+
+PurchasableBuilding.prototype.getName = function() {
+	return Game.ObjectsById[this.index].name;
 }
 
 PurchasableBuilding.prototype.toString = function() {
-	return "Building: " + Game.ObjectsById[this.index].name + " " + (Game.ObjectsById[this.index].amount + 1);
+	return "Building: " + this.getName() + " " + (Game.ObjectsById[this.index].amount + 1);
 }
 
 PurchasableBuilding.prototype.getCost = function() {
@@ -790,11 +802,15 @@ PurchasableBuilding.prototype.purchase = function() {
 // Upgrade purchase
 function PurchasableUpgrade(index) {
 	this.index = index;
-	this.upgradeFunction = upgradeInfo.getUpgradeFunction(Game.UpgradesById[this.index].name);
+	this.upgradeFunction = upgradeInfo.getUpgradeFunction(this.getName());
+}
+
+PurchasableUpgrade.prototype.getName = function() {
+	return Game.UpgradesById[this.index].name;
 }
 
 PurchasableUpgrade.prototype.toString = function() {
-	return "Upgrade: " + Game.UpgradesById[this.index].name;
+	return "Upgrade: " + this.getName();
 }
 
 PurchasableUpgrade.prototype.getCost = function() {
