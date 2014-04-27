@@ -3,17 +3,25 @@
 
 var Constants = {};
 
-// Configuration constants
+// Interval delays for clicking and updates
+Constants.CLICK_DELAY = 1;
+Constants.UPDATE_DELAY = 50;
+
+Constants.AUTO_CLICK = true;
 Constants.AUTO_CLICK_GOLDEN_COOKIES = true;
-Constants.AUTO_CLICK_DELAY = 1;
-Constants.AUTO_BUY_DELAY = 50;
-Constants.DEBUG_VERIFY = true;
+Constants.AUTO_RESET = true;
+Constants.AUTO_BUY = true;
+Constants.AUTO_DISMISS_NOTES = true;
+
+Constants.NOTE_DISMISS_DELAY = 10000;
+Constants.RESET_LIMIT = 1.1;
+Constants.DEBUG = true;
 
 // Evaluator constants
 Constants.FRENZY_MULTIPLIER = 7;			// Frenzy multiplies CpS by 7
 Constants.CLICK_FRENZY_MULTIPLIER = 777;	// Click frenzies give 777x cookier per click
 Constants.LUCKY_COOKIE_BANK_TIME = 1200;	// Lucky provides up to 1200 seconds of CpS based on bank
-Constants.LUCKY_COOKIE_BONUS_TIME = 13;	// Lucky provides 13 additional seconds of CpS regardless
+Constants.LUCKY_COOKIE_BONUS_TIME = 13;		// Lucky provides 13 additional seconds of CpS regardless
 
 // Indices into the buildings arrays
 Constants.CURSOR_INDEX = 0;
@@ -33,44 +41,10 @@ Constants.PRISM_INDEX = 10;
 //
 
 function UltimateCookie() {
-
-	this.enableAutoBuy();
-	this.enableAutoClick();
-}
-
-UltimateCookie.prototype.enableAutoBuy = function() {
 	var t = this;
-	this.autoBuyer = setInterval(function() { t.autoBuy(); }, Constants.AUTO_BUY_DELAY);
+	this.autoClicker = setInterval(function() { t.click(); }, Constants.CLICK_DELAY);
+	this.autoUpdater = setInterval(function() { t.update(); }, Constants.UPDATE_DELAY);
 }
-
-UltimateCookie.prototype.enableAutoClick = function() {
-	var t = this;
-	this.autoClicker = setInterval(function() { t.autoClick(); }, Constants.AUTO_CLICK_DELAY);
-}
-
-UltimateCookie.prototype.disableAutoBuy = function() {
-	clearInterval(this.autoBuyer);
-}
-
-UltimateCookie.prototype.disableAutoClick = function() {
-	clearInterval(this.autoClicker);
-}
-
-/*
-// Work out how long it would take to purchase a given array of upgrades
-UltimateCookie.prototype.timeToBuy = function(evaluator, upgrades) {
-	// Create a clone of the evaluator to avoid modifying the base
-	var e = evaluator.clone();
-
-	var timeTaken = 0;
-	var i;
-	for (i = 0; i < upgrades.length; ++i) {
-		timeTaken += Math.max(upgrades[i].getCost() / e.getEffectiveCps(), this.AUTO_BUY_DELAY * 0.001);
-		upgrades[i].upgradeFunction.upgradeEval(e);
-	}
-	return timeTaken;
-}
-*/
 
 // Work out how long it would take for a purchase to return on its cost
 UltimateCookie.prototype.timeToBreakEven = function(evaluator, upgrade) {
@@ -116,18 +90,6 @@ UltimateCookie.prototype.determineNextPurchase = function(eval) {
 		}
 	}
 
-//	var cps = this.effectiveCps();
-/*
-	var i;
-	for (i = 1; i < purchases.length; ++i) {
-		var tba = this.timeToBuy(currentGame, [next, purchases[i]]);
-		var tbb = this.timeToBuy(currentGame, [purchases[i], next]);
-		if (tba > tbb) {
-			next = purchases[i];
-		}
-	}
-*/
-
 	// Autobuy the research speed upgrade before the first research item
 	if (next.getName() == "Specialized chocolate chips") {
 		for (i = 0; i < purchases.length; ++i) {
@@ -143,6 +105,12 @@ UltimateCookie.prototype.determineNextPurchase = function(eval) {
 			next = purchases[i];
 		}
 	}
+	// Similarly nasty Sacrificial rolling pins autobuy
+	for (i = 0; i < purchases.length; ++i) {
+		if (purchases[i].getName() == "Sacrificial rolling pins") {
+			next = purchases[i];
+		}
+	}
 
 	if (this.lastDeterminedPurchase == undefined) {
 		this.lastDeterminedPurchase == "";
@@ -150,30 +118,41 @@ UltimateCookie.prototype.determineNextPurchase = function(eval) {
 
 	if (next.toString() != this.lastDeterminedPurchase) {
 		this.lastDeterminedPurchase = next.toString();
-		console.log("Next purchase: " + this.lastDeterminedPurchase);
+		//console.log("Next purchase: " + this.lastDeterminedPurchase);
 	}
 
 	return next;
 }
 
-UltimateCookie.prototype.autoClick = function() {
-	if (Constants.AUTO_CLICK_GOLDEN_COOKIES) {
+UltimateCookie.prototype.click = function() {
+	if (Constants.AUTO_CLICK) {
+		Game.ClickCookie();
+	}
+}
+
+UltimateCookie.prototype.update = function() {
+	// Auto dismiss notes
+	if (!Game.recalculateGains && Constants.AUTO_DISMISS_NOTES) {
+		if (Game.Notes.length > 0) {
+			if (new Date() - Game.Notes[0].date > Constants.NOTE_DISMISS_DELAY) {
+				Game.CloseNote(Game.Notes[0].id);
+			}
+		}
+	}
+	// Auto click golden cookies
+	if (!Game.recalculateGains && Constants.AUTO_CLICK_GOLDEN_COOKIES) {
 		if (Game.goldenCookie.life > 0 && Game.goldenCookie.toDie == 0) {
 			Game.goldenCookie.click();
 		}
 	}
-	Game.ClickCookie();
-}
-
-UltimateCookie.prototype.autoBuy = function() {
-	// If recalculateGains is set, game will not match Emulator so just skip this autobuy
-	if (!Game.recalculateGains) {
+	// Auto buy
+	if (!Game.recalculateGains && Constants.AUTO_BUY) {
 		// Get an Evaluator synced to the current game
 		var currentGame = new Evaluator();
 		currentGame.syncToGame();
 
 		// Shutdown if out of sync
-		if (this.DEBUG_VERIFY) {
+		if (this.DEBUG) {
 			if (!currentGame.matchesGame()) {
 				ultimateCookie.disableAutoBuy();
 				console.log("Evaluator error: autoBuy disabled.");
@@ -182,9 +161,26 @@ UltimateCookie.prototype.autoBuy = function() {
 		}
 		var nextPurchase = this.determineNextPurchase(currentGame);
 		var cookieBank = currentGame.getCookieBankSize(Game.goldenCookie.time / Game.fps, Game.frenzy / Game.fps);
-
+		// Cap cookie bank at 5% of total cookies earned
+		cookieBank = Math.min(Game.cookiesEarned / 20, cookieBank);
 		if (Game.cookies - cookieBank > nextPurchase.getCost()) {
 			nextPurchase.purchase();
+		}
+	}
+	// Auto reset
+	if (!Game.recalculateGains && Constants.AUTO_RESET) {
+		// Wait until frenzy or clickFrenzy is over to reset
+		if (!Game.frenzy && !Game.clickFrenzy) {
+			var hcs = Game.HowMuchPrestige(Game.cookiesReset);
+			var resethcs = Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned);
+
+			var scaleNow = 1 + hcs * 0.02;
+			var scaleReset = 1 + resethcs * 0.02;
+
+			if (scaleReset / scaleNow > Constants.AUTO_RESET_LIMIT) {
+				console.log("Resetting game. HCs now: " + hcs + ", HCs after reset: " + resethcs + ", time: " + new Date());
+				Game.Reset(1, 0);
+			}
 		}
 	}
 }
@@ -327,7 +323,7 @@ Evaluator.prototype.clone = function() {
 	e.frenzyDuration = this.frenzyDuration;
 	e.goldenCookieTime = this.goldenCookieTime;
 
-	if (Constants.VERIFY_DEBUG) {
+	if (Constants.DEBUG) {
 		// Make sure the cloning worked
 		if (this.getEffectiveCps() != e.getEffectiveCps()) {
 			console.log("Error cloning Evaluator");
@@ -787,6 +783,7 @@ function UpgradeInfo() {
 	this.upgradeFunctions["Communal brainsweep"] = new PerBuildingScalerUpgrade(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02);
 	this.upgradeFunctions["Arcane sugar"] = new ProductionUpgrade(4);
 	this.upgradeFunctions["Elder Pact"] = new PerBuildingScalerUpgrade(Constants.GRANDMA_INDEX, Constants.PORTAL_INDEX, 0.05);
+	this.upgradeFunctions["Sacrificial rolling pins"] = new NonProductionUpgrade();
 
 	// Combo upgrades, combine a couple of effects
 	this.upgradeFunctions["Reinforced index finger"] = new ComboUpgrade([
@@ -889,7 +886,7 @@ PurchasableUpgrade.prototype.getCost = function() {
 }
 
 PurchasableUpgrade.prototype.purchase = function() {
-	Game.UpgradesById[this.index].buy(0);
+	Game.UpgradesById[this.index].buy(1);
 }
 
 //
@@ -905,4 +902,3 @@ function floatEqual(a, b) {
 // Create the upgradeInfo and Ultimate Cookie instances
 var upgradeInfo = new UpgradeInfo();
 var ultimateCookie = new UltimateCookie();
-
