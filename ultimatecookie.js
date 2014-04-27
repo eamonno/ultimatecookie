@@ -176,6 +176,8 @@ UltimateCookie.prototype.autoBuy = function() {
 		var nextPurchase = this.determineNextPurchase(currentGame);
 		var cookieBank = currentGame.getCookieBankSize(Game.goldenCookie.time / Game.fps, Game.frenzy / Game.fps);
 
+		console.log("Cookie Bank: " + cookieBank);
+
 		if (Game.cookies - cookieBank > nextPurchase.getCost()) {
 			nextPurchase.purchase();
 		}
@@ -466,7 +468,7 @@ Evaluator.prototype.getEffectiveCps = function() {
 // Get the current required cookie bank size, accounts for time until the
 // next golden cookie appears
 Evaluator.prototype.getCookieBankSize = function(timeSinceLastGoldenCookie, frenzyTimeRemaining) {
-	var totalCookieBankRequired = this.getCps() * Constants.LUCKY_COOKIE_BANK_TIME * 10;
+	var totalCookieBankRequired = this.getUnfrenziedCps() * Constants.LUCKY_COOKIE_BANK_TIME * 10;
 	var timeRemaining = Math.max(this.goldenCookieTime - timeSinceLastGoldenCookie, 0);
 	var frenziedCps = this.getFrenziedCps() + this.getFrenziedCpc() * ultimateCookie.clickRate();
 	var unfrenziedCps = this.getUnfrenziedCps() + this.getUnfrenziedCpc() * ultimateCookie.clickRate();
