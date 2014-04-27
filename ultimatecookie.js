@@ -6,7 +6,7 @@ var Constants = {};
 // Configuration constants
 Constants.AUTO_CLICK_GOLDEN_COOKIES = true;
 Constants.AUTO_CLICK_DELAY = 1;
-Constants.AUTO_BUY_DELAY = 50;
+Constants.AUTO_BUY_DELAY = 1000;
 Constants.DEBUG_VERIFY = true;
 
 // Evaluator constants
@@ -100,28 +100,16 @@ UltimateCookie.prototype.createPurchaseList = function() {
 	return purchases;
 }
 
-// Work out what the optimal next purchase is
-UltimateCookie.prototype.determineNextPurchase = function() {
+// Work out what the optimal next purchase is for a given evaluator
+UltimateCookie.prototype.determineNextPurchase = function(eval) {
 	// Get a list of the current available purchases
 	var purchases = this.createPurchaseList();
 
-	// Get an Evaluator synced to the current game
-	var currentGame = new Evaluator();
-	currentGame.syncToGame();
-
-	// Shutdown if out of sync
-	if (this.DEBUG_VERIFY) {
-		if (!currentGame.matchesGame()) {
-			ultimateCookie.disableAutoBuy();
-			console.log("Evaluator error: autoBuy disabled.");
-		}
-	}
-
 	var next = purchases[0];
-	var nextTime = this.timeToBreakEven(currentGame, next);
+	var nextTime = this.timeToBreakEven(eval, next);
 
 	for (i = 1; i < purchases.length; ++i) {
-		var tp = this.timeToBreakEven(currentGame, purchases[i]);
+		var tp = this.timeToBreakEven(eval, purchases[i]);
 		if (tp < nextTime) {
 			nextTime = tp;
 			next = purchases[i];
@@ -173,9 +161,22 @@ UltimateCookie.prototype.autoClick = function() {
 UltimateCookie.prototype.autoBuy = function() {
 	// If recalculateGains is set, game will not match Emulator so just skip this autobuy
 	if (!Game.recalculateGains) {
-		var nextPurchase = this.determineNextPurchase();
+		// Get an Evaluator synced to the current game
+		var currentGame = new Evaluator();
+		currentGame.syncToGame();
 
-		if (Game.cookies > nextPurchase.getCost()) {
+		// Shutdown if out of sync
+		if (this.DEBUG_VERIFY) {
+			if (!currentGame.matchesGame()) {
+				ultimateCookie.disableAutoBuy();
+				console.log("Evaluator error: autoBuy disabled.");
+				return;
+			}
+		}
+		var nextPurchase = this.determineNextPurchase(currentGame);
+		var cookieBank = currentGame.getCookieBankSize(Game.goldenCookie.time / Game.fps, Game.frenzy / Game.fps);
+
+		if (Game.cookies - cookieBank > nextPurchase.getCost()) {
 			nextPurchase.purchase();
 		}
 	}
@@ -388,35 +389,69 @@ Evaluator.prototype.getCps = function() {
 	return cps;
 }
 
+// Calculate the CpS during frenzy
+Evaluator.prototype.getFrenziedCps = function() {
+	var frenzy = this.frenzy;
+	var clickFrenzy = this.clickFrenzy;
+	this.frenzy = 1;
+	this.clickFrenzy = 0;
+	var cps = this.getCps();
+	this.frenzy = frenzy;
+	this.clickFrenzy = clickFrenzy;
+	return cps;
+}
+
+// Calculate the CpC during frenzy
+Evaluator.prototype.getFrenziedCpc = function() {
+	var frenzy = this.frenzy;
+	var clickFrenzy = this.clickFrenzy;
+	this.frenzy = 1;
+	this.clickFrenzy = 0;
+	var cpc = this.getCpc();
+	this.frenzy = frenzy;
+	this.clickFrenzy = clickFrenzy;
+	return cpc;
+}
+
+// Calculate the CpS without frenzy
+Evaluator.prototype.getUnfrenziedCps = function() {
+	var frenzy = this.frenzy;
+	var clickFrenzy = this.clickFrenzy;
+	this.frenzy = 0;
+	this.clickFrenzy = 0;
+	var cps = this.getCps();
+	this.frenzy = frenzy;
+	this.clickFrenzy = clickFrenzy;
+	return cps;
+}
+
+// Calculate the CpC without frenzy
+Evaluator.prototype.getUnfrenziedCpc = function() {
+	var frenzy = this.frenzy;
+	var clickFrenzy = this.clickFrenzy;
+	this.frenzy = 0;
+	this.clickFrenzy = 0;
+	var cpc = this.getCpc();
+	this.frenzy = frenzy;
+	this.clickFrenzy = clickFrenzy;
+	return cpc;
+}
+
 // Estimate the extra CpS contribution from collecting all golden cookies
 // Assumes max click rate and that golden cookies just follow the simple pattern
 // of Frenzy followed by Lucky and appear at the minimum spawn time every time.
 // Not 100% accurate but near enough to give a decent estimation.
 Evaluator.prototype.getGoldenCookieCps = function() {
-	// Get the frenzied and unfrenzied Cps and Cpc
-	var frenzy = this.frenzy;
-	var clickFrenzy = this.clickFrenzy;
-
-	this.frenzy = 0;
-	var unfrenziedCps = this.getCps();
-	var unfrenziedCpc = this.getCpc();
-	this.frenzy = 1;
-	var frenziedCps = this.getCps();
-	var frenziedCpc = this.getCpc();
-
-	this.frenzy = frenzy;
-	this.clickFrenzy = clickFrenzy;
-
 	// Add gains from a single full duration frenzy
 	var totalGain = 0;
-	totalGain += (frenziedCps - unfrenziedCps) * this.frenzyDuration;
-	totalGain += (frenziedCpc - unfrenziedCpc) * this.frenzyDuration * ultimateCookie.clickRate();
+	totalGain += (this.getFrenziedCps() - this.getUnfrenziedCps()) * this.frenzyDuration;
+	totalGain += (this.getFrenziedCpc() - this.getUnfrenziedCpc()) * this.frenzyDuration * ultimateCookie.clickRate();
 
 	// Add gains from a single lucky cookie
 	if (this.goldenCookieTime < this.frenzyDuration) {
-		totalGain += frenziedCps * (Constants.LUCKY_COOKIE_BANK_TIME + Constants.LUCKY_COOKIE_BONUS_TIME);
+		totalGain += this.getFrenziedCps() * (Constants.LUCKY_COOKIE_BANK_TIME + Constants.LUCKY_COOKIE_BONUS_TIME);
 	} else {
-		totalGain += unfrenziedCps * (Constants.LUCKY_COOKIE_BANK_TIME + Constants.LUCKY_COOKIE_BONUS_TIME);
+		totalGain += this.getUnfrenziedCps() * (Constants.LUCKY_COOKIE_BANK_TIME + Constants.LUCKY_COOKIE_BONUS_TIME);
 	}
 
 	// Divide this total by time it would take to get two golden cookies
@@ -426,6 +461,20 @@ Evaluator.prototype.getGoldenCookieCps = function() {
 // Calculate the effective Cps at the current games click rate
 Evaluator.prototype.getEffectiveCps = function() {
 	return this.getCps() + this.getCpc() * ultimateCookie.clickRate() + this.getGoldenCookieCps();
+}
+
+// Get the current required cookie bank size, accounts for time until the
+// next golden cookie appears
+Evaluator.prototype.getCookieBankSize = function(timeSinceLastGoldenCookie, frenzyTimeRemaining) {
+	var totalCookieBankRequired = this.getCps() * Constants.LUCKY_COOKIE_BANK_TIME * 10;
+	var timeRemaining = Math.max(this.goldenCookieTime - timeSinceLastGoldenCookie, 0);
+	var frenziedCps = this.getFrenziedCps() + this.getFrenziedCpc() * ultimateCookie.clickRate();
+	var unfrenziedCps = this.getUnfrenziedCps() + this.getUnfrenziedCpc() * ultimateCookie.clickRate();
+
+	totalCookieBankRequired -= Math.min(timeRemaining, frenzyTimeRemaining) * frenziedCps;
+	totalCookieBankRequired -= Math.max(timeRemaining - frenzyTimeRemaining, 0) * unfrenziedCps;
+
+	return totalCookieBankRequired;
 }
 
 // Sync an evaluator with the current in game store
