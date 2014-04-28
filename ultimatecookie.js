@@ -12,6 +12,7 @@ Constants.AUTO_CLICK_GOLDEN_COOKIES = true;
 Constants.AUTO_RESET = true;
 Constants.AUTO_BUY = true;
 Constants.AUTO_DISMISS_NOTES = true;
+Constants.AUTO_SWITCH_SEASONS = true;
 
 Constants.NOTE_DISMISS_DELAY = 10000;
 Constants.RESET_LIMIT = 1.1;
@@ -46,15 +47,27 @@ function UltimateCookie() {
 	this.autoUpdater = setInterval(function() { t.update(); }, Constants.UPDATE_DELAY);
 }
 
-// Work out how long it would take for a purchase to return on its cost
-UltimateCookie.prototype.timeToBreakEven = function(evaluator, upgrade) {
-	// Create a clone of the evaluator to avoid modifying the base
-	var e = evaluator.clone();
+UltimateCookie.prototype.compareUpgrades = function(eval, a, b) {
+	var e = eval.clone();
 
-	cps1 = e.getEffectiveCps();
-	upgrade.upgradeFunction.upgradeEval(e);
-	cps2 = e.getEffectiveCps();
-	return upgrade.getCost() / (cps2 - cps1) + upgrade.getCost() / cps1;
+	// Get time to buy both starting with a
+	var ta = a.getCost() / e.getEffectiveCps();
+	a.upgradeFunction.upgradeEval(e);
+	ta += b.getCost() / e.getEffectiveCps();
+
+	// Get time to buy both starting with b
+	e = eval.clone();
+	var tb = b.getCost() / e.getEffectiveCps();
+	b.upgradeFunction.upgradeEval(e);
+	tb += a.getCost() / e.getEffectiveCps();
+
+	// If you can get both faster starting with a, it is the best
+//	console.log([a.getName(), b.getName(), ta, tb]);
+	if (ta < tb) {
+		return a;
+	} else {
+		return b;
+	}
 }
 
 UltimateCookie.prototype.createPurchaseList = function() {
@@ -63,12 +76,12 @@ UltimateCookie.prototype.createPurchaseList = function() {
 	// Add the buildings
 	var i;
 	for (i = 0; i < Game.ObjectsById.length; ++i) {
-		purchases.push(new PurchasableBuilding(Game.ObjectsById[i].id));
+		purchases.push(new PurchasableItem(Game.ObjectsById[i]));
 	}
 
 	// Add the upgrades
 	for (i = 0; i < Game.UpgradesInStore.length; ++i) {
-		purchases.push(new PurchasableUpgrade(Game.UpgradesInStore[i].id));
+		purchases.push(new PurchasableItem(Game.UpgradesInStore[i]));
 	}
 
 	return purchases;
@@ -80,14 +93,9 @@ UltimateCookie.prototype.determineNextPurchase = function(eval) {
 	var purchases = this.createPurchaseList();
 
 	var next = purchases[0];
-	var nextTime = this.timeToBreakEven(eval, next);
 
 	for (i = 1; i < purchases.length; ++i) {
-		var tp = this.timeToBreakEven(eval, purchases[i]);
-		if (tp < nextTime) {
-			nextTime = tp;
-			next = purchases[i];
-		}
+		next = this.compareUpgrades(eval, next, purchases[i]);
 	}
 
 	// Autobuy the research speed upgrade before the first research item
@@ -118,7 +126,7 @@ UltimateCookie.prototype.determineNextPurchase = function(eval) {
 
 	if (next.toString() != this.lastDeterminedPurchase) {
 		this.lastDeterminedPurchase = next.toString();
-		//console.log("Next purchase: " + this.lastDeterminedPurchase);
+		console.log("Next purchase: " + this.lastDeterminedPurchase);
 	}
 
 	return next;
@@ -144,6 +152,9 @@ UltimateCookie.prototype.update = function() {
 		if (Game.goldenCookie.life > 0 && Game.goldenCookie.toDie == 0) {
 			Game.goldenCookie.click();
 		}
+	}
+	// Auto switch seasons
+	if (!Game.recalculateGains && Constants.AUTO_SWITCH_SEASONS) {
 	}
 	// Auto buy
 	if (!Game.recalculateGains && Constants.AUTO_BUY) {
@@ -317,7 +328,10 @@ Evaluator.prototype.clone = function() {
 	e.heavenlyChips = this.heavenlyChips;
 	e.heavenlyUnlock = this.heavenlyUnlock;
 	e.milkAmount = this.milkAmount;
-	e.milkMultipliers = this.milkMultipliers;
+	e.milkMultipliers = [];
+	for (i = 0; i < this.milkMultipliers.length; ++i) {
+		e.milkMultipliers[i] = this.milkMultipliers[i];
+	}
 	e.frenzy = this.frenzy;
 	e.clickFrenzy = this.clickFrenzy;
 	e.frenzyDuration = this.frenzyDuration;
@@ -459,6 +473,11 @@ Evaluator.prototype.getGoldenCookieCps = function() {
 
 	// Divide this total by time it would take to get two golden cookies
 	return totalGain / (this.goldenCookieTime * 2);
+}
+
+// Calculate the effective Cps at the current games click rate minus golden cookies
+Evaluator.prototype.getCurrentCps = function() {
+	return this.getCps() + this.getCpc() * ultimateCookie.clickRate();
 }
 
 // Calculate the effective Cps at the current games click rate
@@ -845,48 +864,30 @@ UpgradeInfo.prototype.getUpgradeFunction = function(name) {
 // Classes to represent upgrades and tie them to game purchases
 //
 
-// Building purchase
-function PurchasableBuilding(index) {
-	this.index = index;
-	this.upgradeFunction = upgradeInfo.getUpgradeFunction(this.getName());
+// PurchasableItems
+function PurchasableItem(item) {
+	this.item = item;
+	this.upgradeFunction = upgradeInfo.getUpgradeFunction(this.item.name);
 }
 
-PurchasableBuilding.prototype.getName = function() {
-	return Game.ObjectsById[this.index].name;
+PurchasableItem.prototype.getName = function() {
+	return this.item.name;
 }
 
-PurchasableBuilding.prototype.toString = function() {
-	return "Building: " + this.getName() + " " + (Game.ObjectsById[this.index].amount + 1);
+PurchasableItem.prototype.toString = function() {
+	if (this.item.amount == undefined) {	// Upgrades don't have an amount
+		return "Upgrade: " + this.getName();
+	} else {
+		return "Building: " + this.getName() + " " + (this.item.amount + 1);
+	}
 }
 
-PurchasableBuilding.prototype.getCost = function() {
-	return Game.ObjectsById[this.index].getPrice();
+PurchasableItem.prototype.getCost = function() {
+	return this.item.getPrice();
 }
 
-PurchasableBuilding.prototype.purchase = function() {
-	Game.ObjectsById[this.index].buy(1);
-}
-
-// Upgrade purchase
-function PurchasableUpgrade(index) {
-	this.index = index;
-	this.upgradeFunction = upgradeInfo.getUpgradeFunction(this.getName());
-}
-
-PurchasableUpgrade.prototype.getName = function() {
-	return Game.UpgradesById[this.index].name;
-}
-
-PurchasableUpgrade.prototype.toString = function() {
-	return "Upgrade: " + this.getName();
-}
-
-PurchasableUpgrade.prototype.getCost = function() {
-	return Game.UpgradesById[this.index].getPrice();
-}
-
-PurchasableUpgrade.prototype.purchase = function() {
-	Game.UpgradesById[this.index].buy(1);
+PurchasableItem.prototype.purchase = function() {
+	this.item.buy(1);
 }
 
 //
@@ -902,3 +903,8 @@ function floatEqual(a, b) {
 // Create the upgradeInfo and Ultimate Cookie instances
 var upgradeInfo = new UpgradeInfo();
 var ultimateCookie = new UltimateCookie();
+
+if (Constants.DEBUG) {
+	console.log("Ultimate Cookie started at " + new Date());
+}
+
