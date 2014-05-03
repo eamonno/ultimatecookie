@@ -301,7 +301,7 @@ EvaluatorBuilding.prototype.getCps = function() {
 }
 
 EvaluatorBuilding.prototype.getIndividualCps = function() {
-	return this.baseCps * this.multiplier + this.buildingBaseScaler.getScale(this.evaluator.buildings) + this.buildingScaler.getScale(this.evaluator.buildings);
+	return (this.baseCps + this.buildingBaseScaler.getScale(this.evaluator.buildings)) * this.multiplier + this.buildingScaler.getScale(this.evaluator.buildings);
 }
 
 EvaluatorBuilding.prototype.getCost = function() {
@@ -657,8 +657,8 @@ upgradeTypes.multifinger = Object.create(upgradeTypes.basic, {
 	upgradeEval: pv(
 		function(eval) {
 			// Scale up all except the excluded type
-			eval.buildings[Constants.CURSOR_INDEX].buildingBaseScaler.scaleAll(this.amount);
-			eval.buildings[Constants.CURSOR_INDEX].buildingBaseScaler.scaleOne(Constants.CURSOR_INDEX, -this.amount);
+			eval.buildings[Constants.CURSOR_INDEX].buildingScaler.scaleAll(this.amount);
+			eval.buildings[Constants.CURSOR_INDEX].buildingScaler.scaleOne(Constants.CURSOR_INDEX, -this.amount);
 			eval.cpcBuildingBaseScaler.scaleAll(this.amount);
 			eval.cpcBuildingBaseScaler.scaleOne(Constants.CURSOR_INDEX, -this.amount);
 		}
@@ -864,7 +864,7 @@ var upgradeFunctions = {
 	oneMind:				perBuildingScalerUpgrade("One mind", Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02),
 	exoticNuts:				productionUpgrade("Exotic nuts", 4),
 	communalBrainsweep:		perBuildingScalerUpgrade("Communal brainsweep", Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02),
-	arcaneSugar:			productionUpgrade("Arcane sugar", 4),
+	arcaneSugar:			productionUpgrade("Arcane sugar", 5),
 	elderPact:				perBuildingScalerUpgrade("Elder Pact", Constants.GRANDMA_INDEX, Constants.PORTAL_INDEX, 0.05),
 	sacrificialRollingPins:	basicUpgrade("Sacrificial rolling pins"),
 	// Reinforced Index Finger
