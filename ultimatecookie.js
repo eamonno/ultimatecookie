@@ -53,19 +53,14 @@ function UltimateCookie() {
 }
 
 UltimateCookie.prototype.compareUpgrades = function(eval, a, b) {
-	var e = eval.clone();
+	var eCps = eval.getEffectiveCps();
+	var aCpsGain = a.getEffectiveCps(eval);
+	var bCpsGain = b.getEffectiveCps(eval);
 
 	if (this.fastBuy) {
 		// Fast buy is for just after resets where you have lots of cookies and
 		// just want to maximise cps as fast as possible
 		var cookies = Game.cookies;
-		var currentCps = e.getEffectiveCps();
-		a.upgradeFunction.applyUpgrade(e);
-		var aCpsGain = e.getEffectiveCps() - currentCps;
-
-		e = eval.clone();
-		b.upgradeFunction.applyUpgrade(e);
-		var bCpsGain = e.getEffectiveCps() - currentCps;
 
 		if (a.getCost() <= cookies && b.getCost() <= cookies) {
 			// Both cost less than we have, buy the one that gives most cps
@@ -79,19 +74,10 @@ UltimateCookie.prototype.compareUpgrades = function(eval, a, b) {
 		} else if (b.getCost() <= cookies) {
 			return b;
 		}
-		// Cant afford either, just fall back on normal logic
-		e = eval.clone();
 	}
 	// Get time to buy both starting with a
-	var ta = a.getCost() / e.getEffectiveCps();
-	a.upgradeFunction.applyUpgrade(e);
-	ta += b.getCost() / e.getEffectiveCps();
-
-	// Get time to buy both starting with b
-	e = eval.clone();
-	var tb = b.getCost() / e.getEffectiveCps();
-	b.upgradeFunction.applyUpgrade(e);
-	tb += a.getCost() / e.getEffectiveCps();
+	var ta = a.getCost() / eCps + b.getCost() / (eCps + aCpsGain);
+	var tb = b.getCost() / eCps + a.getCost() / (eCps + bCpsGain);
 
 	// If you can get both faster starting with a, it is the best
 //	console.log([a.getName(), b.getName(), ta, tb]);
@@ -108,12 +94,12 @@ UltimateCookie.prototype.createPurchaseList = function() {
 	// Add the buildings
 	var i;
 	for (i = 0; i < Game.ObjectsById.length; ++i) {
-		purchases.push(new PurchasableItem(Game.ObjectsById[i]));
+		purchases.push(getUpgradeFunction(Game.ObjectsById[i].name));
 	}
 
 	// Add the upgrades
 	for (i = 0; i < Game.UpgradesInStore.length; ++i) {
-		purchases.push(new PurchasableItem(Game.UpgradesInStore[i]));
+		purchases.push(getUpgradeFunction(Game.UpgradesInStore[i].name));
 	}
 
 	return purchases;
@@ -131,9 +117,9 @@ UltimateCookie.prototype.determineNextPurchase = function(eval) {
 	}
 
 	// Autobuy the research speed upgrade before the first research item
-	if (next.getName() == "Specialized chocolate chips") {
+	if (next.name == "Specialized chocolate chips") {
 		for (i = 0; i < purchases.length; ++i) {
-			if (purchases[i].getName() == "Persistent memory") {
+			if (purchases[i].name == "Persistent memory") {
 				next = purchases[i];
 			}
 		}
@@ -141,13 +127,13 @@ UltimateCookie.prototype.determineNextPurchase = function(eval) {
 
 	// Nasty Elder Pledge hack for short term
 	for (i = 0; i < purchases.length; ++i) {
-		if (purchases[i].getName() == "Elder Pledge") {
+		if (purchases[i].name == "Elder Pledge") {
 			next = purchases[i];
 		}
 	}
 	// Similarly nasty Sacrificial rolling pins autobuy
 	for (i = 0; i < purchases.length; ++i) {
-		if (purchases[i].getName() == "Sacrificial rolling pins") {
+		if (purchases[i].name == "Sacrificial rolling pins") {
 			next = purchases[i];
 		}
 	}
@@ -156,8 +142,8 @@ UltimateCookie.prototype.determineNextPurchase = function(eval) {
 		this.lastDeterminedPurchase == "";
 	}
 
-	if (next.toString() != this.lastDeterminedPurchase) {
-		this.lastDeterminedPurchase = next.toString();
+	if (next.name != this.lastDeterminedPurchase) {
+		this.lastDeterminedPurchase = next.name;
 		console.log("FastBuy: " + this.fastBuy + ", next purchase: " + this.lastDeterminedPurchase);
 	}
 
@@ -203,6 +189,12 @@ UltimateCookie.prototype.update = function() {
 			}
 		}
 		var nextPurchase = this.determineNextPurchase(currentGame);
+		// Shutdown if out of sync
+		if (Constants.DEBUG) {
+			if (!currentGame.matchesGame()) {
+				console.log("Evaluator changed.");
+			}
+		}
 		var cookieBank = currentGame.getCookieBankSize(Game.goldenCookie.time / Game.fps, Game.frenzy / Game.fps);
 		// Cap cookie bank at 5% of total cookies earned
 		cookieBank = Math.min(Game.cookiesEarned / 20, cookieBank);
@@ -587,11 +579,12 @@ upgradeTypes.basic = {
 	revokeUpgrade: function(eval) {},
 	purchase: function() { Game.Upgrades[this.name].buy(1); },
 	getCost: function() { return Game.Upgrades[this.name].getPrice(); },
-	getCps: function(eval) {
-		var e = eval.clone();
+	getEffectiveCps: function(eval) {
 		var cps = eval.getEffectiveCps();
-		this.applyUpgrade(e);
-		return e.getEffectiveCps() - cps;
+		this.applyUpgrade(eval);
+		cps = cps - eval.getEffectiveCps();
+		this.revokeUpgrade(eval);
+		return cps;
 	},
 	getValue: function(eval) {
 		return this.getCps();
@@ -1042,36 +1035,6 @@ getUpgradeFunction = function(name) {
 		console.log("Unknown upgrade: " + name);
 	}
 	return upgradeIndex[name];
-}
-
-//
-// Classes to represent upgrades and tie them to game purchases
-//
-
-// PurchasableItems
-function PurchasableItem(item) {
-	this.item = item;
-	this.upgradeFunction = getUpgradeFunction(this.item.name);
-}
-
-PurchasableItem.prototype.getName = function() {
-	return this.item.name;
-}
-
-PurchasableItem.prototype.toString = function() {
-	if (this.item.amount == undefined) {	// Upgrades don't have an amount
-		return "Upgrade: " + this.getName();
-	} else {
-		return "Building: " + this.getName() + " " + (this.item.amount + 1);
-	}
-}
-
-PurchasableItem.prototype.getCost = function() {
-	return this.item.getPrice();
-}
-
-PurchasableItem.prototype.purchase = function() {
-	this.item.buy(1);
 }
 
 //
