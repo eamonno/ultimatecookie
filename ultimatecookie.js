@@ -342,7 +342,8 @@ function Evaluator() {
 
 	// Milk scaling
 	this.milkAmount = 0;
-	this.milkMultipliers = [];
+	this.milkMultiplier = 1;
+	this.milkUnlocks = [];
 
 	// Game status indicators
 	this.frenzy = 0
@@ -384,9 +385,10 @@ Evaluator.prototype.clone = function() {
 	e.heavenlyChips = this.heavenlyChips;
 	e.heavenlyUnlock = this.heavenlyUnlock;
 	e.milkAmount = this.milkAmount;
-	e.milkMultipliers = [];
-	for (i = 0; i < this.milkMultipliers.length; ++i) {
-		e.milkMultipliers[i] = this.milkMultipliers[i];
+	e.milkMultiplier = this.milkMultiplier;
+	e.milkUnlocks = [];
+	for (i = 0; i < this.milkUnlocks.length; ++i) {
+		e.milkUnlocks[i] = this.milkUnlocks[i];
 	}
 	e.frenzy = this.frenzy;
 	e.frenzyMultiplier = this.frenzyMultiplier;
@@ -460,8 +462,8 @@ Evaluator.prototype.getCps = function() {
 	cps *= (1 + productionScale + heavenlyScale);
 	// Scale it for milk
 	var milkScale = 1;
-	for (i = 0; i < this.milkMultipliers.length; ++i) {
-		milkScale *= (1 + this.milkMultipliers[i] * this.milkAmount * 0.01);
+	for (i = 0; i < this.milkUnlocks.length; ++i) {
+		milkScale *= (1 + this.milkUnlocks[i] * this.milkAmount * this.milkMultiplier * 0.01);
 	}
 	cps *= milkScale;
 	// Scale it for frenzy
@@ -649,15 +651,21 @@ upgradeTypes.milk = Object.create(upgradeTypes.basic, {
 	scale: pv( 0 ),
 	applyUpgrade: pv(
 		function(eval) {
-			eval.milkMultipliers.push(this.scale);
-			eval.milkMultipliers.sort();
+			eval.milkUnlocks.push(this.scale);
+			eval.milkUnlocks.sort();
 		}
 	),
 	revokeUpgrade: pv(
 		function(eval) {
-			eval.milkMultipliers.splice(eval.milkMultipliers.indexOf(this.scale), 1);
+			eval.milkUnlocks.splice(eval.milkUnlocks.indexOf(this.scale), 1);
 		}
 	),
+});
+// Upgrade that increases milk amount by a scale
+upgradeTypes.milkMultiplier = Object.create(upgradeTypes.basic, {
+	scale: pv( 1 ),
+	applyUpgrade: pv( function(eval) { eval.milkMultiplier *= this.scale; } ),
+	revokeUpgrade: pv( function(eval) { eval.milkMultiplier /= this.scale; } ),
 });
 // Upgrade that unlocks heavenly chip potential
 upgradeTypes.heavenlyPower = Object.create(upgradeTypes.basic, {
@@ -779,6 +787,8 @@ multifingerUpgrade = function(nam, amnt)
 	{ return Object.create(upgradeTypes.multifinger, { name: pv(nam), amount: pv(amnt) } ); }
 milkUpgrade = function(nam, scal)
 	{ return Object.create(upgradeTypes.milk, { name: pv(nam), scale: pv(scal) } ); }
+milkMultiplierUpgrade = function(nam, scal)
+	{ return Object.create(upgradeTypes.milkMultiplier, { name: pv(nam), scale: pv(scal) } ); }
 heavenlyPowerUpgrade = function(nam, amnt)
 	{ return Object.create(upgradeTypes.heavenlyPower, { name: pv(nam), amount: pv(amnt) } ); }
 clickMultiplierUpgrade = function(nam, scal)
@@ -1002,9 +1012,9 @@ var upgradeFunctions = {
 	seasonSavings:			basicUpgrade("Season savings"),				// All buildings are 1% cheaper
 	toyWorkshop:			basicUpgrade("Toy workshop"),				// All upgrades are 5% cheaper
 	santasBottomlessBag:	basicUpgrade("Santa's bottomless bag"),		// Random drops are 10% more common
-	santasHelpers:			clickMultiplier("Santa's helpers", 1.1),
+	santasHelpers:			clickMultiplierUpgrade("Santa's helpers", 1.1),
 	santasLegacy:			basicUpgrade("Santa's legacy"),				// Cookie production multiplier +10% per santa's levels
-	santasMilkAndCookies:	basicUpgrade("Santa's milk and cookies"),	// Milk is 5% more powerful
+	santasMilkAndCookies:	milkMultiplierUpgrade("Santa's milk and cookies", 1.05),
 	santasDominion:			basicUpgrade("Santa's dominion"),			// Cookie production multiplier +50%, All buildings are 1% cheaper, All upgrades are 2% cheaper
 	aLumpOfCoal:			productionUpgrade("A lump of coal", 1),
 	anItchySweater:			productionUpgrade("An itchy sweater", 1),
