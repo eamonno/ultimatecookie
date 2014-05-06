@@ -328,8 +328,8 @@ function Evaluator() {
 	this.buildings.push(new EvaluatorBuilding(this,75000000000, 10000000.0));	// Prism
 
 	// Mouse click information
-	this.cpcBase = 1;
 	this.cpcMultiplier = 1;
+	this.cpcBaseMultiplier = 1;
 	this.cpcCpsMultiplier = 0;
 	this.cpcBuildingBaseScaler = new BuildingScaler();
 
@@ -376,8 +376,8 @@ Evaluator.prototype.clone = function() {
 		e.buildings[i].buildingScaler = this.buildings[i].buildingScaler.clone();
 		e.buildings[i].buildingBaseScaler = this.buildings[i].buildingBaseScaler.clone();
 	}
-	e.cpcBase = this.cpcBase;
 	e.cpcMultiplier = this.cpcMultiplier;
+	e.cpcBaseMultiplier = this.cpcBaseMultiplier;
 	e.cpcCpsMultiplier = this.cpcCpsMultiplier;
 	e.cpcBuildingBaseScaler = this.cpcBuildingBaseScaler.clone();
 	e.productionMultiplier = this.productionMultiplier;
@@ -389,7 +389,7 @@ Evaluator.prototype.clone = function() {
 		e.milkMultipliers[i] = this.milkMultipliers[i];
 	}
 	e.frenzy = this.frenzy;
-	e.frenzyPower = this.frenzyPower;
+	e.frenzyMultiplier = this.frenzyMultiplier;
 	e.clickFrenzy = this.clickFrenzy;
 	e.frenzyDuration = this.frenzyDuration;
 	e.goldenCookieTime = this.goldenCookieTime;
@@ -436,8 +436,10 @@ Evaluator.prototype.matchesGame = function() {
 
 // Get the current cookies per click amount
 Evaluator.prototype.getCpc = function() {
-	var cpc = this.cpcBase * this.cpcMultiplier + this.cpcBuildingBaseScaler.getScale(this.buildings);	// Base cpc
-	cpc += this.getCps() * this.cpcCpsMultiplier;	// Add in percentage click scaling
+	var cpc = 1 * this.cpcBaseMultiplier;			// Base cpc
+	cpc += this.cpcBuildingBaseScaler.getScale(this.buildings);	// Add building scaled cpc
+	cpc += this.getCps() * this.cpcCpsMultiplier;				// Add in percentage click scaling
+	cpc *= this.cpcMultiplier;									// Multiply by total multiplier
 	if (this.clickFrenzy) {	// Increase if click frenzy is active
 		cpc *= Constants.CLICK_FRENZY_MULTIPLIER;
 	}
@@ -613,16 +615,11 @@ upgradeTypes.buildingMultiplier = Object.create(upgradeTypes.building, {
 	applyUpgrade: pv( function(eval) { eval.buildings[this.index].multiplier *= this.scale; } ),
 	revokeUpgrade: pv( function(eval) { eval.buildings[this.index].multiplier /= this.scale; } ),
 });
-// Upgrades that double the CpS of clicking
-upgradeTypes.clickDoubler = Object.create(upgradeTypes.basic, {
-	applyUpgrade: pv( function(eval) { eval.cpcMultiplier *= 2; } ),
-	revokeUpgrade: pv( function(eval) { eval.cpcMultiplier /= 2; } ),
-});
-// Upgrades that increase the base CpS of clicking
-upgradeTypes.clickBase = Object.create(upgradeTypes.basic, {
-	amount: pv( 0 ),
-	applyUpgrade: pv( function(eval) { eval.cpcBase += this.amount; } ),
-	revokeUpgrade: pv( function(eval) { eval.cpcBase -= this.amount; } ),
+// Upgrades that increase total CpC by a multiple
+upgradeTypes.clickMultiplier = Object.create(upgradeTypes.basic, {
+	scale: pv( 1 ),
+	applyUpgrade: pv( function(eval) { eval.cpcMultiplier *= this.scale; } ),
+	revokeUpgrade: pv( function(eval) { eval.cpcMultiplier /= this.scale; } ),
 });
 // Upgrades that add a percentage of CpS to each click
 upgradeTypes.clickCps = Object.create(upgradeTypes.basic, {
@@ -701,13 +698,13 @@ upgradeTypes.perBuildingScaler = Object.create(upgradeTypes.building, {
 upgradeTypes.reinforcedIndexFinger = Object.create(upgradeTypes.basic, {
 	applyUpgrade: pv(
 		function(eval) {
-			upgradeTypes.clickDoubler.applyUpgrade(eval);
+			eval.cpcBaseMultiplier *= 2;
 			eval.buildings[Constants.CURSOR_INDEX].baseCps += 0.1;
 		}
 	),
 	revokeUpgrade: pv(
 		function(eval) {
-			upgradeTypes.clickDoubler.revokeUpgrade(eval);
+			eval.cpcBaseMultiplier /= 2;
 			eval.buildings[Constants.CURSOR_INDEX].baseCps -= 0.1;
 		}
 	),
@@ -717,13 +714,13 @@ upgradeTypes.ambidextrous = Object.create(upgradeTypes.building, {
 	scale: pv( 2 ),
 	applyUpgrade: pv(
 		function(eval) {
-			eval.cpcMultiplier *= 2;
+			eval.cpcBaseMultiplier *= 2;
 			eval.buildings[this.index].multiplier *= this.scale;
 		}
 	),
 	revokeUpgrade: pv(
 		function(eval) {
-			eval.cpcMultiplier /= 2;
+			eval.cpcBaseMultiplier /= 2;
 			eval.buildings[this.index].multiplier /= this.scale;
 		}
 	),
@@ -784,6 +781,8 @@ milkUpgrade = function(nam, scal)
 	{ return Object.create(upgradeTypes.milk, { name: pv(nam), scale: pv(scal) } ); }
 heavenlyPowerUpgrade = function(nam, amnt)
 	{ return Object.create(upgradeTypes.heavenlyPower, { name: pv(nam), amount: pv(amnt) } ); }
+clickMultiplierUpgrade = function(nam, scal)
+	{ return Object.create(upgradeTypes.clickMultiplier, { name: pv(nam), scale: pv(scal) } ); }
 clickCpsUpgrade = function(nam, amnt)
 	{ return Object.create(upgradeTypes.clickCps, { name: pv(nam), amount: pv(amnt) } ); }
 elderCovenantUpgrade = function(nam, revok)
@@ -1003,7 +1002,7 @@ var upgradeFunctions = {
 	seasonSavings:			basicUpgrade("Season savings"),				// All buildings are 1% cheaper
 	toyWorkshop:			basicUpgrade("Toy workshop"),				// All upgrades are 5% cheaper
 	santasBottomlessBag:	basicUpgrade("Santa's bottomless bag"),		// Random drops are 10% more common
-	santasHelpers:			basicUpgrade("Santa's helpers"),			// Clicking is 10% more effective
+	santasHelpers:			clickMultiplier("Santa's helpers", 1.1),
 	santasLegacy:			basicUpgrade("Santa's legacy"),				// Cookie production multiplier +10% per santa's levels
 	santasMilkAndCookies:	basicUpgrade("Santa's milk and cookies"),	// Milk is 5% more powerful
 	santasDominion:			basicUpgrade("Santa's dominion"),			// Cookie production multiplier +50%, All buildings are 1% cheaper, All upgrades are 2% cheaper
@@ -1081,4 +1080,3 @@ var ultimateCookie = new UltimateCookie();
 if (Constants.DEBUG) {
 	console.log("Ultimate Cookie started at " + new Date());
 }
-
