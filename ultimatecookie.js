@@ -253,15 +253,6 @@ BuildingScaler.prototype.getScale = function(buildings) {
 	return scale;
 }
 
-BuildingScaler.prototype.clone = function() {
-	var i;
-	var bs = new BuildingScaler();
-	for (i = 0; i < this.scales.length; ++i) {
-		bs.scales[i] = this.scales[i];
-	}
-	return bs;
-}
-
 BuildingScaler.prototype.scaleAll = function(amount) {
 	var i;
 	for (i = 0; i < this.scales.length; ++i) {
@@ -352,51 +343,6 @@ function Evaluator() {
 
 	// Santa level
 	this.santaLevel = 0;
-}
-
-// Create a clone of an Evaluator
-Evaluator.prototype.clone = function() {
-	var e = new Evaluator();
-	var i;
-	// Clone buildings making sure to set the evaluator reference to the clone
-	for (i = 0; i < this.buildings.length; ++i) {
-		e.buildings[i] = new EvaluatorBuilding();
-		e.buildings[i].evaluator = e;
-		e.buildings[i].baseCost = this.buildings[i].baseCost;
-		e.buildings[i].baseCps = this.buildings[i].baseCps;
-		e.buildings[i].quantity = this.buildings[i].quantity;
-		e.buildings[i].multiplier = this.buildings[i].multiplier;
-		e.buildings[i].buildingScaler = this.buildings[i].buildingScaler.clone();
-		e.buildings[i].buildingBaseScaler = this.buildings[i].buildingBaseScaler.clone();
-	}
-	e.cpcMultiplier = this.cpcMultiplier;
-	e.cpcBaseMultiplier = this.cpcBaseMultiplier;
-	e.cpcCpsMultiplier = this.cpcCpsMultiplier;
-	e.cpcBuildingBaseScaler = this.cpcBuildingBaseScaler.clone();
-	e.productionMultiplier = this.productionMultiplier;
-	e.heavenlyChips = this.heavenlyChips;
-	e.heavenlyUnlock = this.heavenlyUnlock;
-	e.milkAmount = this.milkAmount;
-	e.milkMultiplier = this.milkMultiplier;
-	e.milkUnlocks = [];
-	for (i = 0; i < this.milkUnlocks.length; ++i) {
-		e.milkUnlocks[i] = this.milkUnlocks[i];
-	}
-	e.frenzy = this.frenzy;
-	e.frenzyMultiplier = this.frenzyMultiplier;
-	e.clickFrenzy = this.clickFrenzy;
-	e.frenzyDuration = this.frenzyDuration;
-	e.goldenCookieTime = this.goldenCookieTime;
-	e.elderCovenant = this.elderCovenant;
-	e.santaLevel = this.santaLevel;
-
-	if (Constants.DEBUG) {
-		// Make sure the cloning worked
-		if (this.getEffectiveCps() != e.getEffectiveCps()) {
-			console.log("Error cloning Evaluator");
-		}
-	}
-	return e;
 }
 
 // Check that the values in the evaluator match those of the game, for debugging use
