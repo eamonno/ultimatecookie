@@ -10,7 +10,7 @@ Constants.UPDATE_DELAY = 50;
 Constants.AUTO_CLICK = true;
 Constants.AUTO_CLICK_GOLDEN_COOKIES = true;
 Constants.AUTO_RESET = false;
-Constants.AUTO_BUY = true;
+Constants.AUTO_BUY = false;
 Constants.AUTO_DISMISS_NOTES = true;
 Constants.AUTO_SWITCH_SEASONS = true;
 Constants.ENABLE_FAST_BUY = true;
@@ -50,6 +50,46 @@ function UltimateCookie() {
 
 	this.autoClicker = setInterval(function() { t.click(); }, Constants.CLICK_DELAY);
 	this.autoUpdater = setInterval(function() { t.update(); }, Constants.UPDATE_DELAY);
+}
+
+UltimateCookie.prototype.sortTest = function() {
+	var purchases = this.createPurchaseList();
+	var e = new Evaluator();
+	e.syncToGame();
+
+	var p1 = this.createPurchaseList();
+
+	p1.sort( function(a, b) { return UltimateCookie.prototype.tmpCompare(e, a, b); } );
+
+	for (var p = p1.length - 1; p >= 0; --p) {
+		console.log(p1[p].name + "(" + p1[p].getValue(e) + ")");
+	}
+}
+
+autoSortTest = function() {
+	setInterval(function() { console.clear(); ultimateCookie.sortTest(); }, 1000);
+}
+
+UltimateCookie.prototype.tmpCompare = function(eval, a, b) {
+	var eCps = eval.getEffectiveCps();
+	var aCpsGain = a.getValue(eval);
+	var bCpsGain = b.getValue(eval);
+
+	// Get time to buy both starting with a
+	var ta = a.getCost() / eCps + b.getCost() / (eCps + aCpsGain);
+	var tb = b.getCost() / eCps + a.getCost() / (eCps + bCpsGain);
+
+	// If times are equal (can happen late game with many order of magnitude differences in numbers)
+	if (floatEqual(ta, tb)) {
+		// Prioritise the higher cpsGain, if there is none sort alphabetically on name
+		// so the results are consistent and repeatable and not dependant on order of a, b
+		if (aCpsGain != bCpsGain) {
+			return bCpsGain - aCpsGain;
+		} else {
+			return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0);
+		}
+	}
+	return ta - tb;
 }
 
 UltimateCookie.prototype.compareUpgrades = function(eval, a, b) {
@@ -343,6 +383,7 @@ function Evaluator() {
 
 	// Santa level
 	this.santaLevel = 0;
+	this.santaPower = 0;
 }
 
 // Check that the values in the evaluator match those of the game, for debugging use
@@ -350,26 +391,41 @@ Evaluator.prototype.matchesGame = function() {
 	var match = true;
 	// Check that Cps matches the game
 	if (!floatEqual(this.getCps(), Game.cookiesPs)) {
-		console.log("Evaluator Error - Predicted Cps: " + this.getCps() + ", Actual Cps: " + Game.cookiesPs);
+		if (match) { console.log("Evaluator Mismatch: "); }
+		console.log("- CpS - Predicted: " + this.getCps() + ", Actual: " + Game.cookiesPs);
 		match = false;
 	}
 	// Check the Cpc matches the game
 	if (!floatEqual(this.getCpc(), Game.mouseCps())) {
-		console.log("Evaluator Error - Predicted Cpc: " + this.getCpc() + ", Actual Cpc: " + Game.mouseCps());
+		if (match) { console.log("Evaluator Mismatch: "); }
+		console.log("- CpC - Predicted: " + this.getCpc() + ", Actual:: " + Game.mouseCps());
 		match = false;
 	}
 	// Check the building costs match the game
 	var i;
 	for (i = 0; i < this.buildings.length; ++i) {
 		if (!floatEqual(this.buildings[i].getCost(), Game.ObjectsById[i].getPrice())) {
-			console.log("Evaluator Error - Index: " + i + ", Predicted Building Cost: " + this.buildings[i].getCost() + ", Actual Cost: " + Game.ObjectsById[i].getPrice());
+			if (match) { console.log("Evaluator Mismatch: "); }
+			console.log("- Building Cost " + i + " - Predicted: " + this.buildings[i].getCost() + ", Actual: " + Game.ObjectsById[i].getPrice());
 			match = false;
 		}
 		if (!floatEqual(this.buildings[i].getIndividualCps(), Game.ObjectsById[i].cps())) {
-			console.log("Evaluator Error - Index: " + i + ", Predicted Building CpS: " + this.buildings[i].getIndividualCps() + ", Actual CpS: " + Game.ObjectsById[i].cps());
+			if (match) { console.log("Evaluator Mismatch: "); }
+			console.log("- Building CpS " + i + " - Predicted: " + this.buildings[i].getIndividualCps() + ", Actual: " + Game.ObjectsById[i].cps());
 			match = false;
 		}
 	}
+	// Check that all available upgrade costs match those of similar upgrade functions
+	for (i = 0; i < Game.UpgradesInStore.length; ++i) {
+		var u = Game.UpgradesInStore[i];
+		var uf = getUpgradeFunction(u.name);
+		if (!floatEqual(uf.getCost(), u.getPrice())) {
+			if (match) { console.log("Evaluator Mismatch: "); }
+			console.log("- Upgrade Cost " + u.name + " - Predicted: " + uf.getPrice() + ", Actual: " + u.getPrice());
+			match = false;
+		}
+	}
+
 	// Default all is fine
 	return match;
 }
@@ -395,9 +451,10 @@ Evaluator.prototype.getCps = function() {
 		cps += this.buildings[i].getCps();
 	}
 	// Scale it for production and heavely chip multipliers
+	var santaScale = (this.santaLevel + 1) * this.santaPower * 0.01;
 	var productionScale = this.productionMultiplier * 0.01;
 	var heavenlyScale = this.heavenlyChips * this.heavenlyUnlock * 0.02;
-	cps *= (1 + productionScale + heavenlyScale);
+	cps *= (1 + santaScale + productionScale + heavenlyScale);
 	// Scale it for milk
 	var milkScale = 1;
 	for (i = 0; i < this.milkUnlocks.length; ++i) {
@@ -438,11 +495,11 @@ Evaluator.prototype.getFrenziedCpc = function(multiplier) {
 	this.frenzy = 1;
 	this.frenzyMultiplier = multiplier;
 	this.clickFrenzy = 0;
-	var cps = this.getCps();
+	var cpc = this.getCpc();
 	this.frenzy = frenzy;
 	this.clickFrenzy = clickFrenzy;
 	this.frenzyMultiplier = frenzyMultiplier;
-	return cps;
+	return cpc;
 }
 
 // Estimate the extra CpS contribution from collecting all golden cookies
@@ -473,7 +530,7 @@ Evaluator.prototype.getCurrentCps = function() {
 
 // Calculate the effective Cps at the current games click rate
 Evaluator.prototype.getEffectiveCps = function() {
-	return this.getCps() + this.getCpc() * ultimateCookie.clickRate() + this.getGoldenCookieCps();
+	return this.getFrenziedCps(1) + this.getFrenziedCpc(1) * ultimateCookie.clickRate() + this.getGoldenCookieCps();
 }
 
 // Get the current required cookie bank size, accounts for time until the
@@ -519,8 +576,9 @@ pv = function(val) { return { enumerable: true, value: val }; }
 // All the supported types of upgrades
 var upgradeTypes = {};
 // Basic upgrade type, does nothing
-upgradeTypes.basic = {
+upgradeTypes.upgrade = {
 	name: "<unnamed>",
+	sortable: false,		// Can this be sorted with standard CpS gain logic
 	applyUpgrade: function(eval) {},
 	revokeUpgrade: function(eval) {},
 	purchase: function() { Game.Upgrades[this.name].buy(1); },
@@ -528,65 +586,77 @@ upgradeTypes.basic = {
 	getEffectiveCps: function(eval) {
 		var cps = eval.getEffectiveCps();
 		this.applyUpgrade(eval);
-		cps = cps - eval.getEffectiveCps();
+		cps = eval.getEffectiveCps() - cps;
 		this.revokeUpgrade(eval);
 		return cps;
 	},
 	getValue: function(eval) {
-		return this.getCps();
+		return this.getEffectiveCps(eval);
 	},
 };
 // Upgrade to represent building one more of a building type
-upgradeTypes.building = Object.create(upgradeTypes.basic, {
+upgradeTypes.building = Object.create(upgradeTypes.upgrade, {
+	sortable: pv( true ),
 	index: pv( Constants.CURSOR_INDEX ),
 	applyUpgrade: pv( function(eval) { eval.buildings[this.index].quantity += 1; } ),
 	revokeUpgrade: pv( function(eval) { eval.buildings[this.index].quantity -= 1; } ),
 	purchase: pv( function() { Game.ObjectsById[this.index].buy(1); } ),
 	getCost: pv( function() { return Game.ObjectsById[this.index].getPrice(); } ),
 });
+// Upgrade to represent building one more of a building type
+upgradeTypes.buildingModifier = Object.create(upgradeTypes.upgrade, {
+	sortable: pv( true ),
+	index: pv( Constants.CURSOR_INDEX ),
+});
 // Upgrades that increase the base CpS of a building type
-upgradeTypes.buildingBaseCps = Object.create(upgradeTypes.building, {
+upgradeTypes.buildingBaseCps = Object.create(upgradeTypes.buildingModifier, {
 	amount: pv( 0 ),
 	applyUpgrade: pv( function(eval) { eval.buildings[this.index].baseCps += this.amount; } ),
 	revokeUpgrade: pv( function(eval) { eval.buildings[this.index].baseCps -= this.amount; } ),
 });
 // Upgrades that increase total CpS of a building type
-upgradeTypes.buildingMultiplier = Object.create(upgradeTypes.building, {
+upgradeTypes.buildingMultiplier = Object.create(upgradeTypes.buildingModifier, {
 	scale: pv( 1 ),
 	applyUpgrade: pv( function(eval) { eval.buildings[this.index].multiplier *= this.scale; } ),
 	revokeUpgrade: pv( function(eval) { eval.buildings[this.index].multiplier /= this.scale; } ),
 });
 // Upgrades that increase total CpC by a multiple
-upgradeTypes.clickMultiplier = Object.create(upgradeTypes.basic, {
+upgradeTypes.clickMultiplier = Object.create(upgradeTypes.upgrade, {
+	sortable: pv( true ),
 	scale: pv( 1 ),
 	applyUpgrade: pv( function(eval) { eval.cpcMultiplier *= this.scale; } ),
 	revokeUpgrade: pv( function(eval) { eval.cpcMultiplier /= this.scale; } ),
 });
 // Upgrades that add a percentage of CpS to each click
-upgradeTypes.clickCps = Object.create(upgradeTypes.basic, {
+upgradeTypes.clickCps = Object.create(upgradeTypes.upgrade, {
+	sortable: pv( true ),
 	amount: pv( 0 ),
 	applyUpgrade: pv( function(eval) { eval.cpcCpsMultiplier += this.amount; } ),
 	revokeUpgrade: pv( function(eval) { eval.cpcCpsMultiplier -= this.amount; } ),
 });
 // Upgrades that increase all cookie production
-upgradeTypes.production = Object.create(upgradeTypes.basic, {
+upgradeTypes.production = Object.create(upgradeTypes.upgrade, {
+	sortable: pv( true ),
 	amount: pv( 0 ),
 	applyUpgrade: pv( function(eval) { eval.productionMultiplier += this.amount; } ),
 	revokeUpgrade: pv( function(eval) { eval.productionMultiplier -= this.amount; } ),
 });
 // Upgrade that makes golden cookies appear more often
-upgradeTypes.goldenCookieFrequency = Object.create(upgradeTypes.basic, {
+upgradeTypes.goldenCookieFrequency = Object.create(upgradeTypes.upgrade, {
+	sortable: pv( true ),
 	scale: pv( 0 ),
 	applyUpgrade: pv( function(eval) { eval.goldenCookieTime /= this.scale; } ),
 	revokeUpgrade: pv( function(eval) { eval.goldenCookieTime *= this.scale; } ),
 });
 // Upgrade that makes golden cookies affects last longer
-upgradeTypes.goldenCookieDuration = Object.create(upgradeTypes.basic, {
+upgradeTypes.goldenCookieDuration = Object.create(upgradeTypes.upgrade, {
+	sortable: pv( true ),
 	applyUpgrade: pv( function(eval) { eval.frenzyDuration *= 2; } ),
 	revokeUpgrade: pv( function(eval) { eval.frenzyDuration /= 2; } ),
 });
 // Upgrade that makes milk more effective
-upgradeTypes.milk = Object.create(upgradeTypes.basic, {
+upgradeTypes.milk = Object.create(upgradeTypes.upgrade, {
+	sortable: pv( true ),
 	scale: pv( 0 ),
 	applyUpgrade: pv(
 		function(eval) {
@@ -601,19 +671,22 @@ upgradeTypes.milk = Object.create(upgradeTypes.basic, {
 	),
 });
 // Upgrade that increases milk amount by a scale
-upgradeTypes.milkMultiplier = Object.create(upgradeTypes.basic, {
+upgradeTypes.milkMultiplier = Object.create(upgradeTypes.upgrade, {
+	sortable: pv( true ),
 	scale: pv( 1 ),
 	applyUpgrade: pv( function(eval) { eval.milkMultiplier *= this.scale; } ),
 	revokeUpgrade: pv( function(eval) { eval.milkMultiplier /= this.scale; } ),
 });
 // Upgrade that unlocks heavenly chip potential
-upgradeTypes.heavenlyPower = Object.create(upgradeTypes.basic, {
+upgradeTypes.heavenlyPower = Object.create(upgradeTypes.upgrade, {
+	sortable: pv( true ),
 	amount: pv( 0 ),
 	applyUpgrade: pv( function(eval) { eval.heavenlyUnlock += this.amount; } ),
 	revokeUpgrade: pv( function(eval) { eval.heavenlyUnlock -= this.amount; } ),
 });
 // Upgrade that increases mouse and cursor cps based on buildings owned
-upgradeTypes.multifinger = Object.create(upgradeTypes.basic, {
+upgradeTypes.multifinger = Object.create(upgradeTypes.upgrade, {
+	sortable: pv( true ),
 	amount: pv( 0 ),
 	applyUpgrade: pv(
 		function(eval) {
@@ -635,29 +708,30 @@ upgradeTypes.multifinger = Object.create(upgradeTypes.basic, {
 	),
 });
 // Upgrade that increases base cps of one building based on quantity of another
-upgradeTypes.perBuildingScaler = Object.create(upgradeTypes.building, {
+upgradeTypes.perBuildingScaler = Object.create(upgradeTypes.buildingModifier, {
 	target: pv( Constants.CURSOR_INDEX ),
 	amount: pv( 0 ),
 	applyUpgrade: pv( function(eval) { eval.buildings[this.index].buildingBaseScaler.scaleOne(this.target, this.amount); } ),
 	revokeUpgrade: pv( function(eval) { eval.buildings[this.index].buildingBaseScaler.scaleOne(this.target, -this.amount); } ),
 });
 // Upgrade that doubles both mouse and cursor CpS
-upgradeTypes.reinforcedIndexFinger = Object.create(upgradeTypes.basic, {
+upgradeTypes.reinforcedIndexFinger = Object.create(upgradeTypes.buildingModifier, {
+	sortable: pv( true ),
 	applyUpgrade: pv(
 		function(eval) {
 			eval.cpcBaseMultiplier *= 2;
-			eval.buildings[Constants.CURSOR_INDEX].baseCps += 0.1;
+			eval.buildings[this.index].baseCps += 0.1;
 		}
 	),
 	revokeUpgrade: pv(
 		function(eval) {
 			eval.cpcBaseMultiplier /= 2;
-			eval.buildings[Constants.CURSOR_INDEX].baseCps -= 0.1;
+			eval.buildings[this.index].baseCps -= 0.1;
 		}
 	),
 });
 // Upgrade that doubles both mouse and cursor CpS
-upgradeTypes.ambidextrous = Object.create(upgradeTypes.building, {
+upgradeTypes.ambidextrous = Object.create(upgradeTypes.buildingModifier, {
 	scale: pv( 2 ),
 	applyUpgrade: pv(
 		function(eval) {
@@ -673,17 +747,18 @@ upgradeTypes.ambidextrous = Object.create(upgradeTypes.building, {
 	),
 });
 // Revoke elder covenant upgrade - permanant 5% CpS reduction
-upgradeTypes.elderCovenant = Object.create(upgradeTypes.basic, {
+upgradeTypes.elderCovenant = Object.create(upgradeTypes.upgrade, {
 	revoke: pv( true ),
 	applyUpgrade: pv( function(eval) { eval.elderCovenant = this.revoke; } ),
 	// This is a bit dodgy
 	revokeUpgrade: pv( function(eval) { eval.elderCovenant = !this.revoke; } ),
 });
 // Santa level upgrades
-upgradeTypes.santaLevel = Object.create(upgradeTypes.basic, {
+upgradeTypes.santaLevel = Object.create(upgradeTypes.upgrade, {
 	level: pv( 0 ),
 	applyUpgrade: pv( function(eval) { ++eval.santaLevel; } ),
 	revokeUpgrade: pv( function(eval) { --eval.santaLevel; } ),
+	getValue: pv( function(eval) { return this.getEffectiveCps(eval) + eval.getEffectiveCps() * 0.01; } ),
 	purchase: pv(
 		function() {
 			var mx = Game.mouseX;
@@ -700,10 +775,25 @@ upgradeTypes.santaLevel = Object.create(upgradeTypes.basic, {
 	),
 	getCost: pv( function() { return Math.pow(this.level, this.level); } ),
 });
+// Upgrade that increases production based on santa level
+upgradeTypes.santaPower = Object.create(upgradeTypes.upgrade, {
+	amount: pv( 0 ),
+	applyUpgrade: pv( function(eval) { eval.santaPower += this.amount; } ),
+	revokeUpgrade: pv( function(eval) { eval.santaPower -= this.amount; } ),
+});
+// Upgrade that increases production based on santa level
+upgradeTypes.sacrificialRollingPins = Object.create(upgradeTypes.upgrade, {
+	getValue: pv( function(eval) { return upgradeFunctions.elderPledge.getCost() / 3600; } ),
+});
+// Upgrade that are valued based on a percentage of cps
+upgradeTypes.percentCpsValue = Object.create(upgradeTypes.upgrade, {
+	scale: pv( 0 ),
+	getValue: pv( function(eval) { return eval.getEffectiveCps() * this.scale * 0.01; } ),
+});
 
 // Shorthand functions for declaring the individual upgrade types
 basicUpgrade = function(nam)
-	{ return Object.create(upgradeTypes.basic, { name: pv(nam) } ); }
+	{ return Object.create(upgradeTypes.upgrade, { name: pv(nam) } ); }
 buildingUpgrade = function(nam, indx)
 	{ return Object.create(upgradeTypes.building, { name: pv(nam), index: pv(indx) } ); }
 buildingBaseCpsUpgrade = function(nam, indx, amnt)
@@ -736,6 +826,14 @@ clickCpsUpgrade = function(nam, amnt)
 	{ return Object.create(upgradeTypes.clickCps, { name: pv(nam), amount: pv(amnt) } ); }
 elderCovenantUpgrade = function(nam, revok)
 	{ return Object.create(upgradeTypes.elderCovenant, { name: pv(nam), revoke: pv(revok) } ); }
+santaPowerUpgrade = function(nam, amnt)
+	{ return Object.create(upgradeTypes.santaPower, { name: pv(nam), amount: pv(amnt) } ); }
+sacrificialRollingPinsUpgrade = function(nam)
+	{ return Object.create(upgradeTypes.sacrificialRollingPins, { name: pv(nam) } ); }
+productionValueUpgrade = function(nam, amnt)
+	{ return Object.create(upgradeTypes.percentCpsValue, { name: pv(nam), amount: pv(amnt) } ); }
+percentCpsValueUpgrade = function(nam, scal)
+	{ return Object.create(upgradeTypes.percentCpsValue, { name: pv(nam), scale: pv(scal) } ); }
 
 // All of the upgrades supported are declared here
 var upgradeFunctions = {
@@ -883,9 +981,10 @@ var upgradeFunctions = {
 	communalBrainsweep:		perBuildingScalerUpgrade("Communal brainsweep", Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02),
 	arcaneSugar:			productionUpgrade("Arcane sugar", 5),
 	elderPact:				perBuildingScalerUpgrade("Elder Pact", Constants.GRANDMA_INDEX, Constants.PORTAL_INDEX, 0.05),
-	sacrificialRollingPins:	basicUpgrade("Sacrificial rolling pins"),
+	sacrificialRollingPins:	sacrificialRollingPinsUpgrade("Sacrificial rolling pins"),
 	elderCovenant:			elderCovenantUpgrade("Elder Covenant", true),
 	revokeElderCovenant:	elderCovenantUpgrade("Revoke Elder Covenant", false),
+	elderPledge:			basicUpgrade("Elder Pledge"),
 	// Reinforced Index Finger
 	reinforcedIndexFinger:	reinforcedIndexFingerUpgrade("Reinforced index finger"),
 	// Ambidextrous upgrades (double clicking and cursors)
@@ -944,17 +1043,17 @@ var upgradeFunctions = {
 	spiderCookies:			productionUpgrade("Spider cookies", 20),
 	// Christmas season
 	festiveBiscuit:			basicUpgrade("Festive biscuit"),
-	aFestiveHat:			basicUpgrade("A festive hat"),				// Unlocks the santa upgrades
-	weightedSleighs:		basicUpgrade("Weighted sleighs"),			// Reindeer are twice as slow
-	reindeerBakingGrounds:	basicUpgrade("Reindeer baking grounds"),	// Reindeer appear twice as often
-	hoHoHoFlavoredFrosting:	basicUpgrade("Ho ho ho-flavored frosting"),	// Reindeer give twice as much
-	seasonSavings:			basicUpgrade("Season savings"),				// All buildings are 1% cheaper
-	toyWorkshop:			basicUpgrade("Toy workshop"),				// All upgrades are 5% cheaper
-	santasBottomlessBag:	basicUpgrade("Santa's bottomless bag"),		// Random drops are 10% more common
+	aFestiveHat:			percentCpsValueUpgrade("A festive hat", 1),		// Unlocks the santa upgrades
+	weightedSleighs:		basicUpgrade("Weighted sleighs"),				// Reindeer are twice as slow
+	reindeerBakingGrounds:	basicUpgrade("Reindeer baking grounds"),		// Reindeer appear twice as often
+	hoHoHoFlavoredFrosting:	basicUpgrade("Ho ho ho-flavored frosting"),		// Reindeer give twice as much
+	//seasonSavings:			percentCpsValueUpgrade("Season savings", 1),	// All buildings are 1% cheaper
+	toyWorkshop:			percentCpsValueUpgrade("Toy workshop", 0.05),	// All upgrades are 5% cheaper
+	santasBottomlessBag:	percentCpsValueUpgrade("Santa's bottomless bag", 0.01),		// Random drops are 10% more common
 	santasHelpers:			clickMultiplierUpgrade("Santa's helpers", 1.1),
-	santasLegacy:			basicUpgrade("Santa's legacy"),				// Cookie production multiplier +10% per santa's levels
+	santasLegacy:			santaPowerUpgrade("Santa's legacy", 10),	// Cookie production multiplier +10% per santa's levels
 	santasMilkAndCookies:	milkMultiplierUpgrade("Santa's milk and cookies", 1.05),
-	santasDominion:			basicUpgrade("Santa's dominion"),			// Cookie production multiplier +50%, All buildings are 1% cheaper, All upgrades are 2% cheaper
+	//santasDominion:			productionUpgrade("Santa's dominion", 50),			// Cookie production multiplier +50%, All buildings are 1% cheaper, All upgrades are 2% cheaper
 	aLumpOfCoal:			productionUpgrade("A lump of coal", 1),
 	anItchySweater:			productionUpgrade("An itchy sweater", 1),
 	improvedJolliness:		productionUpgrade("Improved jolliness", 15),
