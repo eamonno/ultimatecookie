@@ -1076,7 +1076,7 @@ upgrade("Naughty list"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 
 getUpgradeFunction = function(name) {
 	if (upgradeIndex[name] == undefined) {
-		upgradeIndex[name] = basicUpgrade(name);
+		upgrade(name);
 		console.log("Unknown upgrade: " + name);
 	}
 	return upgradeIndex[name];
