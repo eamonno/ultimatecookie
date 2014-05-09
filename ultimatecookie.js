@@ -1,26 +1,21 @@
-// To-do
-// Figure out how to get AutoBuy as a member of the UltimateCookie
-
 var Constants = {};
+var Config = {};
 
-// Interval delays for clicking and updates
+Config.autoClick = true;
+Config.autoClickGoldenCookies = true;
+Config.autoReset = false;
+Config.autoBuy = true;
+Config.autoDismissNotes = true;
+Config.autoSwitchSeasons = true;
+Config.autoPledge = true;
+Config.resetLimit = 1.1;
+Config.maintainCookieBank = true;
+
+// General purpose constants
 Constants.CLICK_DELAY = 1;
 Constants.UPDATE_DELAY = 50;
-
-Constants.AUTO_CLICK = true;
-Constants.AUTO_CLICK_GOLDEN_COOKIES = true;
-Constants.AUTO_RESET = false;
-Constants.AUTO_BUY = false;
-Constants.AUTO_DISMISS_NOTES = true;
-Constants.AUTO_SWITCH_SEASONS = true;
-Constants.ENABLE_FAST_BUY = true;
-
-Constants.FAST_BUY_TIMEOUT = 1000;
-Constants.NOTE_DISMISS_DELAY = 10000;
-Constants.RESET_LIMIT = 1.1;
 Constants.DEBUG = true;
-
-// Evaluator constants
+Constants.NOTE_DISMISS_DELAY = 10000;
 Constants.FRENZY_MULTIPLIER = 7;			// Frenzy multiplies CpS by 7
 Constants.CLICK_FRENZY_MULTIPLIER = 777;	// Click frenzies give 777x cookier per click
 Constants.LUCKY_COOKIE_BANK_TIME = 1200;	// Lucky provides up to 1200 seconds of CpS based on bank
@@ -45,32 +40,58 @@ Constants.PRISM_INDEX = 10;
 
 function UltimateCookie() {
 	var t = this;
-	this.fastBuy = (Constants.ENABLE_FAST_BUY && Game.cookiesPs == 0);
+
+	this.lastDeterminedPurchase = "";
 	this.lastPurchaseTime = new Date();
 
 	this.autoClicker = setInterval(function() { t.click(); }, Constants.CLICK_DELAY);
 	this.autoUpdater = setInterval(function() { t.update(); }, Constants.UPDATE_DELAY);
 }
 
-UltimateCookie.prototype.sortTest = function() {
-	var purchases = this.createPurchaseList();
+UltimateCookie.prototype.rankPurchases = function() {
 	var e = new Evaluator();
 	e.syncToGame();
-
 	var p1 = this.createPurchaseList();
+	p1.sort( function(a, b) { return UltimateCookie.prototype.comparePurchases(e, a, b); } );
 
-	p1.sort( function(a, b) { return UltimateCookie.prototype.tmpCompare(e, a, b); } );
+	// Research booster is always higher priority than research starter. This can't be handled
+	// in comparePurchases
+	var booster;
+	var i;
+	for (i = p1.length - 1; i >= 0; --i) {
+		if (booster && p1[i].isResearchStarter) {
+			var tmp = p1[booster];
+			p1.splice(booster, 1);	// remove booster
+			p1.splice(i, 0, tmp);	// reinsert before the research starter
+			booster = i;
+		} else if (p1[i].isResearchBooster) {
+			booster = i;
+		}
+	}
 
+	return p1;
+}
+
+UltimateCookie.prototype.sortTest = function() {
+	console.clear();
+	var e = new Evaluator();
+	e.syncToGame();
+	var p1 = ultimateCookie.rankPurchases();
 	for (var p = p1.length - 1; p >= 0; --p) {
 		console.log(p1[p].name + "(" + p1[p].getValue(e) + ")");
 	}
 }
 
-autoSortTest = function() {
-	setInterval(function() { console.clear(); ultimateCookie.sortTest(); }, 1000);
-}
+UltimateCookie.prototype.comparePurchases = function(eval, a, b) {
+	// If autoPledge is active, Elder Pledge trumps all
+	if (Config.autoPledge) {
+		if (a.beginsElderPledge && !b.beginsElderPledge) {
+			return -1;
+		} else if (b.beginsElderPledge && !a.beginsElderPledge) {
+			return 1;
+		}
+	}
 
-UltimateCookie.prototype.tmpCompare = function(eval, a, b) {
 	var eCps = eval.getEffectiveCps();
 	var aCpsGain = a.getValue(eval);
 	var bCpsGain = b.getValue(eval);
@@ -92,42 +113,6 @@ UltimateCookie.prototype.tmpCompare = function(eval, a, b) {
 	return ta - tb;
 }
 
-UltimateCookie.prototype.compareUpgrades = function(eval, a, b) {
-	var eCps = eval.getEffectiveCps();
-	var aCpsGain = a.getEffectiveCps(eval);
-	var bCpsGain = b.getEffectiveCps(eval);
-
-	if (this.fastBuy) {
-		// Fast buy is for just after resets where you have lots of cookies and
-		// just want to maximise cps as fast as possible
-		var cookies = Game.cookies;
-
-		if (a.getCost() <= cookies && b.getCost() <= cookies) {
-			// Both cost less than we have, buy the one that gives most cps
-			if (aCpsGain >= bCpsGain) {
-				return a;
-			} else {
-				return b;
-			}
-		} else if (a.getCost() <= cookies) {
-			return a;
-		} else if (b.getCost() <= cookies) {
-			return b;
-		}
-	}
-	// Get time to buy both starting with a
-	var ta = a.getCost() / eCps + b.getCost() / (eCps + aCpsGain);
-	var tb = b.getCost() / eCps + a.getCost() / (eCps + bCpsGain);
-
-	// If you can get both faster starting with a, it is the best
-//	console.log([a.getName(), b.getName(), ta, tb]);
-	if (ta < tb) {
-		return a;
-	} else {
-		return b;
-	}
-}
-
 UltimateCookie.prototype.createPurchaseList = function() {
 	var purchases = [];
 
@@ -136,69 +121,36 @@ UltimateCookie.prototype.createPurchaseList = function() {
 	for (i = 0; i < Game.ObjectsById.length; ++i) {
 		purchases.push(getUpgradeFunction(Game.ObjectsById[i].name));
 	}
-
 	// Add the upgrades
 	for (i = 0; i < Game.UpgradesInStore.length; ++i) {
 		purchases.push(getUpgradeFunction(Game.UpgradesInStore[i].name));
 	}
-
+	// Add santa level
+	if (Game.season == "christmas" && Game.santaLevel < 14) {
+		purchases.push(upgradeFunctions.santaLevel);
+	}
 	return purchases;
 }
 
 // Work out what the optimal next purchase is for a given evaluator
 UltimateCookie.prototype.determineNextPurchase = function(eval) {
-	// Get a list of the current available purchases
-	var purchases = this.createPurchaseList();
-
-	var next = purchases[0];
-
-	for (i = 1; i < purchases.length; ++i) {
-		next = this.compareUpgrades(eval, next, purchases[i]);
+	var purchases = this.rankPurchases();
+	if (purchases[0].name != this.lastDeterminedPurchase) {
+		this.lastDeterminedPurchase = purchases[0].name;
+		console.log("Next purchase: " + this.lastDeterminedPurchase);
 	}
-
-	// Autobuy the research speed upgrade before the first research item
-	if (next.name == "Specialized chocolate chips") {
-		for (i = 0; i < purchases.length; ++i) {
-			if (purchases[i].name == "Persistent memory") {
-				next = purchases[i];
-			}
-		}
-	}
-
-	// Nasty Elder Pledge hack for short term
-	for (i = 0; i < purchases.length; ++i) {
-		if (purchases[i].name == "Elder Pledge") {
-			next = purchases[i];
-		}
-	}
-	// Similarly nasty Sacrificial rolling pins autobuy
-	for (i = 0; i < purchases.length; ++i) {
-		if (purchases[i].name == "Sacrificial rolling pins") {
-			next = purchases[i];
-		}
-	}
-
-	if (this.lastDeterminedPurchase == undefined) {
-		this.lastDeterminedPurchase == "";
-	}
-
-	if (next.name != this.lastDeterminedPurchase) {
-		this.lastDeterminedPurchase = next.name;
-		console.log("FastBuy: " + this.fastBuy + ", next purchase: " + this.lastDeterminedPurchase);
-	}
-
-	return next;
+	return purchases[0];
 }
 
 UltimateCookie.prototype.click = function() {
-	if (Constants.AUTO_CLICK) {
+	if (Config.autoClick) {
 		Game.ClickCookie();
 	}
 }
 
 UltimateCookie.prototype.update = function() {
 	// Auto dismiss notes
-	if (!Game.recalculateGains && Constants.AUTO_DISMISS_NOTES) {
+	if (!Game.recalculateGains && Config.autoDismissNotes) {
 		if (Game.Notes.length > 0) {
 			if (new Date() - Game.Notes[0].date > Constants.NOTE_DISMISS_DELAY) {
 				Game.CloseNote(Game.Notes[0].id);
@@ -206,16 +158,16 @@ UltimateCookie.prototype.update = function() {
 		}
 	}
 	// Auto click golden cookies
-	if (!Game.recalculateGains && Constants.AUTO_CLICK_GOLDEN_COOKIES) {
+	if (!Game.recalculateGains && Config.autoClickGoldenCookies) {
 		if (Game.goldenCookie.life > 0 && Game.goldenCookie.toDie == 0) {
 			Game.goldenCookie.click();
 		}
 	}
 	// Auto switch seasons
-	if (!Game.recalculateGains && Constants.AUTO_SWITCH_SEASONS) {
+	if (!Game.recalculateGains && Config.autoSwitchSeasons) {
 	}
 	// Auto buy
-	if (!Game.recalculateGains && Constants.AUTO_BUY) {
+	if (!Game.recalculateGains && Config.autoBuy) {
 		// Get an Evaluator synced to the current game
 		var currentGame = new Evaluator();
 		currentGame.syncToGame();
@@ -223,7 +175,7 @@ UltimateCookie.prototype.update = function() {
 		// Shutdown if out of sync
 		if (Constants.DEBUG) {
 			if (!currentGame.matchesGame()) {
-				Constants.AUTO_BUY = false;
+				Config.autoBuy = false;
 				console.log("Evaluator error: autoBuy disabled.");
 				return;
 			}
@@ -238,21 +190,14 @@ UltimateCookie.prototype.update = function() {
 		var cookieBank = currentGame.getCookieBankSize(Game.goldenCookie.time / Game.fps, Game.frenzy / Game.fps);
 		// Cap cookie bank at 5% of total cookies earned
 		cookieBank = Math.min(Game.cookiesEarned / 20, cookieBank);
-		if (this.fastBuy) {
-			cookieBank = 0;
-		}
 		if (Game.cookies - cookieBank > nextPurchase.getCost()) {
 			var time = new Date();
-			if (this.fastBuy && time - this.lastPurchaseTime > Constants.FAST_BUY_TIMEOUT) {
-				console.log("Disabling fast buy");
-				this.fastBuy = false;
-			}
 			this.lastPurchaseTime = time;
 			nextPurchase.purchase();
 		}
 	}
 	// Auto reset
-	if (!Game.recalculateGains && Constants.AUTO_RESET) {
+	if (!Game.recalculateGains && Config.autoReset) {
 		// Wait until frenzy or clickFrenzy is over to reset
 		if (!Game.frenzy && !Game.clickFrenzy) {
 			var hcs = Game.HowMuchPrestige(Game.cookiesReset);
@@ -261,9 +206,8 @@ UltimateCookie.prototype.update = function() {
 			var scaleNow = 1 + hcs * 0.02;
 			var scaleReset = 1 + resethcs * 0.02;
 
-			if (scaleReset / scaleNow >= Constants.RESET_LIMIT) {
+			if (scaleReset / scaleNow >= Config.resetLimit) {
 				console.log("Resetting game. HCs now: " + hcs + ", HCs after reset: " + resethcs + ", time: " + new Date());
-				this.fastBuy = Constants.ENABLE_FAST_BUY;
 				this.lastPurchaseTime = new Date();
 				Game.Reset(1, 0);
 			}
@@ -328,7 +272,7 @@ EvaluatorBuilding.prototype.getIndividualCps = function() {
 }
 
 EvaluatorBuilding.prototype.getCost = function() {
-	return Math.ceil(this.baseCost * Math.pow(1.15, this.quantity));
+	return Math.ceil(this.evaluator.buildingCostScale * this.baseCost * Math.pow(1.15, this.quantity));
 }
 
 //
@@ -351,17 +295,17 @@ function Evaluator() {
 	this.buildings.push(new EvaluatorBuilding(this,75000000000, 10000000.0));	// Prism
 
 	// Mouse click information
+	this.cpcBase = 1;
 	this.cpcMultiplier = 1;
 	this.cpcBaseMultiplier = 1;
 	this.cpcCpsMultiplier = 0;
-	this.cpcBuildingBaseScaler = new BuildingScaler();
 
 	// Production multiplier
 	this.productionMultiplier = 0;
 
 	// Heavenly chips
 	this.heavenlyChips = 0;
-	this.heavenlyUnlock = 0;
+	this.heavenlyPower = 0;
 
 	// Milk scaling
 	this.milkAmount = 0;
@@ -384,6 +328,9 @@ function Evaluator() {
 	// Santa level
 	this.santaLevel = 0;
 	this.santaPower = 0;
+
+	// Building cost reduction
+	this.buildingCostScale = 1;
 }
 
 // Check that the values in the evaluator match those of the game, for debugging use
@@ -432,8 +379,8 @@ Evaluator.prototype.matchesGame = function() {
 
 // Get the current cookies per click amount
 Evaluator.prototype.getCpc = function() {
-	var cpc = 1 * this.cpcBaseMultiplier;			// Base cpc
-	cpc += this.cpcBuildingBaseScaler.getScale(this.buildings);	// Add building scaled cpc
+	var cpc = this.cpcBase * this.cpcBaseMultiplier;			// Base cpc
+	cpc += this.buildings[Constants.CURSOR_INDEX].buildingScaler.getScale(this.buildings);	// Add building scaled cpc
 	cpc += this.getCps() * this.cpcCpsMultiplier;				// Add in percentage click scaling
 	cpc *= this.cpcMultiplier;									// Multiply by total multiplier
 	if (this.clickFrenzy) {	// Increase if click frenzy is active
@@ -453,7 +400,7 @@ Evaluator.prototype.getCps = function() {
 	// Scale it for production and heavely chip multipliers
 	var santaScale = (this.santaLevel + 1) * this.santaPower * 0.01;
 	var productionScale = this.productionMultiplier * 0.01;
-	var heavenlyScale = this.heavenlyChips * this.heavenlyUnlock * 0.02;
+	var heavenlyScale = this.heavenlyChips * this.heavenlyPower * 0.02;
 	cps *= (1 + santaScale + productionScale + heavenlyScale);
 	// Scale it for milk
 	var milkScale = 1;
@@ -507,6 +454,10 @@ Evaluator.prototype.getFrenziedCpc = function(multiplier) {
 // of Frenzy followed by Lucky and appear at the minimum spawn time every time.
 // Not 100% accurate but near enough to give a decent estimation.
 Evaluator.prototype.getGoldenCookieCps = function() {
+	// If we dont click them, they don't work
+	if (!Config.autoClickGoldenCookies) {
+		return 0;
+	}
 	// Add gains from a single full duration frenzy
 	var totalGain = 0;
 	totalGain += (this.getFrenziedCps(Constants.FRENZY_MULTIPLIER) - this.getFrenziedCps(1)) * this.frenzyDuration;
@@ -536,6 +487,10 @@ Evaluator.prototype.getEffectiveCps = function() {
 // Get the current required cookie bank size, accounts for time until the
 // next golden cookie appears
 Evaluator.prototype.getCookieBankSize = function(timeSinceLastGoldenCookie, frenzyTimeRemaining) {
+	// Don't need one if not clicking golden cookies
+	if (!Config.maintainCookieBank) {
+		return 0;
+	}
 	var totalCookieBankRequired = this.getFrenziedCps(1) * Constants.LUCKY_COOKIE_BANK_TIME * 10 * Constants.FRENZY_MULTIPLIER;
 	var timeRemaining = Math.max(this.goldenCookieTime - timeSinceLastGoldenCookie, 0);
 	var frenziedCps = this.getFrenziedCps(Constants.FRENZY_MULTIPLIER) + this.getFrenziedCpc(Constants.FRENZY_MULTIPLIER) * ultimateCookie.clickRate();
@@ -567,512 +522,557 @@ Evaluator.prototype.syncToGame = function() {
 }
 
 //
-// Classes to represent upgrades purely for use in Emulator calculations
+// Classes to represent upgrades
 //
 
-// Shorthand for declaring property values
-pv = function(val) { return { enumerable: true, value: val }; }
-
-// All the supported types of upgrades
-var upgradeTypes = {};
-// Basic upgrade type, does nothing
-upgradeTypes.upgrade = {
-	name: "<unnamed>",
-	sortable: false,		// Can this be sorted with standard CpS gain logic
-	applyUpgrade: function(eval) {},
-	revokeUpgrade: function(eval) {},
-	purchase: function() { Game.Upgrades[this.name].buy(1); },
-	getCost: function() { return Game.Upgrades[this.name].getPrice(); },
-	getEffectiveCps: function(eval) {
-		var cps = eval.getEffectiveCps();
-		this.applyUpgrade(eval);
-		cps = eval.getEffectiveCps() - cps;
-		this.revokeUpgrade(eval);
-		return cps;
-	},
-	getValue: function(eval) {
-		return this.getEffectiveCps(eval);
-	},
-};
-// Upgrade to represent building one more of a building type
-upgradeTypes.building = Object.create(upgradeTypes.upgrade, {
-	sortable: pv( true ),
-	index: pv( Constants.CURSOR_INDEX ),
-	applyUpgrade: pv( function(eval) { eval.buildings[this.index].quantity += 1; } ),
-	revokeUpgrade: pv( function(eval) { eval.buildings[this.index].quantity -= 1; } ),
-	purchase: pv( function() { Game.ObjectsById[this.index].buy(1); } ),
-	getCost: pv( function() { return Game.ObjectsById[this.index].getPrice(); } ),
-});
-// Upgrade to represent building one more of a building type
-upgradeTypes.buildingModifier = Object.create(upgradeTypes.upgrade, {
-	sortable: pv( true ),
-	index: pv( Constants.CURSOR_INDEX ),
-});
-// Upgrades that increase the base CpS of a building type
-upgradeTypes.buildingBaseCps = Object.create(upgradeTypes.buildingModifier, {
-	amount: pv( 0 ),
-	applyUpgrade: pv( function(eval) { eval.buildings[this.index].baseCps += this.amount; } ),
-	revokeUpgrade: pv( function(eval) { eval.buildings[this.index].baseCps -= this.amount; } ),
-});
-// Upgrades that increase total CpS of a building type
-upgradeTypes.buildingMultiplier = Object.create(upgradeTypes.buildingModifier, {
-	scale: pv( 1 ),
-	applyUpgrade: pv( function(eval) { eval.buildings[this.index].multiplier *= this.scale; } ),
-	revokeUpgrade: pv( function(eval) { eval.buildings[this.index].multiplier /= this.scale; } ),
-});
-// Upgrades that increase total CpC by a multiple
-upgradeTypes.clickMultiplier = Object.create(upgradeTypes.upgrade, {
-	sortable: pv( true ),
-	scale: pv( 1 ),
-	applyUpgrade: pv( function(eval) { eval.cpcMultiplier *= this.scale; } ),
-	revokeUpgrade: pv( function(eval) { eval.cpcMultiplier /= this.scale; } ),
-});
-// Upgrades that add a percentage of CpS to each click
-upgradeTypes.clickCps = Object.create(upgradeTypes.upgrade, {
-	sortable: pv( true ),
-	amount: pv( 0 ),
-	applyUpgrade: pv( function(eval) { eval.cpcCpsMultiplier += this.amount; } ),
-	revokeUpgrade: pv( function(eval) { eval.cpcCpsMultiplier -= this.amount; } ),
-});
-// Upgrades that increase all cookie production
-upgradeTypes.production = Object.create(upgradeTypes.upgrade, {
-	sortable: pv( true ),
-	amount: pv( 0 ),
-	applyUpgrade: pv( function(eval) { eval.productionMultiplier += this.amount; } ),
-	revokeUpgrade: pv( function(eval) { eval.productionMultiplier -= this.amount; } ),
-});
-// Upgrade that makes golden cookies appear more often
-upgradeTypes.goldenCookieFrequency = Object.create(upgradeTypes.upgrade, {
-	sortable: pv( true ),
-	scale: pv( 0 ),
-	applyUpgrade: pv( function(eval) { eval.goldenCookieTime /= this.scale; } ),
-	revokeUpgrade: pv( function(eval) { eval.goldenCookieTime *= this.scale; } ),
-});
-// Upgrade that makes golden cookies affects last longer
-upgradeTypes.goldenCookieDuration = Object.create(upgradeTypes.upgrade, {
-	sortable: pv( true ),
-	applyUpgrade: pv( function(eval) { eval.frenzyDuration *= 2; } ),
-	revokeUpgrade: pv( function(eval) { eval.frenzyDuration /= 2; } ),
-});
-// Upgrade that makes milk more effective
-upgradeTypes.milk = Object.create(upgradeTypes.upgrade, {
-	sortable: pv( true ),
-	scale: pv( 0 ),
-	applyUpgrade: pv(
-		function(eval) {
-			eval.milkUnlocks.push(this.scale);
-			eval.milkUnlocks.sort();
-		}
-	),
-	revokeUpgrade: pv(
-		function(eval) {
-			eval.milkUnlocks.splice(eval.milkUnlocks.indexOf(this.scale), 1);
-		}
-	),
-});
-// Upgrade that increases milk amount by a scale
-upgradeTypes.milkMultiplier = Object.create(upgradeTypes.upgrade, {
-	sortable: pv( true ),
-	scale: pv( 1 ),
-	applyUpgrade: pv( function(eval) { eval.milkMultiplier *= this.scale; } ),
-	revokeUpgrade: pv( function(eval) { eval.milkMultiplier /= this.scale; } ),
-});
-// Upgrade that unlocks heavenly chip potential
-upgradeTypes.heavenlyPower = Object.create(upgradeTypes.upgrade, {
-	sortable: pv( true ),
-	amount: pv( 0 ),
-	applyUpgrade: pv( function(eval) { eval.heavenlyUnlock += this.amount; } ),
-	revokeUpgrade: pv( function(eval) { eval.heavenlyUnlock -= this.amount; } ),
-});
-// Upgrade that increases mouse and cursor cps based on buildings owned
-upgradeTypes.multifinger = Object.create(upgradeTypes.upgrade, {
-	sortable: pv( true ),
-	amount: pv( 0 ),
-	applyUpgrade: pv(
-		function(eval) {
-			// Scale up all except the excluded type
-			eval.buildings[Constants.CURSOR_INDEX].buildingScaler.scaleAll(this.amount);
-			eval.buildings[Constants.CURSOR_INDEX].buildingScaler.scaleOne(Constants.CURSOR_INDEX, -this.amount);
-			eval.cpcBuildingBaseScaler.scaleAll(this.amount);
-			eval.cpcBuildingBaseScaler.scaleOne(Constants.CURSOR_INDEX, -this.amount);
-		}
-	),
-	revokeUpgrade: pv(
-		function(eval) {
-			// Scale up all except the excluded type
-			eval.buildings[Constants.CURSOR_INDEX].buildingScaler.scaleAll(-this.amount);
-			eval.buildings[Constants.CURSOR_INDEX].buildingScaler.scaleOne(Constants.CURSOR_INDEX, this.amount);
-			eval.cpcBuildingBaseScaler.scaleAll(-this.amount);
-			eval.cpcBuildingBaseScaler.scaleOne(Constants.CURSOR_INDEX, this.amount);
-		}
-	),
-});
-// Upgrade that increases base cps of one building based on quantity of another
-upgradeTypes.perBuildingScaler = Object.create(upgradeTypes.buildingModifier, {
-	target: pv( Constants.CURSOR_INDEX ),
-	amount: pv( 0 ),
-	applyUpgrade: pv( function(eval) { eval.buildings[this.index].buildingBaseScaler.scaleOne(this.target, this.amount); } ),
-	revokeUpgrade: pv( function(eval) { eval.buildings[this.index].buildingBaseScaler.scaleOne(this.target, -this.amount); } ),
-});
-// Upgrade that doubles both mouse and cursor CpS
-upgradeTypes.reinforcedIndexFinger = Object.create(upgradeTypes.buildingModifier, {
-	sortable: pv( true ),
-	applyUpgrade: pv(
-		function(eval) {
-			eval.cpcBaseMultiplier *= 2;
-			eval.buildings[this.index].baseCps += 0.1;
-		}
-	),
-	revokeUpgrade: pv(
-		function(eval) {
-			eval.cpcBaseMultiplier /= 2;
-			eval.buildings[this.index].baseCps -= 0.1;
-		}
-	),
-});
-// Upgrade that doubles both mouse and cursor CpS
-upgradeTypes.ambidextrous = Object.create(upgradeTypes.buildingModifier, {
-	scale: pv( 2 ),
-	applyUpgrade: pv(
-		function(eval) {
-			eval.cpcBaseMultiplier *= 2;
-			eval.buildings[this.index].multiplier *= this.scale;
-		}
-	),
-	revokeUpgrade: pv(
-		function(eval) {
-			eval.cpcBaseMultiplier /= 2;
-			eval.buildings[this.index].multiplier /= this.scale;
-		}
-	),
-});
-// Revoke elder covenant upgrade - permanant 5% CpS reduction
-upgradeTypes.elderCovenant = Object.create(upgradeTypes.upgrade, {
-	revoke: pv( true ),
-	applyUpgrade: pv( function(eval) { eval.elderCovenant = this.revoke; } ),
-	// This is a bit dodgy
-	revokeUpgrade: pv( function(eval) { eval.elderCovenant = !this.revoke; } ),
-});
-// Santa level upgrades
-upgradeTypes.santaLevel = Object.create(upgradeTypes.upgrade, {
-	level: pv( 0 ),
-	applyUpgrade: pv( function(eval) { ++eval.santaLevel; } ),
-	revokeUpgrade: pv( function(eval) { --eval.santaLevel; } ),
-	getValue: pv( function(eval) { return this.getEffectiveCps(eval) + eval.getEffectiveCps() * 0.01; } ),
-	purchase: pv(
-		function() {
-			var mx = Game.mouseX;
-			var my = Game.mouseY;
-			var c = Game.Click;
-			Game.mouseX = 24;
-			Game.mouseY = Game.LeftBackground.canvas.height - 48;
-			Game.Click = 1;
-			Game.UpdateSanta();
-			Game.mouseX = mx;
-			Game.mouseY = my;
-			Game.Click = c;
-		}
-	),
-	getCost: pv( function() { return Math.pow(this.level, this.level); } ),
-});
-// Upgrade that increases production based on santa level
-upgradeTypes.santaPower = Object.create(upgradeTypes.upgrade, {
-	amount: pv( 0 ),
-	applyUpgrade: pv( function(eval) { eval.santaPower += this.amount; } ),
-	revokeUpgrade: pv( function(eval) { eval.santaPower -= this.amount; } ),
-});
-// Upgrade that increases production based on santa level
-upgradeTypes.sacrificialRollingPins = Object.create(upgradeTypes.upgrade, {
-	getValue: pv( function(eval) { return upgradeFunctions.elderPledge.getCost() / 3600; } ),
-});
-// Upgrade that are valued based on a percentage of cps
-upgradeTypes.percentCpsValue = Object.create(upgradeTypes.upgrade, {
-	scale: pv( 0 ),
-	getValue: pv( function(eval) { return eval.getEffectiveCps() * this.scale * 0.01; } ),
-});
-
-// Shorthand functions for declaring the individual upgrade types
-basicUpgrade = function(nam)
-	{ return Object.create(upgradeTypes.upgrade, { name: pv(nam) } ); }
-buildingUpgrade = function(nam, indx)
-	{ return Object.create(upgradeTypes.building, { name: pv(nam), index: pv(indx) } ); }
-buildingBaseCpsUpgrade = function(nam, indx, amnt)
-	{ return Object.create(upgradeTypes.buildingBaseCps, { name: pv(nam), index: pv(indx), amount: pv(amnt) } ); }
-buildingMultiplierUpgrade = function(nam, indx, scal)
-	{ return Object.create(upgradeTypes.buildingMultiplier, { name: pv(nam), index: pv(indx), scale: pv(scal) } ); }
-productionUpgrade = function(nam, amnt)
-	{ return Object.create(upgradeTypes.production, { name: pv(nam), amount: pv(amnt) } ); }
-goldenCookieFrequencyUpgrade = function(nam, scal)
-	{ return Object.create(upgradeTypes.goldenCookieFrequency, { name: pv(nam), scale: pv(scal) } ); }
-goldenCookieDurationUpgrade = function(nam)
-	{ return Object.create(upgradeTypes.goldenCookieDuration, { name: pv(nam) } ); }
-perBuildingScalerUpgrade = function(nam, indx, tar, amt)
-	{ return Object.create(upgradeTypes.perBuildingScaler, { name: pv(nam), index: pv(indx), target: pv(tar), amount: pv(amt) } ); }
-reinforcedIndexFingerUpgrade = function(nam)
-	{ return Object.create(upgradeTypes.reinforcedIndexFinger, { name: pv(nam) } ); }
-ambidextrousUpgrade = function(nam)
-	{ return Object.create(upgradeTypes.ambidextrous, { name: pv(nam) } ); }
-multifingerUpgrade = function(nam, amnt)
-	{ return Object.create(upgradeTypes.multifinger, { name: pv(nam), amount: pv(amnt) } ); }
-milkUpgrade = function(nam, scal)
-	{ return Object.create(upgradeTypes.milk, { name: pv(nam), scale: pv(scal) } ); }
-milkMultiplierUpgrade = function(nam, scal)
-	{ return Object.create(upgradeTypes.milkMultiplier, { name: pv(nam), scale: pv(scal) } ); }
-heavenlyPowerUpgrade = function(nam, amnt)
-	{ return Object.create(upgradeTypes.heavenlyPower, { name: pv(nam), amount: pv(amnt) } ); }
-clickMultiplierUpgrade = function(nam, scal)
-	{ return Object.create(upgradeTypes.clickMultiplier, { name: pv(nam), scale: pv(scal) } ); }
-clickCpsUpgrade = function(nam, amnt)
-	{ return Object.create(upgradeTypes.clickCps, { name: pv(nam), amount: pv(amnt) } ); }
-elderCovenantUpgrade = function(nam, revok)
-	{ return Object.create(upgradeTypes.elderCovenant, { name: pv(nam), revoke: pv(revok) } ); }
-santaPowerUpgrade = function(nam, amnt)
-	{ return Object.create(upgradeTypes.santaPower, { name: pv(nam), amount: pv(amnt) } ); }
-sacrificialRollingPinsUpgrade = function(nam)
-	{ return Object.create(upgradeTypes.sacrificialRollingPins, { name: pv(nam) } ); }
-productionValueUpgrade = function(nam, amnt)
-	{ return Object.create(upgradeTypes.percentCpsValue, { name: pv(nam), amount: pv(amnt) } ); }
-percentCpsValueUpgrade = function(nam, scal)
-	{ return Object.create(upgradeTypes.percentCpsValue, { name: pv(nam), scale: pv(scal) } ); }
-
-// All of the upgrades supported are declared here
-var upgradeFunctions = {
-	// Upgrades for the basic building types
-	cursor:					buildingUpgrade("Cursor", Constants.CURSOR_INDEX),
-	grandma: 				buildingUpgrade("Grandma", Constants.GRANDMA_INDEX),
-	farm:					buildingUpgrade("Farm", Constants.FARM_INDEX),
-	factory:				buildingUpgrade("Factory", Constants.FACTORY_INDEX),
-	mine:					buildingUpgrade("Mine", Constants.MINE_INDEX),
-	shipment: 				buildingUpgrade("Shipment", Constants.SHIPMENT_INDEX),
-	alchemyLab: 			buildingUpgrade("Alchemy lab", Constants.ALCHEMY_LAB_INDEX),
-	portal: 				buildingUpgrade("Portal", Constants.PORTAL_INDEX),
-	timeMachine: 			buildingUpgrade("Time machine", Constants.TIME_MACHINE_INDEX),
-	antimatterCondenser:	buildingUpgrade("Antimatter condenser", Constants.ANTIMATTER_CONDENSER_INDEX),
-	prism: 					buildingUpgrade("Prism", Constants.PRISM_INDEX),
-	// Upgrades that increase basic building cps
-	forwardsFromGrandma:	buildingBaseCpsUpgrade("Forwards from grandma", Constants.GRANDMA_INDEX, 0.3),
-	cheapHoes:				buildingBaseCpsUpgrade("Cheap hoes", Constants.FARM_INDEX, 1),
-	sturdierConveyorBelts:	buildingBaseCpsUpgrade("Sturdier conveyor belts", Constants.FACTORY_INDEX, 4),
-	sugarGas:				buildingBaseCpsUpgrade("Sugar gas", Constants.MINE_INDEX, 10),
-	vanillaNebulae:			buildingBaseCpsUpgrade("Vanilla nebulae", Constants.SHIPMENT_INDEX, 30),
-	antimony:				buildingBaseCpsUpgrade("Antimony", Constants.ALCHEMY_LAB_INDEX, 100),
-	ancientTablet:			buildingBaseCpsUpgrade("Ancient tablet", Constants.PORTAL_INDEX, 1666),
-	fluxCapacitors:			buildingBaseCpsUpgrade("Flux capacitors", Constants.TIME_MACHINE_INDEX, 9876),
-	sugarBosons:			buildingBaseCpsUpgrade("Sugar bosons", Constants.ANTIMATTER_CONDENSER_INDEX, 99999),
-	gemPolish:				buildingBaseCpsUpgrade("Gem polish", Constants.PRISM_INDEX, 1000000),
-	// Upgrades that double the productivity of a type of building
-	steelPlatedRollingPins:	buildingMultiplierUpgrade("Steel-plated rolling pins", Constants.GRANDMA_INDEX, 2),
-	lubricatedDentures:		buildingMultiplierUpgrade("Lubricated dentures", Constants.GRANDMA_INDEX, 2),
-	farmerGrandmas:			buildingMultiplierUpgrade("Farmer grandmas", Constants.GRANDMA_INDEX, 2),
-	workerGrandmas:			buildingMultiplierUpgrade("Worker grandmas", Constants.GRANDMA_INDEX, 2),
-	minerGrandmas:			buildingMultiplierUpgrade("Miner grandmas", Constants.GRANDMA_INDEX, 2),
-	cosmicGrandmas:			buildingMultiplierUpgrade("Cosmic grandmas", Constants.GRANDMA_INDEX, 2),
-	pruneJuice:				buildingMultiplierUpgrade("Prune juice", Constants.GRANDMA_INDEX, 2),
-	transmutedGrandmas:		buildingMultiplierUpgrade("Transmuted grandmas", Constants.GRANDMA_INDEX, 2),
-	doubleThickGlasses:		buildingMultiplierUpgrade("Double-thick glasses", Constants.GRANDMA_INDEX, 2),
-	alteredGrandmas:		buildingMultiplierUpgrade("Altered grandmas", Constants.GRANDMA_INDEX, 2),
-	grandmasGrandmas:		buildingMultiplierUpgrade("Grandmas' grandmas", Constants.GRANDMA_INDEX, 2),
-	antigrandmas:			buildingMultiplierUpgrade("Antigrandmas", Constants.GRANDMA_INDEX, 2),
-	rainbowGrandmas:		buildingMultiplierUpgrade("Rainbow grandmas", Constants.GRANDMA_INDEX, 2),
-	agingAgents:			buildingMultiplierUpgrade("Aging agents", Constants.GRANDMA_INDEX, 2),
-	fertilizer:				buildingMultiplierUpgrade("Fertilizer", Constants.FARM_INDEX, 2),
-	cookieTrees:			buildingMultiplierUpgrade("Cookie trees", Constants.FARM_INDEX, 2),
-	geneticallyModifiedCookies:	buildingMultiplierUpgrade("Genetically-modified cookies", Constants.FARM_INDEX, 2),
-	gingerbreadScarecrows:	buildingMultiplierUpgrade("Gingerbread scarecrows", Constants.FARM_INDEX, 2),
-	pulsarSprinklers:		buildingMultiplierUpgrade("Pulsar sprinklers", Constants.FARM_INDEX, 2),
-	childLabor:				buildingMultiplierUpgrade("Child labor", Constants.FACTORY_INDEX, 2),
-	sweatshop:				buildingMultiplierUpgrade("Sweatshop", Constants.FACTORY_INDEX, 2),
-	radiumReactors:			buildingMultiplierUpgrade("Radium reactors", Constants.FACTORY_INDEX, 2),
-	recombobulators:		buildingMultiplierUpgrade("Recombobulators", Constants.FACTORY_INDEX, 2),
-	deepBakeProcess:		buildingMultiplierUpgrade("Deep-bake process", Constants.FACTORY_INDEX, 2),
-	megadrill:				buildingMultiplierUpgrade("Megadrill", Constants.MINE_INDEX, 2),
-	ultradrill:				buildingMultiplierUpgrade("Ultradrill", Constants.MINE_INDEX, 2),
-	ultimadrill:			buildingMultiplierUpgrade("Ultimadrill", Constants.MINE_INDEX, 2),
-	hBombMining:			buildingMultiplierUpgrade("H-bomb mining", Constants.MINE_INDEX, 2),
-	coreforge:				buildingMultiplierUpgrade("Coreforge", Constants.MINE_INDEX, 2),
-	wormholes:				buildingMultiplierUpgrade("Wormholes", Constants.SHIPMENT_INDEX, 2),
-	frequentFlyer:			buildingMultiplierUpgrade("Frequent flyer", Constants.SHIPMENT_INDEX, 2),
-	warpDrive:				buildingMultiplierUpgrade("Warp drive", Constants.SHIPMENT_INDEX, 2),
-	chocolateMonoliths:		buildingMultiplierUpgrade("Chocolate monoliths", Constants.SHIPMENT_INDEX, 2),
-	generationShip:			buildingMultiplierUpgrade("Generation ship", Constants.SHIPMENT_INDEX, 2),
-	essenceOfDough:			buildingMultiplierUpgrade("Essence of dough", Constants.ALCHEMY_LAB_INDEX, 2),
-	trueChocolate:			buildingMultiplierUpgrade("True chocolate", Constants.ALCHEMY_LAB_INDEX, 2),
-	ambrosia:				buildingMultiplierUpgrade("Ambrosia", Constants.ALCHEMY_LAB_INDEX, 2),
-	aquaCrustulae:			buildingMultiplierUpgrade("Aqua crustulae", Constants.ALCHEMY_LAB_INDEX, 2),
-	originCrucible:			buildingMultiplierUpgrade("Origin crucible", Constants.ALCHEMY_LAB_INDEX, 2),
-	insaneOatlingWorkers:	buildingMultiplierUpgrade("Insane oatling workers", Constants.PORTAL_INDEX, 2),
-	soulBond:				buildingMultiplierUpgrade("Soul bond", Constants.PORTAL_INDEX, 2),
-	sanityDance:			buildingMultiplierUpgrade("Sanity dance", Constants.PORTAL_INDEX, 2),
-	braneTransplant:		buildingMultiplierUpgrade("Brane transplant", Constants.PORTAL_INDEX, 2),
-	deitySizedPortals:		buildingMultiplierUpgrade("Deity-sized portals", Constants.PORTAL_INDEX, 2),
-	timeParadoxResolver:	buildingMultiplierUpgrade("Time paradox resolver", Constants.TIME_MACHINE_INDEX, 2),
-	quantumConundrum:		buildingMultiplierUpgrade("Quantum conundrum", Constants.TIME_MACHINE_INDEX, 2),
-	causalityEnforcer:		buildingMultiplierUpgrade("Causality enforcer", Constants.TIME_MACHINE_INDEX, 2),
-	yestermorrowComparators:buildingMultiplierUpgrade("Yestermorrow comparators", Constants.TIME_MACHINE_INDEX, 2),
-	farFutureEnactment:		basicUpgrade("Far future enactment"),	// Bugged, does nothing
-	stringTheory:			buildingMultiplierUpgrade("String theory", Constants.ANTIMATTER_CONDENSER_INDEX, 2),
-	largeMacaronCollider:	buildingMultiplierUpgrade("Large macaron collider", Constants.ANTIMATTER_CONDENSER_INDEX, 2),
-	bigBangBake:			buildingMultiplierUpgrade("Big bang bake", Constants.ANTIMATTER_CONDENSER_INDEX, 2),
-	reverseCyclotrons:		buildingMultiplierUpgrade("Reverse cyclotrons", Constants.ANTIMATTER_CONDENSER_INDEX, 2),
-	nanocosmics:			buildingMultiplierUpgrade("Nanocosmics", Constants.ANTIMATTER_CONDENSER_INDEX, 2),
-	ninthColor:				buildingMultiplierUpgrade("9th color", Constants.PRISM_INDEX, 2),
-	chocolateLight:			buildingMultiplierUpgrade("Chocolate light", Constants.PRISM_INDEX, 2),
-	grainbow:				buildingMultiplierUpgrade("Grainbow", Constants.PRISM_INDEX, 2),
-	pureCosmicLight:		buildingMultiplierUpgrade("Pure cosmic light", Constants.PRISM_INDEX, 2),
-	glowInTheDark:			buildingMultiplierUpgrade("Glow-in-the-dark", Constants.PRISM_INDEX, 2),
-	// Upgrades that increase cookie production
-	sugarCookies:			productionUpgrade("Sugar cookies", 5),
-	peanutButterCookies:	productionUpgrade("Peanut butter cookies", 5),
-	plainCookies:			productionUpgrade("Plain cookies", 5),
-	oatmealRaisinCookies:	productionUpgrade("Oatmeal raisin cookies", 5),
-	coconutCookies:			productionUpgrade("Coconut cookies", 5),
-	whiteChocolateCookies:	productionUpgrade("White chocolate cookies", 5),
-	macadamiaNutCookies:	productionUpgrade("Macadamia nut cookies", 5),
-	whiteChocolateMacadamiaNutCookies:	productionUpgrade("White chocolate macadamia nut cookies", 10),
-	doubleChipCookies:		productionUpgrade("Double-chip cookies", 10),
-	allChocolateCookies:	productionUpgrade("All-chocolate cookies", 10),
-	whiteChocolateCoatedCookies:	productionUpgrade("White chocolate-coated cookies", 15),
-	darkChocolateCoatedCookies:		productionUpgrade("Dark chocolate-coated cookies", 15),
-	eclipseCookies:			productionUpgrade("Eclipse cookies", 15),
-	zebraCookies:			productionUpgrade("Zebra cookies", 15),
-	snickerdoodles:			productionUpgrade("Snickerdoodles", 15),
-	stroopwafels:			productionUpgrade("Stroopwafels", 15),
-	empireBiscuits:			productionUpgrade("Empire biscuits", 15),
-	macaroons:				productionUpgrade("Macaroons", 15),
-	britishTeaBiscuits:		productionUpgrade("British tea biscuits", 15),
-	chocolateBritishTeaBiscuits:					productionUpgrade("Chocolate british tea biscuits", 15),
-	roundBritishTeaBiscuits:						productionUpgrade("Round british tea biscuits", 15),
-	roundChocolateBritishTeaBiscuits:				productionUpgrade("Round chocolate british tea biscuits", 15),
-	roundBritishTeaBiscuitsWithHeartMotif:			productionUpgrade("Round british tea biscuits with heart motif", 15),
-	roundChocolateBritishTeaBiscuitsWithHeartMotif:	productionUpgrade("Round chocolate british tea biscuits with heart motif", 15),
-	palets:					productionUpgrade("Palets", 20),
-	sables:					productionUpgrade("Sabl&eacute;s", 20),
-	madeleines:				productionUpgrade("Madeleines", 20),
-	palmiers:				productionUpgrade("Palmiers", 20),
-	shortfoils:				productionUpgrade("Shortfoils", 25),
-	figGluttons:			productionUpgrade("Fig gluttons", 25),
-	loreols:				productionUpgrade("Loreols", 25),
-	jaffaCakes:				productionUpgrade("Jaffa cakes", 25),
-	greasesCups:			productionUpgrade("Grease's cups", 25),
-	sagalongs:				productionUpgrade("Sagalongs", 25),
-	winMints:				productionUpgrade("Win mints", 25),
-	caramoas:				productionUpgrade("Caramoas", 25),
-	gingerbreadTrees:		productionUpgrade("Gingerbread trees", 25),
-	gingerbreadMen:			productionUpgrade("Gingerbread men", 25),
-	roseMacarons:			productionUpgrade("Rose macarons", 30),
-	lemonMacarons:			productionUpgrade("Lemon macarons", 30),
-	chocolateMacarons:		productionUpgrade("Chocolate macarons", 30),
-	pistachioMacarons:		productionUpgrade("Pistachio macarons", 30),
-	hazelnutMacarons:		productionUpgrade("Hazelnut macarons", 30),
-	violetMacarons:			productionUpgrade("Violet macarons", 30),
-	// Golden cookie upgrade functions
-	luckyDay:				goldenCookieFrequencyUpgrade("Lucky day", 2),
-	serendipity:			goldenCookieFrequencyUpgrade("Serendipity", 2),
-	getLuckyUpgrade:		goldenCookieDurationUpgrade("Get lucky"),
-	// Research centre related upgrades
-	bingoCenterResearchFacility:	buildingMultiplierUpgrade("Bingo center/Research facility", Constants.GRANDMA_INDEX, 4),
-	persistentMemory:				basicUpgrade("Persistent memory"),
-	specializedChocolateChips:		productionUpgrade("Specialized chocolate chips", 1),
-	designerCocoaBeans:		productionUpgrade("Designer cocoa beans", 2),
-	ritualRollingPins:		buildingMultiplierUpgrade("Ritual rolling pins", Constants.GRANDMA_INDEX, 2),
-	underworldOvens:		productionUpgrade("Underworld ovens", 3),
-	oneMind:				perBuildingScalerUpgrade("One mind", Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02),
-	exoticNuts:				productionUpgrade("Exotic nuts", 4),
-	communalBrainsweep:		perBuildingScalerUpgrade("Communal brainsweep", Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02),
-	arcaneSugar:			productionUpgrade("Arcane sugar", 5),
-	elderPact:				perBuildingScalerUpgrade("Elder Pact", Constants.GRANDMA_INDEX, Constants.PORTAL_INDEX, 0.05),
-	sacrificialRollingPins:	sacrificialRollingPinsUpgrade("Sacrificial rolling pins"),
-	elderCovenant:			elderCovenantUpgrade("Elder Covenant", true),
-	revokeElderCovenant:	elderCovenantUpgrade("Revoke Elder Covenant", false),
-	elderPledge:			basicUpgrade("Elder Pledge"),
-	// Reinforced Index Finger
-	reinforcedIndexFinger:	reinforcedIndexFingerUpgrade("Reinforced index finger"),
-	// Ambidextrous upgrades (double clicking and cursors)
-	carpalTunnelPreventionCream:	ambidextrousUpgrade("Carpal tunnel prevention cream", 2),
-	ambidextrous:					ambidextrousUpgrade("Ambidextrous", 2),
-	// Clicking and Cursors scale with buildings owned
-	thousandFingers:		multifingerUpgrade("Thousand fingers", 0.1),
-	millionFingers:			multifingerUpgrade("Million fingers", 0.5),
-	billionFingers:			multifingerUpgrade("Billion fingers", 2),
-	trillionFingers:		multifingerUpgrade("Trillion fingers", 10),
-	quadrillionFingers:		multifingerUpgrade("Quadrillion fingers", 20),
-	quintillionFingers:		multifingerUpgrade("Quintillion fingers", 100),
-	sextillionFingers:		multifingerUpgrade("Sextillion fingers", 200),
-	septillionFingers:		multifingerUpgrade("Septillion fingers", 400),
-	octillionFingers:		multifingerUpgrade("Octillion fingers", 800),
-	// Clicking gains a percent of CpS
-	plasticMouse:			clickCpsUpgrade("Plastic mouse", 0.01),
-	ironMouse:				clickCpsUpgrade("Iron mouse", 0.01),
-	titaniumMouse:			clickCpsUpgrade("Titanium mouse", 0.01),
-	adamantiumMouse:		clickCpsUpgrade("Adamantium mouse", 0.01),
-	unobtainiumMouse:		clickCpsUpgrade("Unobtainium mouse", 0.01),
-	eludium:				clickCpsUpgrade("Eludium mouse", 0.01),
-	wishalloy:				clickCpsUpgrade("Wishalloy mouse", 0.01),
-	// Milk upgrades
-	kittenHelpers:			milkUpgrade("Kitten helpers", 0.05),
-	kittenWorkers:			milkUpgrade("Kitten workers", 0.1),
-	kittenEngineers:		milkUpgrade("Kitten engineers", 0.2),
-	kittenOverseers:		milkUpgrade("Kitten overseers", 0.2),
-	kittenManagers:			milkUpgrade("Kitten managers", 0.2),
-	// Heavenly chip unlocks
-	heavenlyChipSecret:		heavenlyPowerUpgrade("Heavenly chip secret", 0.05),
-	heavenlyCookieStand:	heavenlyPowerUpgrade("Heavenly cookie stand", 0.20),
-	heavenlyBakery:			heavenlyPowerUpgrade("Heavenly bakery", 0.25),
-	heavenlyConfectionery:	heavenlyPowerUpgrade("Heavenly confectionery", 0.25),
-	heavenlyKey:			heavenlyPowerUpgrade("Heavenly key", 0.25),
-	// Season switcher upgrade
-	seasonSwitcher:			basicUpgrade("Season switcher"),
-	// Business day season
-	foolsBiscuit:			basicUpgrade("Fool's biscuit"),
-	// Valentines day season
-	lovesickBiscuit:		basicUpgrade("Lovesick biscuit"),
-	pureHeartBiscuits:		productionUpgrade("Pure heart biscuits", 25),
-	ardentHeartBiscuits:	productionUpgrade("Ardent heart biscuits", 25),
-	sourHeartBiscuits:		productionUpgrade("Sour heart biscuits", 25),
-	weepingHeartBiscuits:	productionUpgrade("Weeping heart biscuits", 25),
-	goldenHeartBiscuits:	productionUpgrade("Golden heart biscuits", 25),
-	eternalHeartBiscuits:	productionUpgrade("Eternal heart biscuits", 25),
-	// Halloween season
-	ghostlyBiscuit:			basicUpgrade("Ghostly biscuit"),
-	skullCookies:			productionUpgrade("Skull cookies", 20),
-	ghostCookies:			productionUpgrade("Ghost cookies", 20),
-	batCookies:				productionUpgrade("Bat cookies", 20),
-	slimeCookies:			productionUpgrade("Slime cookies", 20),
-	pumpkinCookies:			productionUpgrade("Pumpkin cookies", 20),
-	eyeballCookies:			productionUpgrade("Eyeball cookies", 20),
-	spiderCookies:			productionUpgrade("Spider cookies", 20),
-	// Christmas season
-	festiveBiscuit:			basicUpgrade("Festive biscuit"),
-	aFestiveHat:			percentCpsValueUpgrade("A festive hat", 1),		// Unlocks the santa upgrades
-	weightedSleighs:		basicUpgrade("Weighted sleighs"),				// Reindeer are twice as slow
-	reindeerBakingGrounds:	basicUpgrade("Reindeer baking grounds"),		// Reindeer appear twice as often
-	hoHoHoFlavoredFrosting:	basicUpgrade("Ho ho ho-flavored frosting"),		// Reindeer give twice as much
-	//seasonSavings:			percentCpsValueUpgrade("Season savings", 1),	// All buildings are 1% cheaper
-	toyWorkshop:			percentCpsValueUpgrade("Toy workshop", 0.05),	// All upgrades are 5% cheaper
-	santasBottomlessBag:	percentCpsValueUpgrade("Santa's bottomless bag", 0.01),		// Random drops are 10% more common
-	santasHelpers:			clickMultiplierUpgrade("Santa's helpers", 1.1),
-	santasLegacy:			santaPowerUpgrade("Santa's legacy", 10),	// Cookie production multiplier +10% per santa's levels
-	santasMilkAndCookies:	milkMultiplierUpgrade("Santa's milk and cookies", 1.05),
-	//santasDominion:			productionUpgrade("Santa's dominion", 50),			// Cookie production multiplier +50%, All buildings are 1% cheaper, All upgrades are 2% cheaper
-	aLumpOfCoal:			productionUpgrade("A lump of coal", 1),
-	anItchySweater:			productionUpgrade("An itchy sweater", 1),
-	improvedJolliness:		productionUpgrade("Improved jolliness", 15),
-	increasedMerriness:		productionUpgrade("Increased merriness", 15),
-	christmasTreeBiscuits:	productionUpgrade("Christmas tree biscuits", 20),
-	snowflakeBiscuits:		productionUpgrade("Snowflake biscuits", 20),
-	snowmanBiscuits:		productionUpgrade("Snowman biscuits", 20),
-	hollyBiscuits:			productionUpgrade("Holly biscuits", 20),
-	candyCaneBiscuits:		productionUpgrade("Candy cane biscuits", 20),
-	bellBiscuits:			productionUpgrade("Bell biscuits", 20),
-	presentBiscuits:		productionUpgrade("Present biscuits", 20),
-	naughtyList:			buildingMultiplierUpgrade("Naughty list", Constants.GRANDMA_INDEX, 2),
-}
-
-// Lookup table for finding the same upgrade functions by name
+var upgradeFunctions = {}
 var upgradeIndex = {}
-for (var upf in upgradeFunctions) {
-	upgradeIndex[upgradeFunctions[upf].name] = upgradeFunctions[upf];
+
+Upgrade = function(name) {
+	this.name = name;
 }
+
+Upgrade.prototype.applyUpgrade = function(eval) {
+	if (this.buildsIndex != undefined)
+		eval.buildings[this.buildsIndex].quantity += this.buildsQuantity;
+	if (this.boostsBuildingIndex != undefined)
+		eval.buildings[this.boostsBuildingIndex].baseCps += this.boostsBuildingAmount;
+	if (this.scalesBuildingIndex != undefined)
+		eval.buildings[this.scalesBuildingIndex].multiplier *= this.scalesBuildingScale;
+	if (this.productionBoost != undefined)
+		eval.productionMultiplier += this.productionBoost;
+	if (this.goldenCookieFrequencyScale != undefined)
+		eval.goldenCookieTime /= this.goldenCookieFrequencyScale;
+	if (this.goldenCookieDurationScale != undefined)
+		eval.frenzyDuration *= this.goldenCookieDurationScale;
+	if (this.givesPerBuildingBoostTo != undefined)
+		eval.buildings[this.givesPerBuildingBoostTo].buildingBaseScaler.scaleOne(this.givesPerBuildingBoostFrom, this.givesPerBuildingBoostAmount);
+	if (this.enablesElderCovenant != undefined)
+		eval.elderCovenant = true;
+	if (this.disablesElderCovenant != undefined)
+		eval.elderCovenant = false;
+	if (this.clickBoost != undefined)
+		eval.cpcBase += this.clickBoost;
+	if (this.baseClickScale != undefined)
+		eval.cpcBaseMultiplier *= this.baseClickScale;
+	if (this.givesTotalBuildingBonusTo != undefined) {
+		eval.buildings[this.givesTotalBuildingBonusTo].buildingScaler.scaleAll(this.givesTotalBuildingBonusAmount);
+		eval.buildings[this.givesTotalBuildingBonusTo].buildingScaler.scaleOne(this.givesTotalBuildingBonusExcluding, -this.givesTotalBuildingBonusAmount);
+	}
+	if (this.clickCpsBoost != undefined)
+		eval.cpcCpsMultiplier += this.clickCpsBoost;
+	if (this.milkUnlock != undefined) {
+		eval.milkUnlocks.push(this.milkUnlock);
+		eval.milkUnlocks.sort();
+	}
+	if (this.heavenlyPowerBoost != undefined)
+		eval.heavenlyPower += this.heavenlyPowerBoost;
+	if (this.buildingCostScale != undefined)
+		eval.buildingCostScale *= this.buildingCostScale;
+	if (this.totalClickScale != undefined)
+		eval.cpcMultiplier *= this.totalClickScale;
+	if (this.santaPowerBoost != undefined)
+		eval.santaPower += this.santaPowerBoost;
+	if (this.milkScale != undefined)
+		eval.milkMultiplier *= this.milkScale;
+	if (this.increasesSantaLevel != undefined)
+		++eval.santaLevel;
+}
+
+Upgrade.prototype.revokeUpgrade = function(eval) {
+	if (this.buildsIndex != undefined)
+		eval.buildings[this.buildsIndex].quantity -= this.buildsQuantity;
+	if (this.boostsBuildingIndex != undefined)
+		eval.buildings[this.boostsBuildingIndex].baseCps -= this.boostsBuildingAmount;
+	if (this.scalesBuildingIndex != undefined)
+		eval.buildings[this.scalesBuildingIndex].multiplier /= this.scalesBuildingScale;
+	if (this.productionBoost != undefined)
+		eval.productionMultiplier -= this.productionBoost;
+	if (this.goldenCookieFrequencyScale != undefined)
+		eval.goldenCookieTime *= this.goldenCookieFrequencyScale;
+	if (this.goldenCookieDurationScale != undefined)
+		eval.frenzyDuration /= this.goldenCookieDurationScale;
+	if (this.givesPerBuildingBoostTo != undefined)
+		eval.buildings[this.givesPerBuildingBoostTo].buildingBaseScaler.scaleOne(this.givesPerBuildingBoostFrom, -this.givesPerBuildingBoostAmount);
+	if (this.enablesElderCovenant != undefined)
+		eval.elderCovenant = false;
+	if (this.disablesElderCovenant != undefined)
+		eval.elderCovenant = true;
+	if (this.clickBoost != undefined)
+		eval.cpcBase -= this.clickBoost;
+	if (this.baseClickScale != undefined)
+		eval.cpcBaseMultiplier /= this.baseClickScale;
+	if (this.givesTotalBuildingBonusTo != undefined) {
+		eval.buildings[this.givesTotalBuildingBonusTo].buildingScaler.scaleAll(-this.givesTotalBuildingBonusAmount);
+		eval.buildings[this.givesTotalBuildingBonusTo].buildingScaler.scaleOne(this.givesTotalBuildingBonusExcluding, this.givesTotalBuildingBonusAmount);
+	}
+	if (this.clickCpsBoost != undefined)
+		eval.cpcCpsMultiplier -= this.clickCpsBoost;
+	if (this.milkUnlock != undefined)
+		eval.milkUnlocks.splice(eval.milkUnlocks.indexOf(this.milkUnlock), 1);
+	if (this.heavenlyPowerBoost != undefined)
+		eval.heavenlyPower -= this.heavenlyPowerBoost;
+	if (this.buildingCostScale != undefined)
+		eval.buildingCostScale /= this.buildingCostScale;
+	if (this.totalClickScale != undefined)
+		eval.cpcMultiplier /= this.totalClickScale;
+	if (this.santaPowerBoost != undefined)
+		eval.santaPower -= this.santaPowerBoost;
+	if (this.milkScale != undefined)
+		eval.milkMultiplier /= this.milkScale;
+	if (this.increasesSantaLevel != undefined)
+		--eval.santaLevel;
+}
+
+Upgrade.prototype.getVariableName = function() {
+	var s = this.name;
+	s = s.replace("9th", "ninth");
+	s = s.replace("&eacute;", "e");
+	s = s.replace("'", "");
+	s = s.replace(/\W\w/g, function(s) { return s.toUpperCase(); } );
+	s = s.replace(/\W+/g, "");
+	s = s.replace(/^\w/g, function(s) { return s.toLowerCase(); } );
+	return s;
+}
+
+Upgrade.prototype.getGameObject = function() {
+	if (this.buildsIndex != undefined)
+		return Game.ObjectsById[this.buildsIndex];
+	else
+		return Game.Upgrades[this.name];
+}
+
+Upgrade.prototype.getCost = function() {
+	if (this == upgradeFunctions.santaLevel) {
+		return Math.pow(Game.santaLevel + 1, Game.santaLevel + 1)
+	}
+	return this.getGameObject().getPrice();
+}
+
+Upgrade.prototype.purchase = function() {
+	if (this == upgradeFunctions.santaLevel) {
+		var mx = Game.mouseX;
+		var my = Game.mouseY;
+		var c = Game.Click;
+		Game.mouseX = 24;
+		Game.mouseY = Game.LeftBackground.canvas.height - 48;
+		Game.Click = 1;
+		Game.UpdateSanta();
+		Game.mouseX = mx;
+		Game.mouseY = my;
+		Game.Click = c;
+	} else {
+		this.getGameObject().buy(1);
+	}
+}
+
+Upgrade.prototype.getEffectiveCps = function(eval) {
+	var cps = eval.getEffectiveCps();
+	this.applyUpgrade(eval);
+	cps = eval.getEffectiveCps() - cps;
+	this.revokeUpgrade(eval);
+	return cps;
+}
+
+Upgrade.prototype.getValue = function(eval) {
+	var val = this.getEffectiveCps(eval);
+	if (this.valueFromTotalCps)
+		val += eval.getEffectiveCps() * this.valueFromTotalCps;
+	if (this.doublesElderPledgeDuration) {
+		val += upgradeFunctions.elderPledge.getCost() / 3600;
+	}
+	return val;
+}
+
+Upgrade.prototype.builds = function(index, quantity) {
+	this.buildsIndex = index;
+	this.buildsQuantity = quantity;
+	return this;
+}
+
+Upgrade.prototype.boostsBuilding = function(index, amount) {
+	this.boostsBuildingIndex = index;
+	this.boostsBuildingAmount = amount;
+	return this;
+}
+
+Upgrade.prototype.scalesBuilding = function(index, scale) {
+	this.scalesBuildingIndex = index;
+	this.scalesBuildingScale = scale;
+	return this;
+}
+
+Upgrade.prototype.boostsProduction = function(amount) {
+	this.productionBoost = amount;
+	return this;
+}
+
+Upgrade.prototype.scalesGoldenCookieFrequency = function(scale) {
+	this.goldenCookieFrequencyScale = scale;
+	return this;
+}
+
+Upgrade.prototype.scalesGoldenCookieDuration = function(scale) {
+	this.goldenCookieDurationScale = scale;
+	return this;
+}
+
+Upgrade.prototype.boostsResearch = function() {
+	this.isResearchBooster = true;
+	return this;
+}
+
+Upgrade.prototype.startsResearch = function() {
+	this.isResearchStarter = true;
+	return this;
+}
+
+Upgrade.prototype.startsElderCovenant = function() {
+	this.enablesElderCovenant = true;
+	return this;
+}
+
+Upgrade.prototype.endsElderCovenant = function() {
+	this.disablesElderCovenant = true;
+	return this;
+}
+
+Upgrade.prototype.startsElderPledge = function() {
+	this.beginsElderPledge = true;
+	return this;
+}
+
+Upgrade.prototype.doublesElderPledge = function() {
+	this.doublesElderPledgeDuration = true;
+	return this;
+}
+
+Upgrade.prototype.givesPerBuildingBoost = function(receiver, source, amount) {
+	this.givesPerBuildingBoostTo = receiver;
+	this.givesPerBuildingBoostFrom = source;
+	this.givesPerBuildingBoostAmount = amount;
+	return this;
+}
+
+Upgrade.prototype.givesTotalBuildingBonus = function(receiver, exclude, amount) {
+	this.givesTotalBuildingBonusTo = receiver;
+	this.givesTotalBuildingBonusExcluding = exclude;
+	this.givesTotalBuildingBonusAmount = amount;
+	return this;
+}
+
+Upgrade.prototype.boostsClicking = function(amount) {
+	this.clickBoost = amount;
+	return this;
+}
+
+Upgrade.prototype.scalesBaseClicking = function(scale) {
+	this.baseClickScale = scale;
+	return this;
+}
+
+Upgrade.prototype.boostsClickCps = function(amount) {
+	this.clickCpsBoost = amount;
+	return this;
+}
+
+Upgrade.prototype.unlocksMilk = function(amount) {
+	this.milkUnlock = amount;
+	return this;
+}
+
+Upgrade.prototype.boostsHeavenlyPower = function(amount) {
+	this.heavenlyPowerBoost = amount;
+	return this;
+}
+
+Upgrade.prototype.unlocksSantaLevels = function() {
+	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.01;
+	return this;
+}
+
+Upgrade.prototype.scalesBuildingCost = function(scale) {
+	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + (1 - scale);
+	this.buildingCostScale = scale;
+	return this;
+}
+
+Upgrade.prototype.reducesUpgradeCost = function(amount) {
+	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.0001 * amount;
+	return this;
+}
+
+Upgrade.prototype.increasesRandomDropChance = function(amount) {
+	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.0001 * amount;
+	return this;
+}
+
+Upgrade.prototype.scalesTotalClicking = function(scale) {
+	this.totalClickScale = scale;
+	return this;
+}
+
+Upgrade.prototype.boostsSantaPower = function(amount) {
+	this.santaPowerBoost = amount;
+	return this;
+}
+
+Upgrade.prototype.increasesSantasLevel = function() {
+	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.005;
+	this.increasesSantaLevel = true;
+	return this;
+}
+
+Upgrade.prototype.scalesMilk = function(scale) {
+	this.milkScale = scale;
+	return this;
+}
+
+upgrade = function(name) {
+	var u = new Upgrade(name);
+	upgradeIndex[name] = u;
+	upgradeFunctions[u.getVariableName()] = u;
+	return u;
+}
+
+// Upgrades for the basic building types
+upgrade("Cursor"				).builds(Constants.CURSOR_INDEX, 1);
+upgrade("Grandma"				).builds(Constants.GRANDMA_INDEX, 1);
+upgrade("Farm"					).builds(Constants.FARM_INDEX, 1);
+upgrade("Factory"				).builds(Constants.FACTORY_INDEX, 1);
+upgrade("Mine"					).builds(Constants.MINE_INDEX, 1);
+upgrade("Shipment"				).builds(Constants.SHIPMENT_INDEX, 1);
+upgrade("Alchemy lab"			).builds(Constants.ALCHEMY_LAB_INDEX, 1);
+upgrade("Portal"				).builds(Constants.PORTAL_INDEX, 1);
+upgrade("Time machine"			).builds(Constants.TIME_MACHINE_INDEX, 1);
+upgrade("Antimatter condenser"	).builds(Constants.ANTIMATTER_CONDENSER_INDEX, 1);
+upgrade("Prism"					).builds(Constants.PRISM_INDEX, 1);
+
+// Upgrades that increase basic building cps
+upgrade("Forwards from grandma"		).boostsBuilding(Constants.GRANDMA_INDEX, 0.3);
+upgrade("Cheap hoes"				).boostsBuilding(Constants.FARM_INDEX, 1);
+upgrade("Sturdier conveyor belts"	).boostsBuilding(Constants.FACTORY_INDEX, 4);
+upgrade("Sugar gas"					).boostsBuilding(Constants.MINE_INDEX, 10);
+upgrade("Vanilla nebulae"			).boostsBuilding(Constants.SHIPMENT_INDEX, 30);
+upgrade("Antimony"					).boostsBuilding(Constants.ALCHEMY_LAB_INDEX, 100);
+upgrade("Ancient tablet"			).boostsBuilding(Constants.PORTAL_INDEX, 1666);
+upgrade("Flux capacitors"			).boostsBuilding(Constants.TIME_MACHINE_INDEX, 9876);
+upgrade("Sugar bosons"				).boostsBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 99999);
+upgrade("Gem polish"				).boostsBuilding(Constants.PRISM_INDEX, 1000000);
+
+// Upgrades that double the productivity of a type of building
+upgrade("Steel-plated rolling pins"		).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Lubricated dentures"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Farmer grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Worker grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Miner grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Cosmic grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Prune juice"					).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Transmuted grandmas"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Double-thick glasses"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Altered grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Grandmas' grandmas"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Antigrandmas"					).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Rainbow grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Aging agents"					).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Fertilizer"					).scalesBuilding(Constants.FARM_INDEX, 2);
+upgrade("Cookie trees"					).scalesBuilding(Constants.FARM_INDEX, 2);
+upgrade("Genetically-modified cookies"	).scalesBuilding(Constants.FARM_INDEX, 2);
+upgrade("Gingerbread scarecrows"		).scalesBuilding(Constants.FARM_INDEX, 2);
+upgrade("Pulsar sprinklers"				).scalesBuilding(Constants.FARM_INDEX, 2);
+upgrade("Child labor"					).scalesBuilding(Constants.FACTORY_INDEX, 2);
+upgrade("Sweatshop"						).scalesBuilding(Constants.FACTORY_INDEX, 2);
+upgrade("Radium reactors"				).scalesBuilding(Constants.FACTORY_INDEX, 2);
+upgrade("Recombobulators"				).scalesBuilding(Constants.FACTORY_INDEX, 2);
+upgrade("Deep-bake process"				).scalesBuilding(Constants.FACTORY_INDEX, 2);
+upgrade("Megadrill"						).scalesBuilding(Constants.MINE_INDEX, 2);
+upgrade("Ultradrill"					).scalesBuilding(Constants.MINE_INDEX, 2);
+upgrade("Ultimadrill"					).scalesBuilding(Constants.MINE_INDEX, 2);
+upgrade("H-bomb mining"					).scalesBuilding(Constants.MINE_INDEX, 2);
+upgrade("Coreforge"						).scalesBuilding(Constants.MINE_INDEX, 2);
+upgrade("Wormholes"						).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
+upgrade("Frequent flyer"				).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
+upgrade("Warp drive"					).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
+upgrade("Chocolate monoliths"			).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
+upgrade("Generation ship"				).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
+upgrade("Essence of dough"				).scalesBuilding(Constants.ALCHEMY_LAB_INDEX, 2);
+upgrade("True chocolate"				).scalesBuilding(Constants.ALCHEMY_LAB_INDEX, 2);
+upgrade("Ambrosia"						).scalesBuilding(Constants.ALCHEMY_LAB_INDEX, 2);
+upgrade("Aqua crustulae"				).scalesBuilding(Constants.ALCHEMY_LAB_INDEX, 2);
+upgrade("Origin crucible"				).scalesBuilding(Constants.ALCHEMY_LAB_INDEX, 2);
+upgrade("Insane oatling workers"		).scalesBuilding(Constants.PORTAL_INDEX, 2);
+upgrade("Soul bond"						).scalesBuilding(Constants.PORTAL_INDEX, 2);
+upgrade("Sanity dance"					).scalesBuilding(Constants.PORTAL_INDEX, 2);
+upgrade("Brane transplant"				).scalesBuilding(Constants.PORTAL_INDEX, 2);
+upgrade("Deity-sized portals"			).scalesBuilding(Constants.PORTAL_INDEX, 2);
+upgrade("Time paradox resolver"			).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
+upgrade("Quantum conundrum"				).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
+upgrade("Causality enforcer"			).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
+upgrade("Yestermorrow comparators"		).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
+upgrade("Far future enactment"			); //.scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
+upgrade("String theory"					).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
+upgrade("Large macaron collider"		).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
+upgrade("Big bang bake"					).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
+upgrade("Reverse cyclotrons"			).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
+upgrade("Nanocosmics"					).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
+upgrade("9th color"						).scalesBuilding(Constants.PRISM_INDEX, 2);
+upgrade("Chocolate light"				).scalesBuilding(Constants.PRISM_INDEX, 2);
+upgrade("Grainbow"						).scalesBuilding(Constants.PRISM_INDEX, 2);
+upgrade("Pure cosmic light"				).scalesBuilding(Constants.PRISM_INDEX, 2);
+upgrade("Glow-in-the-dark"				).scalesBuilding(Constants.PRISM_INDEX, 2);
+
+// Upgrades that increase cookie production
+upgrade("Sugar cookies"											).boostsProduction(5);
+upgrade("Peanut butter cookies"									).boostsProduction(5);
+upgrade("Plain cookies"											).boostsProduction(5);
+upgrade("Oatmeal raisin cookies"								).boostsProduction(5);
+upgrade("Coconut cookies"										).boostsProduction(5);
+upgrade("White chocolate cookies"								).boostsProduction(5);
+upgrade("Macadamia nut cookies"									).boostsProduction(5);
+upgrade("White chocolate macadamia nut cookies"					).boostsProduction(10);
+upgrade("Double-chip cookies"									).boostsProduction(10);
+upgrade("All-chocolate cookies"									).boostsProduction(10);
+upgrade("White chocolate-coated cookies"						).boostsProduction(15);
+upgrade("Dark chocolate-coated cookies"							).boostsProduction(15);
+upgrade("Eclipse cookies"										).boostsProduction(15);
+upgrade("Zebra cookies"											).boostsProduction(15);
+upgrade("Snickerdoodles"										).boostsProduction(15);
+upgrade("Stroopwafels"											).boostsProduction(15);
+upgrade("Empire biscuits"										).boostsProduction(15);
+upgrade("Macaroons"												).boostsProduction(15);
+upgrade("British tea biscuits"									).boostsProduction(15);
+upgrade("Chocolate british tea biscuits"						).boostsProduction(15);
+upgrade("Round british tea biscuits"							).boostsProduction(15);
+upgrade("Round chocolate british tea biscuits"					).boostsProduction(15);
+upgrade("Round british tea biscuits with heart motif"			).boostsProduction(15);
+upgrade("Round chocolate british tea biscuits with heart motif"	).boostsProduction(15);
+upgrade("Palets"												).boostsProduction(20);
+upgrade("Sabl&eacute;s"											).boostsProduction(20);
+upgrade("Madeleines"											).boostsProduction(20);
+upgrade("Palmiers"												).boostsProduction(20);
+upgrade("Shortfoils"											).boostsProduction(25);
+upgrade("Fig gluttons"											).boostsProduction(25);
+upgrade("Loreols"												).boostsProduction(25);
+upgrade("Jaffa cakes"											).boostsProduction(25);
+upgrade("Grease's cups"											).boostsProduction(25);
+upgrade("Sagalongs"												).boostsProduction(25);
+upgrade("Win mints"												).boostsProduction(25);
+upgrade("Caramoas"												).boostsProduction(25);
+upgrade("Gingerbread trees"										).boostsProduction(25);
+upgrade("Gingerbread men"										).boostsProduction(25);
+upgrade("Rose macarons"											).boostsProduction(30);
+upgrade("Lemon macarons"										).boostsProduction(30);
+upgrade("Chocolate macarons"									).boostsProduction(30);
+upgrade("Pistachio macarons"									).boostsProduction(30);
+upgrade("Hazelnut macarons"										).boostsProduction(30);
+upgrade("Violet macarons"										).boostsProduction(30);
+
+// Golden cookie upgrade functions
+upgrade("Lucky day"		).scalesGoldenCookieFrequency(2);
+upgrade("Serendipity"	).scalesGoldenCookieFrequency(2);
+upgrade("Get lucky"		).scalesGoldenCookieDuration(2);
+
+// Research centre related upgrades
+upgrade("Bingo center/Research facility").scalesBuilding(Constants.GRANDMA_INDEX, 4).startsResearch();
+upgrade("Persistent memory"				).boostsResearch();
+upgrade("Specialized chocolate chips"	).boostsProduction(1).startsResearch();
+upgrade("Designer cocoa beans"			).boostsProduction(2).startsResearch();
+upgrade("Ritual rolling pins"			).scalesBuilding(Constants.GRANDMA_INDEX, 2).startsResearch();
+upgrade("Underworld ovens"				).boostsProduction(3).startsResearch();
+upgrade("One mind"						).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02).startsResearch();
+upgrade("Exotic nuts"					).boostsProduction(4).startsResearch();
+upgrade("Communal brainsweep"			).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02).startsResearch();
+upgrade("Arcane sugar"					).boostsProduction(5).startsResearch();
+upgrade("Elder Pact"					).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.PORTAL_INDEX, 0.05);
+
+// Elder pledge related upgrades
+upgrade("Elder Covenant"			).startsElderCovenant();
+upgrade("Revoke Elder Covenant"		).endsElderCovenant();
+upgrade("Elder Pledge"				).startsElderPledge();
+upgrade("Sacrificial rolling pins"	).doublesElderPledge();
+
+// Assorted cursor / clicking upgrades
+upgrade("Reinforced index finger"		).boostsBuilding(Constants.CURSOR_INDEX, 0.1).boostsClicking(1);
+upgrade("Carpal tunnel prevention cream").scalesBaseClicking(2).scalesBuilding(Constants.CURSOR_INDEX, 2);
+upgrade("Ambidextrous"					).scalesBaseClicking(2).scalesBuilding(Constants.CURSOR_INDEX, 2);
+upgrade("Thousand fingers"				).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 0.1);
+upgrade("Million fingers"				).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 0.5);
+upgrade("Billion fingers"				).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 2);
+upgrade("Trillion fingers"				).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 10);
+upgrade("Quadrillion fingers"			).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 20);
+upgrade("Quintillion fingers"			).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 100);
+upgrade("Sextillion fingers"			).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 200);
+upgrade("Septillion fingers"			).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 400);
+upgrade("Octillion fingers"				).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 800);
+upgrade("Plastic mouse"					).boostsClickCps(0.01);
+upgrade("Iron mouse"					).boostsClickCps(0.01),
+upgrade("Titanium mouse"				).boostsClickCps(0.01),
+upgrade("Adamantium mouse"				).boostsClickCps(0.01),
+upgrade("Unobtainium mouse"				).boostsClickCps(0.01),
+upgrade("Eludium mouse"					).boostsClickCps(0.01),
+upgrade("Wishalloy mouse"				).boostsClickCps(0.01),
+
+// Milk and heavenly power increases
+upgrade("Kitten helpers"		).unlocksMilk(0.05);
+upgrade("Kitten workers"		).unlocksMilk(0.1);
+upgrade("Kitten engineers"		).unlocksMilk(0.2);
+upgrade("Kitten overseers"		).unlocksMilk(0.2);
+upgrade("Kitten managers"		).unlocksMilk(0.2);
+upgrade("Heavenly chip secret"	).boostsHeavenlyPower(0.05);
+upgrade("Heavenly cookie stand"	).boostsHeavenlyPower(0.20);
+upgrade("Heavenly bakery"		).boostsHeavenlyPower(0.25);
+upgrade("Heavenly confectionery").boostsHeavenlyPower(0.25);
+upgrade("Heavenly key"			).boostsHeavenlyPower(0.25);
+
+// Season switcher and season changers
+upgrade("Season switcher"	);
+upgrade("Fool's biscuit"	);
+upgrade("Lovesick biscuit"	);
+upgrade("Ghostly biscuit"	);
+upgrade("Festive biscuit"	);
+
+// Valentines day season upgrades
+upgrade("Pure heart biscuits"	).boostsProduction(25);
+upgrade("Ardent heart biscuits"	).boostsProduction(25);
+upgrade("Sour heart biscuits"	).boostsProduction(25);
+upgrade("Weeping heart biscuits").boostsProduction(25);
+upgrade("Golden heart biscuits"	).boostsProduction(25);
+upgrade("Eternal heart biscuits").boostsProduction(25);
+
+// Halloween season upgrades
+upgrade("Skull cookies"		).boostsProduction(20);
+upgrade("Ghost cookies"		).boostsProduction(20);
+upgrade("Bat cookies"		).boostsProduction(20);
+upgrade("Slime cookies"		).boostsProduction(20);
+upgrade("Pumpkin cookies"	).boostsProduction(20);
+upgrade("Eyeball cookies"	).boostsProduction(20);
+upgrade("Spider cookies"	).boostsProduction(20);
+
+// Christmas season
+upgrade("A festive hat"				).unlocksSantaLevels();
+upgrade("Santa Level"				).increasesSantasLevel();
+upgrade("Weighted sleighs"			);	// Reindeer are twice as slow
+upgrade("Reindeer baking grounds"	);	// Reindeer appear twice as often
+upgrade("Ho ho ho-flavored frosting");	// Reindeer give twice as much
+upgrade("Season savings"			).scalesBuildingCost(0.99);
+upgrade("Toy workshop"				).reducesUpgradeCost(5);
+upgrade("Santa's bottomless bag"	).increasesRandomDropChance(10);
+upgrade("Santa's helpers"			).scalesTotalClicking(1.1);
+upgrade("Santa's legacy"			).boostsSantaPower(10);
+upgrade("Santa's milk and cookies"	).scalesMilk(1.05);
+upgrade("A lump of coal"			).boostsProduction(1);
+upgrade("An itchy sweater"			).boostsProduction(1);
+upgrade("Improved jolliness"		).boostsProduction(15);
+upgrade("Increased merriness"		).boostsProduction(15);
+upgrade("Christmas tree biscuits"	).boostsProduction(20);
+upgrade("Snowflake biscuits"		).boostsProduction(20);
+upgrade("Snowman biscuits"			).boostsProduction(20);
+upgrade("Holly biscuits"			).boostsProduction(20);
+upgrade("Candy cane biscuits"		).boostsProduction(20);
+upgrade("Bell biscuits"				).boostsProduction(20);
+upgrade("Present biscuits"			).boostsProduction(20);
+upgrade("Santa's dominion"			).boostsProduction(50).scalesBuildingCost(0.99).reducesUpgradeCost(2);
+upgrade("Naughty list"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 
 getUpgradeFunction = function(name) {
 	if (upgradeIndex[name] == undefined) {
