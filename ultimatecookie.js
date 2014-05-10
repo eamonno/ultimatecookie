@@ -235,13 +235,13 @@ UltimateCookie.prototype.update = function() {
 	var now = new Date();
 
 	if (now - this.lastClickRateCheckTime >= 1000) {
-		while (this.clickRates.length > Constants.CLICK_RATE_ESTIMATE_SAMPLES) {
-			this.clickRates.shift();
-		}
 		var newClicks = Game.cookieClicks - this.lastClickCount;
 		if (newClicks > 0) {
 			var newRate = newClicks * 1000 / (now - this.lastClickRateCheckTime);
 			this.clickRates.push(newRate);
+			while (this.clickRates.length > Constants.CLICK_RATE_ESTIMATE_SAMPLES) {
+				this.clickRates.shift();
+			}
 			var sum = 0;
 			for (var i = 0; i < this.clickRates.length; ++i)
 				sum += this.clickRates[i];
