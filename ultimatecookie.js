@@ -45,14 +45,14 @@ Constants.BUSINESS_DAY = "fools";
 Constants.CHRISTMAS = "christmas";
 Constants.HALLOWEEN = "halloween";
 Constants.VALENTINES_DAY = "valentines";
+Constants.NUM_VALENTINES_UPGRADES = 6;
+Constants.NUM_HALLOWEEN_UPGRADES = 7;
 
 //
 // UltimateCookie represents the app itself
 //
 
 function UltimateCookie() {
-	var t = this;
-
 	this.autoBuyInterval = -1;
 	this.lastDeterminedPurchase = "";
 	this.lastPurchaseTime = new Date();
@@ -60,6 +60,7 @@ function UltimateCookie() {
 	this.lastClickCount = Game.cookieClicks;
 	this.clickRates = [100];
 	this.clickRate = 100;
+	this.suspendSeasonSwitching = false;
 
 	this.updateAutoClicker(Constants.AUTO_CLICK_INTERVAL);
 	this.updateAutoUpdater(Constants.AUTO_UPDATE_INTERVAL);
@@ -114,7 +115,6 @@ UltimateCookie.prototype.rankPurchases = function() {
 			booster = i;
 		}
 	}
-
 	return p1;
 }
 
@@ -135,6 +135,19 @@ UltimateCookie.prototype.comparePurchases = function(eval, a, b) {
 			return -1;
 		} else if (b.beginsElderPledge && !a.beginsElderPledge) {
 			return 1;
+		}
+	}
+	// If autoSwitchSeasons is off, rank anything that setsSeasons low
+	if (!Config.autoSwitchSeasons) {
+		if (a.unlocksSeasons && !b.unlocksSeasons) {
+			return 1;
+		} else if (b.unlocksSeasons && !a.unlocksSeasons) {
+			return -1;
+		}
+		if (a.setsSeason && !b.setsSeason) {
+			return 1;
+		} else if (b.setsSeason && !a.setsSeason) {
+			return -1;
 		}
 	}
 
@@ -252,8 +265,11 @@ UltimateCookie.prototype.update = function() {
 		this.lastClickRateCheckTime = now;
 	}
 	if (Config.autoDismissNotes && Game.Notes.length > 0) {
-		if (now - Game.Notes[0].date > Constants.NOTE_DISMISS_DELAY) {
-			Game.CloseNote(Game.Notes[0].id);
+		var n = 0;
+		while (n < Game.Notes.length && now - Game.Notes[n].date < Constants.NOTE_DISMISS_DELAY)
+			++n;
+		if (n < Game.Notes.length) {
+			Game.CloseNote(Game.Notes[n].id);
 		}
 	}
 	if (Config.autoClickGoldenCookies) {
@@ -397,6 +413,11 @@ function Evaluator() {
 
 	// Current season
 	this.season = "";
+	this.seasonUpgrades = {};
+	this.seasonUpgrades[Constants.BUSINESS_DAY] = 0;
+	this.seasonUpgrades[Constants.HALLOWEEN] = 0;
+	this.seasonUpgrades[Constants.CHRISTMAS] = 0;
+	this.seasonUpgrades[Constants.VALENTINES] = 0;
 }
 
 // Check that the values in the evaluator match those of the game, for debugging use
@@ -663,6 +684,8 @@ Upgrade.prototype.applyUpgrade = function(eval) {
 		this.restoreSeason = eval.season;
 		eval.season = this.setsSeason;
 	}
+	if (this.season != undefined)
+		eval.seasonUpgrades[this.season]++;
 }
 
 Upgrade.prototype.revokeUpgrade = function(eval) {
@@ -716,6 +739,8 @@ Upgrade.prototype.revokeUpgrade = function(eval) {
 		eval.season = this.restoreSeason;
 		this.restoreSeason = null;
 	}
+	if (this.season != undefined)
+		eval.seasonUpgrades[this.season]--;
 }
 
 Upgrade.prototype.getVariableName = function() {
@@ -932,9 +957,19 @@ Upgrade.prototype.scalesReindeer = function(scale) {
 	return this;
 }
 
+Upgrade.prototype.unlocksSeasonSwitching = function() {
+	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.05;
+	this.unlocksSeasons = true;
+	return this;
+}
+
 Upgrade.prototype.changesSeason = function(season) {
 	this.setsSeason = season;
 	return this;
+}
+
+Upgrade.prototype.forSeason = function(season) {
+	this.season = season;
 }
 
 upgrade = function(name) {
@@ -1134,54 +1169,54 @@ upgrade("Heavenly confectionery").boostsHeavenlyPower(0.25);
 upgrade("Heavenly key"			).boostsHeavenlyPower(0.25);
 
 // Season switcher and season changers
-upgrade("Season switcher"	);
+upgrade("Season switcher"	).unlocksSeasonSwitching();
 upgrade("Lovesick biscuit"	).changesSeason(Constants.VALENTINES_DAY);
 upgrade("Ghostly biscuit"	).changesSeason(Constants.HALLOWEEN);
 upgrade("Festive biscuit"	).changesSeason(Constants.CHRISTMAS);
 upgrade("Fool's biscuit"	).changesSeason(Constants.BUSINESS_DAY);
 
 // Valentines day season upgrades
-upgrade("Pure heart biscuits"	).boostsProduction(25);
-upgrade("Ardent heart biscuits"	).boostsProduction(25);
-upgrade("Sour heart biscuits"	).boostsProduction(25);
-upgrade("Weeping heart biscuits").boostsProduction(25);
-upgrade("Golden heart biscuits"	).boostsProduction(25);
-upgrade("Eternal heart biscuits").boostsProduction(25);
+upgrade("Pure heart biscuits"	).boostsProduction(25).forSeason(Constants.VALENTINES_DAY);
+upgrade("Ardent heart biscuits"	).boostsProduction(25).forSeason(Constants.VALENTINES_DAY);
+upgrade("Sour heart biscuits"	).boostsProduction(25).forSeason(Constants.VALENTINES_DAY);
+upgrade("Weeping heart biscuits").boostsProduction(25).forSeason(Constants.VALENTINES_DAY);
+upgrade("Golden heart biscuits"	).boostsProduction(25).forSeason(Constants.VALENTINES_DAY);
+upgrade("Eternal heart biscuits").boostsProduction(25).forSeason(Constants.VALENTINES_DAY);
 
 // Halloween season upgrades
-upgrade("Skull cookies"		).boostsProduction(20);
-upgrade("Ghost cookies"		).boostsProduction(20);
-upgrade("Bat cookies"		).boostsProduction(20);
-upgrade("Slime cookies"		).boostsProduction(20);
-upgrade("Pumpkin cookies"	).boostsProduction(20);
-upgrade("Eyeball cookies"	).boostsProduction(20);
-upgrade("Spider cookies"	).boostsProduction(20);
+upgrade("Skull cookies"		).boostsProduction(20).forSeason(Constants.HALLOWEEN);
+upgrade("Ghost cookies"		).boostsProduction(20).forSeason(Constants.HALLOWEEN);
+upgrade("Bat cookies"		).boostsProduction(20).forSeason(Constants.HALLOWEEN);
+upgrade("Slime cookies"		).boostsProduction(20).forSeason(Constants.HALLOWEEN);
+upgrade("Pumpkin cookies"	).boostsProduction(20).forSeason(Constants.HALLOWEEN);
+upgrade("Eyeball cookies"	).boostsProduction(20).forSeason(Constants.HALLOWEEN);
+upgrade("Spider cookies"	).boostsProduction(20).forSeason(Constants.HALLOWEEN);
 
 // Christmas season
-upgrade("A festive hat"				).unlocksSantaLevels();
-upgrade("Santa Level"				).increasesSantasLevel();
-upgrade("Weighted sleighs"			);	// Reindeer are twice as slow
-upgrade("Reindeer baking grounds"	).scalesReindeerFrequency(2);
-upgrade("Ho ho ho-flavored frosting").scalesReindeer(2);
-upgrade("Season savings"			).scalesBuildingCost(0.99);
-upgrade("Toy workshop"				).reducesUpgradeCost(5);
-upgrade("Santa's bottomless bag"	).increasesRandomDropChance(10);
-upgrade("Santa's helpers"			).scalesTotalClicking(1.1);
-upgrade("Santa's legacy"			).boostsSantaPower(10);
-upgrade("Santa's milk and cookies"	).scalesMilk(1.05);
-upgrade("A lump of coal"			).boostsProduction(1);
-upgrade("An itchy sweater"			).boostsProduction(1);
-upgrade("Improved jolliness"		).boostsProduction(15);
-upgrade("Increased merriness"		).boostsProduction(15);
-upgrade("Christmas tree biscuits"	).boostsProduction(20);
-upgrade("Snowflake biscuits"		).boostsProduction(20);
-upgrade("Snowman biscuits"			).boostsProduction(20);
-upgrade("Holly biscuits"			).boostsProduction(20);
-upgrade("Candy cane biscuits"		).boostsProduction(20);
-upgrade("Bell biscuits"				).boostsProduction(20);
-upgrade("Present biscuits"			).boostsProduction(20);
-upgrade("Santa's dominion"			).boostsProduction(50).scalesBuildingCost(0.99).reducesUpgradeCost(2);
-upgrade("Naughty list"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("A festive hat"				).unlocksSantaLevels().forSeason(Constants.CHRISTMAS);
+upgrade("Santa Level"				).increasesSantasLevel().forSeason(Constants.CHRISTMAS);
+upgrade("Weighted sleighs"			).forSeason(Constants.CHRISTMAS);	// Reindeer are twice as slow
+upgrade("Reindeer baking grounds"	).scalesReindeerFrequency(2).forSeason(Constants.CHRISTMAS);
+upgrade("Ho ho ho-flavored frosting").scalesReindeer(2).forSeason(Constants.CHRISTMAS);
+upgrade("Season savings"			).scalesBuildingCost(0.99).forSeason(Constants.CHRISTMAS);
+upgrade("Toy workshop"				).reducesUpgradeCost(5).forSeason(Constants.CHRISTMAS);
+upgrade("Santa's bottomless bag"	).increasesRandomDropChance(10).forSeason(Constants.CHRISTMAS);
+upgrade("Santa's helpers"			).scalesTotalClicking(1.1).forSeason(Constants.CHRISTMAS);
+upgrade("Santa's legacy"			).boostsSantaPower(10).forSeason(Constants.CHRISTMAS);
+upgrade("Santa's milk and cookies"	).scalesMilk(1.05).forSeason(Constants.CHRISTMAS);
+upgrade("A lump of coal"			).boostsProduction(1).forSeason(Constants.CHRISTMAS);
+upgrade("An itchy sweater"			).boostsProduction(1).forSeason(Constants.CHRISTMAS);
+upgrade("Improved jolliness"		).boostsProduction(15).forSeason(Constants.CHRISTMAS);
+upgrade("Increased merriness"		).boostsProduction(15).forSeason(Constants.CHRISTMAS);
+upgrade("Christmas tree biscuits"	).boostsProduction(20).forSeason(Constants.CHRISTMAS);
+upgrade("Snowflake biscuits"		).boostsProduction(20).forSeason(Constants.CHRISTMAS);
+upgrade("Snowman biscuits"			).boostsProduction(20).forSeason(Constants.CHRISTMAS);
+upgrade("Holly biscuits"			).boostsProduction(20).forSeason(Constants.CHRISTMAS);
+upgrade("Candy cane biscuits"		).boostsProduction(20).forSeason(Constants.CHRISTMAS);
+upgrade("Bell biscuits"				).boostsProduction(20).forSeason(Constants.CHRISTMAS);
+upgrade("Present biscuits"			).boostsProduction(20).forSeason(Constants.CHRISTMAS);
+upgrade("Santa's dominion"			).boostsProduction(50).scalesBuildingCost(0.99).reducesUpgradeCost(2).forSeason(Constants.CHRISTMAS);
+upgrade("Naughty list"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).forSeason(Constants.CHRISTMAS);
 
 getUpgradeFunction = function(name) {
 	if (upgradeIndex[name] == undefined) {
