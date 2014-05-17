@@ -6,9 +6,11 @@ Config.autoClickGoldenCookies = true;
 Config.autoClickReindeer = true;
 Config.autoReset = false;
 Config.autoBuy = true;
-Config.autoDismissNotes = true;
+Config.autoDismissNotes = false;
 Config.autoSwitchSeasons = true;
 Config.autoPledge = true;
+Config.autoPopWrinklers = true;
+Config.skipHalloween = false;
 Config.resetLimit = 1.1;
 Config.maintainCookieBank = true;
 
@@ -40,13 +42,46 @@ Constants.TIME_MACHINE_INDEX = 8;
 Constants.ANTIMATTER_CONDENSER_INDEX = 9;
 Constants.PRISM_INDEX = 10;
 
+// Elder Wrath levels
+Constants.APPEASED = 0;
+Constants.AWOKEN = 1;
+Constants.DISPLEASED = 2;
+Constants.ANGERED = 3;
+
 // Season names
+Constants.NO_SEASON = "";
 Constants.BUSINESS_DAY = "fools";
 Constants.CHRISTMAS = "christmas";
+Constants.EASTER = "easter";
 Constants.HALLOWEEN = "halloween";
 Constants.VALENTINES_DAY = "valentines";
+Constants.MAX_SANTA_LEVEL = 14;
+Constants.NUM_CHRISTMAS_UPGRADES = 37;
+Constants.NUM_EASTER_UPGRADES = 100;	// 2
 Constants.NUM_VALENTINES_UPGRADES = 6;
 Constants.NUM_HALLOWEEN_UPGRADES = 7;
+
+var seasons = {};
+seasons[Constants.BUSINESS_DAY] = {
+	name: Constants.BUSINESS_DAY,
+	numUpgrades: 0,
+};
+seasons[Constants.CHRISTMAS] = {
+	name: Constants.CHRISTMAS,
+	numUpgrades: 37,
+};
+seasons[Constants.EASTER] = {
+	name: Constants.EASTER,
+	numUpgrades: 100,	// 2
+};
+seasons[Constants.HALLOWEEN] = {
+	name: Constants.HALLOWEEN,
+	numUpgrades: 7,
+};
+seasons[Constants.VALENTINES] = {
+	name: Constants.VALENTINES,
+	numUpgrades: 6,
+};
 
 //
 // UltimateCookie represents the app itself
@@ -60,7 +95,8 @@ function UltimateCookie() {
 	this.lastClickCount = Game.cookieClicks;
 	this.clickRates = [100];
 	this.clickRate = 100;
-	this.suspendSeasonSwitching = false;
+	this.lockSeasons = false;
+	this.matchError = "";
 
 	this.updateAutoClicker(Constants.AUTO_CLICK_INTERVAL);
 	this.updateAutoUpdater(Constants.AUTO_UPDATE_INTERVAL);
@@ -71,7 +107,7 @@ UltimateCookie.prototype.updateAutoClicker = function(interval) {
 	clearInterval(this.autoClicker);
 	if (interval) {
 		var t = this;
-		this.autoClicker = setInterval(function() { t.click(); }, interval);
+		this.autoClicker = setInterval(function() { if (Config.autoClick) t.click(); }, interval);
 	}
 }
 
@@ -90,16 +126,14 @@ UltimateCookie.prototype.updateAutoBuyer = function(interval) {
 	if (interval != this.autoBuyInterval) {
 		clearInterval(this.autoBuyer);
 		var t = this;
-		this.autoBuyer = setInterval(function() { t.buy(); }, interval);
+		this.autoBuyer = setInterval(function() { if (Config.autoBuy) t.buy(); }, interval);
 		this.autoBuyInterval = interval;
 	}
 }
 
-UltimateCookie.prototype.rankPurchases = function() {
-	var e = new Evaluator();
-	e.syncToGame();
+UltimateCookie.prototype.rankPurchases = function(eval) {
 	var p1 = this.createPurchaseList();
-	p1.sort( function(a, b) { return UltimateCookie.prototype.comparePurchases(e, a, b); } );
+	p1.sort( function(a, b) { return UltimateCookie.prototype.comparePurchases(eval, a, b); } );
 
 	// Research booster is always higher priority than research starter. This can't be handled
 	// in comparePurchases
@@ -130,24 +164,12 @@ UltimateCookie.prototype.sortTest = function() {
 
 UltimateCookie.prototype.comparePurchases = function(eval, a, b) {
 	// If autoPledge is active, Elder Pledge trumps all
-	if (Config.autoPledge) {
+	if (Config.autoPledge && (eval.season != Constants.HALLOWEEN || eval.missingSeasonUpgrades[Constants.HALLOWEEN] == 0)
+			&& (eval.season != Constants.EASTER || eval.missingSeasonUpgrades[Constants.EASTER] == 0)) {
 		if (a.beginsElderPledge && !b.beginsElderPledge) {
 			return -1;
 		} else if (b.beginsElderPledge && !a.beginsElderPledge) {
 			return 1;
-		}
-	}
-	// If autoSwitchSeasons is off, rank anything that setsSeasons low
-	if (!Config.autoSwitchSeasons) {
-		if (a.unlocksSeasons && !b.unlocksSeasons) {
-			return 1;
-		} else if (b.unlocksSeasons && !a.unlocksSeasons) {
-			return -1;
-		}
-		if (a.setsSeason && !b.setsSeason) {
-			return 1;
-		} else if (b.setsSeason && !a.setsSeason) {
-			return -1;
 		}
 	}
 
@@ -185,7 +207,7 @@ UltimateCookie.prototype.createPurchaseList = function() {
 		purchases.push(getUpgradeFunction(Game.UpgradesInStore[i].name));
 	}
 	// Add santa level
-	if (Game.season == "christmas" && Game.santaLevel < 14) {
+	if (Game.season == Constants.CHRISTMAS && Game.santaLevel < Constants.MAX_SANTA_LEVEL) {
 		purchases.push(upgradeFunctions.santaLevel);
 	}
 	return purchases;
@@ -193,42 +215,41 @@ UltimateCookie.prototype.createPurchaseList = function() {
 
 // Work out what the optimal next purchase is for a given evaluator
 UltimateCookie.prototype.determineNextPurchase = function(eval) {
-	var purchases = this.rankPurchases();
-	if (purchases[0].name != this.lastDeterminedPurchase) {
-		this.lastDeterminedPurchase = purchases[0].name;
-		//console.log("Next purchase: " + this.lastDeterminedPurchase);
+	var purchases = this.rankPurchases(eval);
+	var p = 0;
+	if (Config.autoSwitchSeasons == false || this.lockSeasons == true) {
+		while (purchases[p].setsSeason != undefined) {
+			++p;
+		}
 	}
-	return purchases[0];
+
+	if (purchases[p].name != this.lastDeterminedPurchase) {
+		this.lastDeterminedPurchase = purchases[p].name;
+		console.log("Next purchase: " + this.lastDeterminedPurchase);
+	}
+	return purchases[p];
 }
 
 UltimateCookie.prototype.click = function() {
-	if (Config.autoClick) {
-		Game.ClickCookie();
-	}
+	Game.ClickCookie();
 }
 
 UltimateCookie.prototype.buy = function() {
-	this.click();
-	if (!Game.recalculateGains && Config.autoBuy) {
-		// Get an Evaluator synced to the current game
-		var currentGame = new Evaluator();
-		currentGame.syncToGame();
+	// Get an Evaluator synced to the current game
+	var currentGame = new Evaluator();
+	currentGame.syncToGame();
 
-		// Shutdown if out of sync
-		if (Constants.DEBUG) {
-			if (!currentGame.matchesGame()) {
-				Config.autoBuy = false;
-				console.log("Evaluator error: autoBuy disabled.");
-				return;
-			}
+	this.matchError = currentGame.matchesGame();
+	if (!this.matchError) {
+		// If all upgrades for current season are bought, unlock season switching
+		if (currentGame.season == Constants.CHRISTMAS) {
+			this.lockSeasons = (currentGame.santaLevel != Constants.MAX_SANTA_LEVEL);
+		} else {
+			this.lockSeasons = (currentGame.missingSeasonUpgrades[currentGame.season] > 0);
 		}
+
 		var nextPurchase = this.determineNextPurchase(currentGame);
 		// Shutdown if out of sync
-		if (Constants.DEBUG) {
-			if (!currentGame.matchesGame()) {
-				console.log("Evaluator changed.");
-			}
-		}
 		var cookieBank = currentGame.getCookieBankSize(Game.goldenCookie.time / Game.fps, Game.frenzy / Game.fps);
 		// Cap cookie bank at 5% of total cookies earned
 		cookieBank = Math.min(Game.cookiesEarned / 20, cookieBank);
@@ -236,15 +257,24 @@ UltimateCookie.prototype.buy = function() {
 		if (Game.cookies - cookieBank > nextPurchase.getCost()) {
 			this.lastPurchaseTime = time;
 			this.updateAutoBuyer(Constants.AUTO_BUY_MIN_INTERVAL);
-			nextPurchase.purchase();
+			if (Config.autoBuy || (Config.autoPledge && nextPurchase.beginsElderPledge)) {
+				nextPurchase.purchase();
+			}
 		} else {
 			this.updateAutoBuyer((time - this.lastPurchaseTime) / 2)
+		}
+
+		if (Config.autoPopWrinklers && Game.season == Constants.HALLOWEEN && currentGame.missingSeasonUpgrades[Constants.HALLOWEEN] != 0) {
+			for (var w in Game.wrinklers) {
+				if (Game.wrinklers[w].sucked > 0) {
+					Game.wrinklers[w].hp = 0;
+				}
+			}
 		}
 	}
 }
 
 UltimateCookie.prototype.update = function() {
-	this.click();
 	var now = new Date();
 
 	if (now - this.lastClickRateCheckTime >= 1000) {
@@ -380,6 +410,7 @@ function Evaluator() {
 
 	// Production multiplier
 	this.productionMultiplier = 0;
+	this.globalProductionMultiplier = 0;
 
 	// Heavenly chips
 	this.heavenlyChips = 0;
@@ -401,7 +432,8 @@ function Evaluator() {
 	this.reindeerTime = 180;
 	this.reindeerMultiplier = 1;
 
-	// Elder covenant revoked
+	// Elder covenant and Grandmatriarch stuff
+	this.grandmatriarchStatus = Constants.APPEASED;
 	this.elderCovenant = false;	// 5% reduction in CpS
 
 	// Santa level
@@ -412,56 +444,56 @@ function Evaluator() {
 	this.buildingCostScale = 1;
 
 	// Current season
-	this.season = "";
-	this.seasonUpgrades = {};
-	this.seasonUpgrades[Constants.BUSINESS_DAY] = 0;
-	this.seasonUpgrades[Constants.HALLOWEEN] = 0;
-	this.seasonUpgrades[Constants.CHRISTMAS] = 0;
-	this.seasonUpgrades[Constants.VALENTINES] = 0;
+	this.season = Constants.NO_SEASON;
+	this.resetSeasonUpgradeCounters();
+}
+
+Evaluator.prototype.resetSeasonUpgradeCounters = function() {
+	this.missingSeasonUpgrades = this.missingSeasonUpgrades || {};
+	this.missingSeasonUpgrades[Constants.NO_SEASON] = 0;
+	this.missingSeasonUpgrades[Constants.BUSINESS_DAY] = 0;
+	this.missingSeasonUpgrades[Constants.CHRISTMAS] = Constants.NUM_CHRISTMAS_UPGRADES;
+	this.missingSeasonUpgrades[Constants.EASTER] = Constants.NUM_EASTER_UPGRADES;
+	this.missingSeasonUpgrades[Constants.HALLOWEEN] = Constants.NUM_HALLOWEEN_UPGRADES;
+	this.missingSeasonUpgrades[Constants.VALENTINES_DAY] = Constants.NUM_VALENTINES_UPGRADES;
 }
 
 // Check that the values in the evaluator match those of the game, for debugging use
 Evaluator.prototype.matchesGame = function() {
-	var match = true;
+	var errMsg = "";
 	// Check that Cps matches the game
 	if (!floatEqual(this.getCps(), Game.cookiesPs)) {
-		if (match) { console.log("Evaluator Mismatch: "); }
-		console.log("- CpS - Predicted: " + this.getCps() + ", Actual: " + Game.cookiesPs);
-		match = false;
+		if (!errMsg) { errMsg += "Evaluator Mismatch:\n"; }
+		errMsg += "- CpS - Predicted: " + this.getCps() + ", Actual: " + Game.cookiesPs + "\n";
 	}
 	// Check the Cpc matches the game
 	if (!floatEqual(this.getCpc(), Game.mouseCps())) {
-		if (match) { console.log("Evaluator Mismatch: "); }
-		console.log("- CpC - Predicted: " + this.getCpc() + ", Actual:: " + Game.mouseCps());
-		match = false;
+		if (!errMsg) { errMsg += "Evaluator Mismatch:\n"; }
+		errMsg += "- CpC - Predicted: " + this.getCpc() + ", Actual: " + Game.mouseCps() + "\n";
 	}
 	// Check the building costs match the game
 	var i;
 	for (i = 0; i < this.buildings.length; ++i) {
 		if (!floatEqual(this.buildings[i].getCost(), Game.ObjectsById[i].getPrice())) {
-			if (match) { console.log("Evaluator Mismatch: "); }
-			console.log("- Building Cost " + i + " - Predicted: " + this.buildings[i].getCost() + ", Actual: " + Game.ObjectsById[i].getPrice());
-			match = false;
+			if (!errMsg) { errMsg += "Evaluator Mismatch:\n"; }
+			errMsg += "- Building Cost " + i + " - Predicted: " + this.buildings[i].getCost() + ", Actual: " + Game.ObjectsById[i].getPrice() + "\n";
 		}
 		if (!floatEqual(this.buildings[i].getIndividualCps(), Game.ObjectsById[i].cps())) {
-			if (match) { console.log("Evaluator Mismatch: "); }
-			console.log("- Building CpS " + i + " - Predicted: " + this.buildings[i].getIndividualCps() + ", Actual: " + Game.ObjectsById[i].cps());
-			match = false;
+			if (!errMsg) { errMsg += "Evaluator Mismatch:\n"; }
+			errMsg += "- Building CpS " + i + " - Predicted: " + this.buildings[i].getIndividualCps() + ", Actual: " + Game.ObjectsById[i].cps() + "\n";
 		}
 	}
 	// Check that all available upgrade costs match those of similar upgrade functions
 	for (i = 0; i < Game.UpgradesInStore.length; ++i) {
 		var u = Game.UpgradesInStore[i];
 		var uf = getUpgradeFunction(u.name);
-		if (!floatEqual(uf.getCost(), u.getPrice())) {
-			if (match) { console.log("Evaluator Mismatch: "); }
-			console.log("- Upgrade Cost " + u.name + " - Predicted: " + uf.getPrice() + ", Actual: " + u.getPrice());
-			match = false;
+		if (uf.setsSeason == undefined && !floatEqual(uf.getCost(), u.getPrice())) {
+			if (!errMsg) { errMsg += "Evaluator Mismatch:\n"; }
+			errMsg += "- Upgrade Cost " + u.name + " - Predicted: " + uf.getCost() + ", Actual: " + u.getPrice() + "\n";
 		}
 	}
 
-	// Default all is fine
-	return match;
+	return errMsg;
 }
 
 // Get the current cookies per click amount
@@ -495,6 +527,9 @@ Evaluator.prototype.getCps = function() {
 		milkScale *= (1 + this.milkUnlocks[i] * this.milkAmount * this.milkMultiplier * 0.01);
 	}
 	cps *= milkScale;
+	// Scale it for global production
+	cps *= (100 + this.globalProductionMultiplier) * 0.01;
+
 	// Scale it for frenzy
 	if (this.frenzy) {
 		cps *= this.frenzyMultiplier;
@@ -602,6 +637,7 @@ Evaluator.prototype.getCookieBankSize = function(timeSinceLastGoldenCookie, fren
 
 // Sync an evaluator with the current in game store
 Evaluator.prototype.syncToGame = function() {
+	this.resetSeasonUpgradeCounters();
 	var i;
 	for (i = 0; i < Game.ObjectsById.length && i < this.buildings.length; ++i) {
 		this.buildings[i].quantity = Game.ObjectsById[i].amount;
@@ -617,6 +653,7 @@ Evaluator.prototype.syncToGame = function() {
 	this.frenzyMultiplier = Game.frenzyPower;
 	this.clickFrenzy = Game.clickFrenzy;
 	this.santaLevel = Game.santaLevel;
+	this.missingSeasonUpgrades[Constants.CHRISTMAS] -= Game.santaLevel;
 	this.season = Game.season;
 }
 
@@ -640,6 +677,8 @@ Upgrade.prototype.applyUpgrade = function(eval) {
 		eval.buildings[this.scalesBuildingIndex].multiplier *= this.scalesBuildingScale;
 	if (this.productionBoost != undefined)
 		eval.productionMultiplier += this.productionBoost;
+	if (this.globalProductionBoost != undefined)
+		eval.globalProductionMultiplier += this.globalProductionBoost;
 	if (this.goldenCookieFrequencyScale != undefined)
 		eval.goldenCookieTime /= this.goldenCookieFrequencyScale;
 	if (this.goldenCookieDurationScale != undefined)
@@ -658,6 +697,8 @@ Upgrade.prototype.applyUpgrade = function(eval) {
 		eval.buildings[this.givesTotalBuildingBonusTo].buildingScaler.scaleAll(this.givesTotalBuildingBonusAmount);
 		eval.buildings[this.givesTotalBuildingBonusTo].buildingScaler.scaleOne(this.givesTotalBuildingBonusExcluding, -this.givesTotalBuildingBonusAmount);
 	}
+	if (this.makesGrandmasAngry)
+		eval.grandmatriarchStatus++;
 	if (this.clickCpsBoost != undefined)
 		eval.cpcCpsMultiplier += this.clickCpsBoost;
 	if (this.milkUnlock != undefined) {
@@ -685,7 +726,7 @@ Upgrade.prototype.applyUpgrade = function(eval) {
 		eval.season = this.setsSeason;
 	}
 	if (this.season != undefined)
-		eval.seasonUpgrades[this.season]++;
+		eval.missingSeasonUpgrades[this.season]--;
 }
 
 Upgrade.prototype.revokeUpgrade = function(eval) {
@@ -697,6 +738,8 @@ Upgrade.prototype.revokeUpgrade = function(eval) {
 		eval.buildings[this.scalesBuildingIndex].multiplier /= this.scalesBuildingScale;
 	if (this.productionBoost != undefined)
 		eval.productionMultiplier -= this.productionBoost;
+	if (this.globalProductionBoost != undefined)
+		eval.globalProductionMultiplier -= this.globalProductionBoost;
 	if (this.goldenCookieFrequencyScale != undefined)
 		eval.goldenCookieTime *= this.goldenCookieFrequencyScale;
 	if (this.goldenCookieDurationScale != undefined)
@@ -715,6 +758,8 @@ Upgrade.prototype.revokeUpgrade = function(eval) {
 		eval.buildings[this.givesTotalBuildingBonusTo].buildingScaler.scaleAll(-this.givesTotalBuildingBonusAmount);
 		eval.buildings[this.givesTotalBuildingBonusTo].buildingScaler.scaleOne(this.givesTotalBuildingBonusExcluding, this.givesTotalBuildingBonusAmount);
 	}
+	if (this.makesGrandmasAngry)
+		eval.grandmatriarchStatus--;
 	if (this.clickCpsBoost != undefined)
 		eval.cpcCpsMultiplier -= this.clickCpsBoost;
 	if (this.milkUnlock != undefined)
@@ -740,7 +785,7 @@ Upgrade.prototype.revokeUpgrade = function(eval) {
 		this.restoreSeason = null;
 	}
 	if (this.season != undefined)
-		eval.seasonUpgrades[this.season]--;
+		eval.missingSeasonUpgrades[this.season]++;
 }
 
 Upgrade.prototype.getVariableName = function() {
@@ -762,6 +807,12 @@ Upgrade.prototype.getGameObject = function() {
 }
 
 Upgrade.prototype.getCost = function() {
+	if (this.setsSeason == Constants.VALENTINES_DAY) {
+		return Math.max(upgradeFunctions.pureHeartBiscuits.getCost(), this.getGameObject().getPrice());
+	}
+	if (!Config.skipHalloween && this.setsSeason == Constants.HALLOWEEN) {
+		return Math.max(upgradeFunctions.skullCookies.getCost(), this.getGameObject().getPrice());
+	}
 	if (this == upgradeFunctions.santaLevel) {
 		return Math.pow(Game.santaLevel + 1, Game.santaLevel + 1)
 	}
@@ -800,6 +851,19 @@ Upgrade.prototype.getValue = function(eval) {
 	if (this.doublesElderPledgeDuration) {
 		val += upgradeFunctions.elderPledge.getCost() / 3600;
 	}
+	if (this.setsSeason == Constants.VALENTINES_DAY && eval.missingSeasonUpgrades[Constants.VALENTINES_DAY] > 0) {
+		val = upgradeFunctions.pureHeartBiscuits.getValue(eval);
+	}
+	if (this.setsSeason == Constants.EASTER && eval.missingSeasonUpgrades[Constants.EASTER] > 0) {
+		if (eval.grandmatriarchStatus >= Constants.AWOKEN) {
+			val = upgradeFunctions.chickenEgg.getValue(eval);
+		}
+	}
+	if (this.setsSeason == Constants.HALLOWEEN && eval.missingSeasonUpgrades[Constants.HALLOWEEN] > 0) {
+		if (eval.grandmatriarchStatus >= Constants.AWOKEN && !Config.skipHalloween) {
+			val = upgradeFunctions.skullCookies.getValue(eval);
+		}
+	}
 	return val;
 }
 
@@ -823,6 +887,11 @@ Upgrade.prototype.scalesBuilding = function(index, scale) {
 
 Upgrade.prototype.boostsProduction = function(amount) {
 	this.productionBoost = amount;
+	return this;
+}
+
+Upgrade.prototype.boostsGlobalProduction = function(amount) {
+	this.globalProductionBoost = amount;
 	return this;
 }
 
@@ -885,6 +954,11 @@ Upgrade.prototype.boostsClicking = function(amount) {
 	return this;
 }
 
+Upgrade.prototype.angersGrandmas = function() {
+	this.makesGrandmasAngry = true;
+	return this;
+}
+
 Upgrade.prototype.scalesBaseClicking = function(scale) {
 	this.baseClickScale = scale;
 	return this;
@@ -944,6 +1018,12 @@ Upgrade.prototype.increasesSantasLevel = function() {
 
 Upgrade.prototype.scalesMilk = function(scale) {
 	this.milkScale = scale;
+	return this;
+}
+
+Upgrade.prototype.slowsReindeer = function(scale) {
+	// Set a tiny percentage CPS value just to buy it
+	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.0001;
 	return this;
 }
 
@@ -1053,7 +1133,11 @@ upgrade("Time paradox resolver"			).scalesBuilding(Constants.TIME_MACHINE_INDEX,
 upgrade("Quantum conundrum"				).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
 upgrade("Causality enforcer"			).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
 upgrade("Yestermorrow comparators"		).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
-upgrade("Far future enactment"			); //.scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
+if (Game.version == "1.0453") {
+	upgrade("Far future enactment"			);
+} else {
+	upgrade("Far future enactment"			).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
+}
 upgrade("String theory"					).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 upgrade("Large macaron collider"		).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 upgrade("Big bang bake"					).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
@@ -1123,11 +1207,11 @@ upgrade("Specialized chocolate chips"	).boostsProduction(1).startsResearch();
 upgrade("Designer cocoa beans"			).boostsProduction(2).startsResearch();
 upgrade("Ritual rolling pins"			).scalesBuilding(Constants.GRANDMA_INDEX, 2).startsResearch();
 upgrade("Underworld ovens"				).boostsProduction(3).startsResearch();
-upgrade("One mind"						).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02).startsResearch();
+upgrade("One mind"						).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02).angersGrandmas().startsResearch();
 upgrade("Exotic nuts"					).boostsProduction(4).startsResearch();
-upgrade("Communal brainsweep"			).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02).startsResearch();
+upgrade("Communal brainsweep"			).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02).angersGrandmas().startsResearch();
 upgrade("Arcane sugar"					).boostsProduction(5).startsResearch();
-upgrade("Elder Pact"					).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.PORTAL_INDEX, 0.05);
+upgrade("Elder Pact"					).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.PORTAL_INDEX, 0.05).angersGrandmas();
 
 // Elder pledge related upgrades
 upgrade("Elder Covenant"			).startsElderCovenant();
@@ -1195,7 +1279,7 @@ upgrade("Spider cookies"	).boostsProduction(20).forSeason(Constants.HALLOWEEN);
 // Christmas season
 upgrade("A festive hat"				).unlocksSantaLevels().forSeason(Constants.CHRISTMAS);
 upgrade("Santa Level"				).increasesSantasLevel().forSeason(Constants.CHRISTMAS);
-upgrade("Weighted sleighs"			).forSeason(Constants.CHRISTMAS);	// Reindeer are twice as slow
+upgrade("Weighted sleighs"			).slowsReindeer(2).forSeason(Constants.CHRISTMAS);
 upgrade("Reindeer baking grounds"	).scalesReindeerFrequency(2).forSeason(Constants.CHRISTMAS);
 upgrade("Ho ho ho-flavored frosting").scalesReindeer(2).forSeason(Constants.CHRISTMAS);
 upgrade("Season savings"			).scalesBuildingCost(0.99).forSeason(Constants.CHRISTMAS);
@@ -1217,6 +1301,16 @@ upgrade("Bell biscuits"				).boostsProduction(20).forSeason(Constants.CHRISTMAS)
 upgrade("Present biscuits"			).boostsProduction(20).forSeason(Constants.CHRISTMAS);
 upgrade("Santa's dominion"			).boostsProduction(50).scalesBuildingCost(0.99).reducesUpgradeCost(2).forSeason(Constants.CHRISTMAS);
 upgrade("Naughty list"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).forSeason(Constants.CHRISTMAS);
+
+// Easter stuff
+upgrade("Caramel macarons"			).boostsProduction(30);
+upgrade("Licorice macarons"			).boostsProduction(30);
+
+upgrade("Bunny biscuit"				).changesSeason(Constants.EASTER);
+
+upgrade("Chicken egg"				).boostsGlobalProduction(1).forSeason(Constants.EASTER);
+upgrade("Robin egg"					).boostsGlobalProduction(1).forSeason(Constants.EASTER);
+
 
 getUpgradeFunction = function(name) {
 	if (upgradeIndex[name] == undefined) {
