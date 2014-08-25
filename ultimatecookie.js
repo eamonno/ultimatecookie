@@ -6,7 +6,6 @@ Config.autoClickGoldenCookies = true;
 Config.autoClickReindeer = true;
 Config.autoReset = false;
 Config.autoBuy = true;
-Config.autoDismissNotes = false;
 Config.autoSwitchSeasons = true;
 Config.autoPledge = true;
 Config.autoPopWrinklers = true;
@@ -16,14 +15,12 @@ Config.maintainCookieBank = true;
 
 // General purpose constants
 Constants.SUPPORTED_VERSION = "1.0465";
-Constants.VERSION_ERROR = "Warning: Ultimate Cookie only supports version _V_ of the game. Your mileage may vary.\n".replace("_V_", Constants.SUPPORTED_VERSION);
+Constants.VERSION_ERROR = "Warning: Ultimate Cookie only supports version " + Constants.SUPPORTED_VERSION + " of the game. Your mileage may vary.\n";
 Constants.AUTO_BUY_MIN_INTERVAL = 1;
 Constants.AUTO_BUY_MAX_INTERVAL = 1010;
 Constants.AUTO_CLICK_INTERVAL = 1;
 Constants.AUTO_UPDATE_INTERVAL = 1000;
 Constants.CLICK_RATE_ESTIMATE_SAMPLES = 120;
-Constants.DEBUG = true;
-Constants.NOTE_DISMISS_DELAY = 10000;
 Constants.SEASON_SWITCH_DELAY = 11000;			// Season changes dont register in game immediately, this stops rapid switching
 Constants.FRENZY_MULTIPLIER = 7;				// Frenzy multiplies CpS by 7
 Constants.CLICK_FRENZY_MULTIPLIER = 777;		// Click frenzies give 777x cookier per click
@@ -34,6 +31,7 @@ Constants.LUCKY_COOKIE_BONUS = 13;				// Lucky provides 13 additional seconds of
 Constants.LUCKY_COOKIE_BANK_SCALE = 10;			// Bank needs 10 times the lucky cookie bonus to give full reward
 Constants.COOKIE_CHAIN_MULTIPLIER = 60 * 60 * 3;// Cookie chains cap out at 3 hours of cookies
 Constants.COOKIE_CHAIN_BANK_SCALE = 4;			// Bank needs 4 times the Cookie Chain limit to payout in full
+Constants.RESET_PAUSE_TIME = 1000;				// Time to pause so reset can complete correctly
 
 // Indices into the buildings arrays
 Constants.CURSOR_INDEX = 0;
@@ -100,9 +98,9 @@ seasons[Constants.VALENTINES_DAY] = {
 //
 
 function UltimateCookie() {
-	this.autoBuyInterval = -1;
+	this.autoBuyInterval = Constants.AUTO_BUY_MIN_INTERVAL;
 	this.lastDeterminedPurchase = "";
-	this.lastPurchaseTime = new Date();
+	this.lastPurchaseTime = new Date().getTime();
 	this.lastClickRateCheckTime = this.lastPurchaseTime;
 	this.lastClickCount = Game.cookieClicks;
 	this.clickRates = [100];
@@ -113,37 +111,50 @@ function UltimateCookie() {
 	this.currentGame = new Evaluator();
 	this.currentGame.syncToGame();
 
-	this.updateAutoClicker(Constants.AUTO_CLICK_INTERVAL);
-	this.updateAutoUpdater(Constants.AUTO_UPDATE_INTERVAL);
-	this.updateAutoBuyer(Constants.AUTO_BUY_MIN_INTERVAL);
+	// Start off the automatic things
+	this.autoClick(Constants.AUTO_CLICK_INTERVAL);
+	this.autoUpdate(Constants.AUTO_UPDATE_INTERVAL);
+	this.autoBuy(Constants.AUTO_BUY_MIN_INTERVAL);
 }
 
-UltimateCookie.prototype.updateAutoClicker = function(interval) {
+UltimateCookie.prototype.autoClick = function(interval) {
 	clearInterval(this.autoClicker);
-	if (interval) {
-		var t = this;
-		this.autoClicker = setInterval(function() { if (Config.autoClick) t.click(); }, interval);
+	if (interval == undefined) {
+		if (Config.autoClick) {
+			this.click();
+		}
+		interval = Constants.AUTO_CLICK_INTERVAL;
 	}
+	var t = this;
+	this.autoClicker = setTimeout(function() { t.autoClick(); }, interval);
 }
 
-UltimateCookie.prototype.updateAutoUpdater = function(interval) {
+UltimateCookie.prototype.autoUpdate = function(interval) {
 	clearInterval(this.autoUpdater);
-	if (interval) {
-		var t = this;
-		this.autoUpdater = setInterval(function() { t.update(); }, interval);
+	if (interval == undefined) {
+		this.update();
+		interval = Constants.AUTO_UPDATE_INTERVAL;
 	}
+	var t = this;
+	this.autoUpdater = setTimeout(function() { t.autoUpdate(); }, interval);
 }
 
-UltimateCookie.prototype.updateAutoBuyer = function(interval) {
-	interval = Math.max(Constants.AUTO_BUY_MIN_INTERVAL, interval);
-	interval = Math.min(Constants.AUTO_BUY_MAX_INTERVAL, interval);
-
-	if (interval != this.autoBuyInterval) {
-		clearInterval(this.autoBuyer);
-		var t = this;
-		this.autoBuyer = setInterval(function() { if (Config.autoBuy) t.buy(); }, interval);
-		this.autoBuyInterval = interval;
+UltimateCookie.prototype.autoBuy = function(interval) {
+	clearInterval(this.autoBuyer);
+	if (interval == undefined) {
+		var lp = this.lastPurchaseTime;
+		if (Config.autoBuy) {
+			this.buy();
+		}
+		if (lp != this.lastPurchaseTime) {	// Just bought something
+			this.autoBuyInterval = Constants.AUTO_BUY_MIN_INTERVAL;
+		} else {
+			this.autoBuyInterval = Math.min(Constants.AUTO_BUY_MAX_INTERVAL, this.autoBuyInterval * 2);
+		}
+		interval = this.autoBuyInterval;
 	}
+	var t = this;
+	this.autoBuyer = setTimeout(function() { t.autoBuy(); }, interval);
 }
 
 UltimateCookie.prototype.rankPurchases = function(eval) {
@@ -168,7 +179,6 @@ UltimateCookie.prototype.rankPurchases = function(eval) {
 }
 
 UltimateCookie.prototype.sortTest = function() {
-	console.clear();
 	var e = new Evaluator();
 	e.syncToGame();
 	var p1 = ultimateCookie.rankPurchases(e);
@@ -253,14 +263,13 @@ UltimateCookie.prototype.buy = function() {
 	// Get an Evaluator synced to the current game
 	if (!this.currentGame.matchesGame()) {
 		this.currentGame.syncToGame();
-//		console.log("resync");
 	}
 
 	if (this.currentGame.matchesGame()) {
-		var time = new Date();
+		var time = new Date().getTime();
 
 		// If all upgrades for current season are bought, unlock season switching
-		if (time < this.lockSeasonTimer) {
+		if (time < this.lockSeasonsTimer) {
 			this.lockSeasons = true;
 		} else if (this.currentGame.season == Constants.CHRISTMAS) {
 			this.lockSeasons = (this.currentGame.santaLevel != Constants.MAX_SANTA_LEVEL);
@@ -275,15 +284,16 @@ UltimateCookie.prototype.buy = function() {
 		cookieBank = Math.min(Game.cookiesEarned / 20, cookieBank);
 		if (Game.cookies - cookieBank > nextPurchase.getCost()) {
 			this.lastPurchaseTime = time;
-			this.updateAutoBuyer(Constants.AUTO_BUY_MIN_INTERVAL);
-			if (Config.autoBuy || (Config.autoPledge && nextPurchase.beginsElderPledge)) {
-				nextPurchase.purchase();
-				if (nextPurchase.setsSeason) {
-					this.lockSeasonTimer = time + Constants.SEASON_SWITCH_DELAY;
+			if (!nextPurchase.setsSeason || !this.lockSeasons) {
+				if ((this.currentGame.currentTime - this.currentGame.sessionStartTime) < 30000) {
+					nextPurchase.purchaseMany();
+				} else {
+					nextPurchase.purchase();
 				}
 			}
-		} else {
-			this.updateAutoBuyer((time - this.lastPurchaseTime) / 2)
+			if (nextPurchase.setsSeason) {
+				this.lockSeasonsTimer = time + Constants.SEASON_SWITCH_DELAY;
+			}
 		}
 
 		if (Config.autoPopWrinklers && seasons[this.currentGame.season].wrinklersDropUpgrades && this.currentGame.lockedSeasonUpgrades[this.currentGame.season] != 0) {
@@ -293,13 +303,11 @@ UltimateCookie.prototype.buy = function() {
 				}
 			}
 		}
-	} else {
-//		console.log("mismatch");
 	}
 }
 
 UltimateCookie.prototype.update = function() {
-	var now = new Date();
+	var now = new Date().getTime();
 
 	if (now - this.lastClickRateCheckTime >= 1000) {
 		var newClicks = Game.cookieClicks - this.lastClickCount;
@@ -315,14 +323,6 @@ UltimateCookie.prototype.update = function() {
 		//console.log("Click rate - Last Second: " + Math.floor(newRate) +", Average: " + this.clickRate);
 		this.lastClickCount = Game.cookieClicks;
 		this.lastClickRateCheckTime = now;
-	}
-	if (Config.autoDismissNotes && Game.Notes.length > 0) {
-		var n = 0;
-		while (n < Game.Notes.length && now - Game.Notes[n].date < Constants.NOTE_DISMISS_DELAY)
-			++n;
-		if (n < Game.Notes.length) {
-			Game.CloseNote(Game.Notes[n].id);
-		}
 	}
 	if (Config.autoClickGoldenCookies) {
 		if (Game.goldenCookie.life > 0 && Game.goldenCookie.toDie == 0) {
@@ -342,12 +342,31 @@ UltimateCookie.prototype.update = function() {
 			var scaleReset = 1 + resethcs * 0.02;
 
 			if (scaleReset / scaleNow >= Config.resetLimit) {
-				console.log("Resetting game. HCs now: " + hcs + ", HCs after reset: " + resethcs + ", time: " + now);
-				this.lastPurchaseTime = now;
-				Game.Reset(1, 0);
+				this.reset();
 			}
 		}
 	}
+}
+
+UltimateCookie.prototype.reset = function() {
+	var now = new Date().getTime();
+	if (upgradeFunctions.chocolateEgg.isAvailableToPurchase()) {
+		for (var o in Game.ObjectsById) {
+			Game.ObjectsById[o].sell(Game.ObjectsById[o].amount);
+		}
+		upgradeFunctions.chocolateEgg.purchase();
+	}
+	var hcs = Game.HowMuchPrestige(Game.cookiesReset);
+	var resethcs = Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned);
+
+	console.log("Resetting game. HCs now: " + hcs + ", HCs after reset: " + resethcs + ", time: " + now);
+	this.lastPurchaseTime = now;
+	this.lastClickCount = 0;
+	this.currentGame.initialize();
+	this.autoBuy(Constants.RESET_PAUSE_TIME);
+	this.autoClick(Constants.RESET_PAUSE_TIME);
+	this.autoUpdate(Constants.RESET_PAUSE_TIME);
+	Game.Reset(1, 0);
 }
 
 //
@@ -929,6 +948,14 @@ Upgrade.prototype.getCost = function() {
 	return this.getGameObject().getPrice();
 }
 
+Upgrade.prototype.isAvailableToPurchase = function() {
+	if (this.buildsIndex != undefined)
+		return true;
+	else
+		return Game.Upgrades[this.name].unlocked == 1 && Game.Upgrades[this.name].bought == 0;
+
+}
+
 Upgrade.prototype.purchase = function() {
 	if (this == upgradeFunctions.santaLevel) {
 		var mx = Game.mouseX;
@@ -943,6 +970,16 @@ Upgrade.prototype.purchase = function() {
 		Game.Click = c;
 	} else {
 		this.getGameObject().buy(1);
+	}
+}
+
+Upgrade.prototype.purchaseMany = function() {
+	if (this.buildsIndex == undefined) {
+		this.purchase();
+	} else {
+		while (Game.cookies > this.getGameObject().getPrice()) {
+			this.getGameObject().buy(1);
+		}
 	}
 }
 
