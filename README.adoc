@@ -1,0 +1,8 @@
+= Ultimate Cookie
+
+I got big into cookie clicker at one stage and decided to write my own auto-runner. It needs some
+updating to work with the latest version of cookie clicker. Use with the old version at:
+
+http://orteil.dashnet.org/cookieclicker/v10466/
+
+Just copy paste everything into a javascript console to use it.
