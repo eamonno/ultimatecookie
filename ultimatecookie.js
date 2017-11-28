@@ -14,7 +14,7 @@ Config.resetLimit = 1.1;
 Config.maintainCookieBank = true;
 
 // General purpose constants
-Constants.SUPPORTED_VERSION = "1.0465";
+Constants.SUPPORTED_VERSION = "2.0042";
 Constants.VERSION_ERROR = "Warning: Ultimate Cookie only supports version " + Constants.SUPPORTED_VERSION + " of the game. Your mileage may vary.\n";
 Constants.AUTO_BUY_MIN_INTERVAL = 1;
 Constants.AUTO_BUY_MAX_INTERVAL = 1010;
@@ -306,6 +306,16 @@ UltimateCookie.prototype.buy = function() {
 	}
 }
 
+UltimateCookie.prototype.popShimmer = function(type)
+{
+	for (var i = 0; i < Game.shimmers.length; ++i) {
+		if (Game.shimmers[i].type == type) {
+			Game.shimmers[i].pop();
+			return;		// Only pop one at a time since the pop func might alter the array
+		}
+	}
+}
+
 UltimateCookie.prototype.update = function() {
 	var now = new Date().getTime();
 
@@ -325,12 +335,10 @@ UltimateCookie.prototype.update = function() {
 		this.lastClickRateCheckTime = now;
 	}
 	if (Config.autoClickGoldenCookies) {
-		if (Game.goldenCookie.life > 0 && Game.goldenCookie.toDie == 0) {
-			Game.goldenCookie.click();
-		}
+		Game.popShimmer("golden");
 	}
 	if (Config.autoClickReindeer) {
-		Game.seasonPopup.click();
+		Game.popShimmer("reindeer");
 	}
 	if (Config.autoReset) {
 		// Wait until frenzy or clickFrenzy is over to reset
