@@ -1,3 +1,10 @@
+//
+// TO-DO
+//
+// Put Auto_buy_min_interval back to 1
+// Add a delay to autoclicking shimmers so they can be seen
+//
+
 var Constants = {};
 var Config = {};
 
@@ -6,7 +13,7 @@ Config.autoClickGoldenCookies = true;
 Config.autoClickReindeer = true;
 Config.autoReset = false;
 Config.autoBuy = true;
-Config.autoSwitchSeasons = true;
+Config.autoSwitchSeasons = false;
 Config.autoPledge = true;
 Config.autoPopWrinklers = true;
 Config.skipHalloween = false;
@@ -16,7 +23,7 @@ Config.maintainCookieBank = true;
 // General purpose constants
 Constants.SUPPORTED_VERSION = "2.0042";
 Constants.VERSION_ERROR = "Warning: Ultimate Cookie only supports version " + Constants.SUPPORTED_VERSION + " of the game. Your mileage may vary.\n";
-Constants.AUTO_BUY_MIN_INTERVAL = 1;
+Constants.AUTO_BUY_MIN_INTERVAL = 900;
 Constants.AUTO_BUY_MAX_INTERVAL = 1010;
 Constants.AUTO_CLICK_INTERVAL = 1;
 Constants.AUTO_UPDATE_INTERVAL = 1000;
@@ -263,6 +270,8 @@ UltimateCookie.prototype.buy = function() {
 	// Get an Evaluator synced to the current game
 	if (!this.currentGame.matchesGame()) {
 		this.currentGame.syncToGame();
+	} else {
+		console.log("mismatch: " + this.lastError);
 	}
 
 	if (this.currentGame.matchesGame()) {
@@ -335,10 +344,10 @@ UltimateCookie.prototype.update = function() {
 		this.lastClickRateCheckTime = now;
 	}
 	if (Config.autoClickGoldenCookies) {
-		Game.popShimmer("golden");
+		this.popShimmer("golden");
 	}
 	if (Config.autoClickReindeer) {
-		Game.popShimmer("reindeer");
+		this.popShimmer("reindeer");
 	}
 	if (Config.autoReset) {
 		// Wait until frenzy or clickFrenzy is over to reset
@@ -469,9 +478,9 @@ Evaluator.prototype.matchesGame = function() {
 			if (!errMsg) { errMsg += "Evaluator Mismatch:\n"; }
 			errMsg += "- Building Cost " + i + " - Predicted: " + this.buildings[i].getCost() + ", Actual: " + Game.ObjectsById[i].getPrice() + "\n";
 		}
-		if (!floatEqual(this.buildings[i].getIndividualCps(), Game.ObjectsById[i].cps())) {
+		if (!floatEqual(this.buildings[i].getIndividualCps(), Game.ObjectsById[i].cps(Game.ObjectsById[i]))) {
 			if (!errMsg) { errMsg += "Evaluator Mismatch:\n"; }
-			errMsg += "- Building CpS " + i + " - Predicted: " + this.buildings[i].getIndividualCps() + ", Actual: " + Game.ObjectsById[i].cps() + "\n";
+			errMsg += "- Building CpS " + i + " - Predicted: " + this.buildings[i].getIndividualCps() + ", Actual: " + Game.ObjectsById[i].cps(Game.ObjectsById[i]) + "\n";
 		}
 	}
 	// Check that all available upgrade costs match those of similar upgrade functions
@@ -686,7 +695,7 @@ Evaluator.prototype.initialize = function() {
 	// Buildings
 	this.buildings = [];
 	this.buildings.push(new EvaluatorBuilding(this,         15,        0.1));	// Cursor
-	this.buildings.push(new EvaluatorBuilding(this,        100,        0.5));	// Grandma
+	this.buildings.push(new EvaluatorBuilding(this,        100,        1.0));	// Grandma
 	this.buildings.push(new EvaluatorBuilding(this,        500,        4.0));	// Farm
 	this.buildings.push(new EvaluatorBuilding(this,       3000,       10.0));	// Factory
 	this.buildings.push(new EvaluatorBuilding(this,      10000,       40.0));	// Mine
