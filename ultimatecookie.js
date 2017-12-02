@@ -1,10 +1,3 @@
-//
-// TO-DO
-//
-// Put Auto_buy_min_interval back to 1
-// Add a delay to autoclicking shimmers so they can be seen
-//
-
 var Constants = {};
 var Config = {};
 
@@ -23,7 +16,7 @@ Config.maintainCookieBank = true;
 // General purpose constants
 Constants.SUPPORTED_VERSION = "2.0042";
 Constants.VERSION_ERROR = "Warning: Ultimate Cookie only supports version " + Constants.SUPPORTED_VERSION + " of the game. Your mileage may vary.\n";
-Constants.AUTO_BUY_MIN_INTERVAL = 900;
+Constants.AUTO_BUY_MIN_INTERVAL = 1;
 Constants.AUTO_BUY_MAX_INTERVAL = 1010;
 Constants.AUTO_CLICK_INTERVAL = 1;
 Constants.AUTO_UPDATE_INTERVAL = 1000;
@@ -434,6 +427,9 @@ EvaluatorBuilding.prototype.getCps = function() {
 }
 
 EvaluatorBuilding.prototype.getIndividualCps = function() {
+	if (typeof this.baseCps == 'function') {
+		return this.baseCps();
+	}
 	return (this.baseCps + this.buildingBaseScaler.getScale(this.evaluator.buildings)) * this.multiplier + this.buildingScaler.getScale(this.evaluator.buildings);
 }
 
@@ -527,8 +523,8 @@ Evaluator.prototype.getCps = function() {
 	var i;
 
 	var cps = this.baseCps;
-	// Get the cps from buildings
-	for (i = 0; i < this.buildings.length; ++i) {
+	// Get the cps from buildings - start at 1, cursors generate clicks
+	for (i = 1; i < this.buildings.length; ++i) {
 		cps += this.buildings[i].getCps();
 	}
 
@@ -691,10 +687,10 @@ Evaluator.prototype.getCookieBankSize = function(timeSinceLastGoldenCookie) {
 	return Math.max(bank, 0);
 }
 
-Evaluator.prototype.initialize = function() {
+Evaluator.prototype.initialize = function(uc) {
 	// Buildings
 	this.buildings = [];
-	this.buildings.push(new EvaluatorBuilding(this,         15,        0.1));	// Cursor
+	this.buildings.push(new EvaluatorBuilding(this,         15, () => { return this.getCpc() / 10}));	// Cursor
 	this.buildings.push(new EvaluatorBuilding(this,        100,        1.0));	// Grandma
 	this.buildings.push(new EvaluatorBuilding(this,        500,        4.0));	// Farm
 	this.buildings.push(new EvaluatorBuilding(this,       3000,       10.0));	// Factory
