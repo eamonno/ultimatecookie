@@ -1,6 +1,7 @@
 var Constants = {};
 var Config = {};
 
+Config.failHard = true;
 Config.autoClick = true;
 Config.autoClickGoldenCookies = true;
 Config.autoClickReindeer = true;
@@ -412,7 +413,8 @@ BuildingScaler.prototype.scaleOne = function(index, amount) {
 // Class used to represent a particular building type for the cost Evaluator
 //
 
-function EvaluatorBuilding(evaluator, baseCost, baseCps) {
+function EvaluatorBuilding(evaluator, name, baseCost, baseCps) {
+	this.name = name;
 	this.evaluator = evaluator;
 	this.baseCost = baseCost;
 	this.baseCps = baseCps;
@@ -427,7 +429,7 @@ EvaluatorBuilding.prototype.getCps = function() {
 }
 
 EvaluatorBuilding.prototype.getIndividualCps = function() {
-	if (typeof this.baseCps == 'function') {
+	if (typeof this.baseCps === 'function') {
 		return this.baseCps();
 	}
 	return (this.baseCps + this.buildingBaseScaler.getScale(this.evaluator.buildings)) * this.multiplier + this.buildingScaler.getScale(this.evaluator.buildings);
@@ -457,37 +459,42 @@ Evaluator.prototype.matchesGame = function() {
 	// Check that Cps matches the game
 	var cps = this.getCps();
 	if (!floatEqual(cps, Game.cookiesPs)) {
-		if (!errMsg) { errMsg += "Evaluator Mismatch:\n"; }
 		errMsg += "- CpS - Predicted: " + this.getCps() + ", Actual: " + Game.cookiesPs + "\n";
 	}
 	// Check the Cpc matches the game
 	var cpc = this.getCpc();
 	var gcpc = Game.mouseCps();
 	if (!floatEqual(cpc, gcpc)) {
-		if (!errMsg) { errMsg += "Evaluator Mismatch:\n"; }
 		errMsg += "- CpC - Predicted: " + cpc + ", Actual: " + gcpc + "\n";
 	}
 	// Check the building costs match the game
 	var i;
 	for (i = 0; i < this.buildings.length; ++i) {
+		if (this.buildings[i].name != Game.ObjectsById[i].name) {
+			errMsg += "- Building Name " + this.buildings[i].name + " does not match " + Game.ObjectsById[i].name + "\n";			
+		}
 		if (!floatEqual(this.buildings[i].getCost(), Game.ObjectsById[i].getPrice())) {
-			if (!errMsg) { errMsg += "Evaluator Mismatch:\n"; }
-			errMsg += "- Building Cost " + i + " - Predicted: " + this.buildings[i].getCost() + ", Actual: " + Game.ObjectsById[i].getPrice() + "\n";
+			errMsg += "- Building Cost " + this.buildings[i].name + " - Predicted: " + this.buildings[i].getCost() + ", Actual: " + Game.ObjectsById[i].getPrice() + "\n";
 		}
 		if (!floatEqual(this.buildings[i].getIndividualCps(), Game.ObjectsById[i].cps(Game.ObjectsById[i]))) {
-			if (!errMsg) { errMsg += "Evaluator Mismatch:\n"; }
-			errMsg += "- Building CpS " + i + " - Predicted: " + this.buildings[i].getIndividualCps() + ", Actual: " + Game.ObjectsById[i].cps(Game.ObjectsById[i]) + "\n";
+			errMsg += "- Building CpS " + this.buildings[i].name + " - Predicted: " + this.buildings[i].getIndividualCps() + ", Actual: " + Game.ObjectsById[i].cps(Game.ObjectsById[i]) + "\n";
 		}
 	}
+	// Check that all buildings are supported
+	if (this.buildings.length != Game.ObjectsById.length)
+		errMsg += "- Building Count " + this.buildings.length + " does not match " + Game.ObjectsById.length + "\n";
+
 	// Check that all available upgrade costs match those of similar upgrade functions
 	for (i = 0; i < Game.UpgradesInStore.length; ++i) {
 		var u = Game.UpgradesInStore[i];
 		var uf = getUpgradeFunction(u.name);
 		if (uf.setsSeason == undefined && !floatEqual(uf.getCost(), u.getPrice())) {
-			if (!errMsg) { errMsg += "Evaluator Mismatch:\n"; }
 			errMsg += "- Upgrade Cost " + u.name + " - Predicted: " + uf.getCost() + ", Actual: " + u.getPrice() + "\n";
 		}
 	}
+	if (errMsg != "")
+		errMsg = "Evaluator Mismatch:\n" + errMsg;
+
 	this.matchError = errMsg;
 	if (this.matchError) {
 		this.lastError = this.matchError;
@@ -499,6 +506,14 @@ Evaluator.prototype.matchesGame = function() {
 			this.lastError = Constants.VERSION_ERROR;
 		}
 	}
+	// Fail hard option, mostly used for debugging
+	if (Config.failHard && errMsg) {
+		console.log(errMsg);
+		Config.autoClick = false;
+		Config.autoBuy = false;
+		Config.autoClickGoldenCookies = false;
+		Config.autoClickReindeer = false;
+	} 
 
 	return this.matchError == "";
 }
@@ -690,18 +705,22 @@ Evaluator.prototype.getCookieBankSize = function(timeSinceLastGoldenCookie) {
 Evaluator.prototype.initialize = function(uc) {
 	// Buildings
 	this.buildings = [];
-	this.buildings.push(new EvaluatorBuilding(this,         15, () => { return this.getCpc() / 10}));	// Cursor
-	this.buildings.push(new EvaluatorBuilding(this,        100,        1.0));	// Grandma
-	this.buildings.push(new EvaluatorBuilding(this,        500,        4.0));	// Farm
-	this.buildings.push(new EvaluatorBuilding(this,       3000,       10.0));	// Factory
-	this.buildings.push(new EvaluatorBuilding(this,      10000,       40.0));	// Mine
-	this.buildings.push(new EvaluatorBuilding(this,      40000,      100.0));	// Shipment
-	this.buildings.push(new EvaluatorBuilding(this,     200000,      400.0));	// Alchemy lab
-	this.buildings.push(new EvaluatorBuilding(this,    1666666,     6666.0));	// Portal
-	this.buildings.push(new EvaluatorBuilding(this,  123456789,    98765.0));	// Time Machine
-	this.buildings.push(new EvaluatorBuilding(this, 3999999999,   999999.0));	// Antimatter condenser
-	this.buildings.push(new EvaluatorBuilding(this,75000000000, 10000000.0));	// Prism
-
+	this.buildings.push(new EvaluatorBuilding(this, 'Cursor',			   	         	  15, () => { return this.getCpc() / 10.0; } ));
+	this.buildings.push(new EvaluatorBuilding(this, 'Grandma',			 	        	 100,           1.0));
+	this.buildings.push(new EvaluatorBuilding(this, 'Farm',				   		   	    1100,           8.0));
+	this.buildings.push(new EvaluatorBuilding(this, 'Mine',					      	   12000,          47.0));
+	this.buildings.push(new EvaluatorBuilding(this, 'Factory',			    	 	  130000,         260.0));
+	this.buildings.push(new EvaluatorBuilding(this, 'Bank',				   			 1400000,        1400.0));
+	this.buildings.push(new EvaluatorBuilding(this, 'Temple',				   	    20000000,        7800.0));
+	this.buildings.push(new EvaluatorBuilding(this, 'Wizard tower',			  	   330000000,       44000.0));
+	this.buildings.push(new EvaluatorBuilding(this, 'Shipment',				 	  5100000000,      260000.0));
+	this.buildings.push(new EvaluatorBuilding(this, 'Alchemy lab',				 75000000000,     1600000.0));
+	this.buildings.push(new EvaluatorBuilding(this, 'Portal',			  	   1000000000000,    10000000.0));
+	this.buildings.push(new EvaluatorBuilding(this, 'Time machine',	  	  	  14000000000000,    65000000.0));
+	this.buildings.push(new EvaluatorBuilding(this, 'Antimatter condenser',	 170000000000000,   430000000.0));
+	this.buildings.push(new EvaluatorBuilding(this, 'Prism',				2100000000000000,  2900000000.0));
+	this.buildings.push(new EvaluatorBuilding(this, 'Chancemaker',		   26000000000000000, 21000000000.0));
+	
 	// When the session started
 	this.sessionStartTime = new Date().getTime();
 	this.currentTime = new Date().getTime();
@@ -779,7 +798,7 @@ Evaluator.prototype.syncToGame = function() {
 			}
 		}
 	}
-	this.heavenlyChips = Game.prestige['Heavenly chips'];
+	this.heavenlyChips = Game.heavenlyChips;
 	this.milkAmount = Game.AchievementsOwned * 4;
 	this.frenzy = Game.frenzy;
 	this.frenzyMultiplier = Game.frenzyPower;
