@@ -38,14 +38,18 @@ Constants.RESET_PAUSE_TIME = 1000;				// Time to pause so reset can complete cor
 Constants.CURSOR_INDEX = 0;
 Constants.GRANDMA_INDEX = 1;
 Constants.FARM_INDEX = 2;
-Constants.FACTORY_INDEX = 3;
-Constants.MINE_INDEX = 4;
-Constants.SHIPMENT_INDEX = 5;
-Constants.ALCHEMY_LAB_INDEX = 6;
-Constants.PORTAL_INDEX = 7;
-Constants.TIME_MACHINE_INDEX = 8;
-Constants.ANTIMATTER_CONDENSER_INDEX = 9;
-Constants.PRISM_INDEX = 10;
+Constants.MINE_INDEX = 3;
+Constants.FACTORY_INDEX = 4;
+Constants.BANK_INDEX = 5;
+Constants.TEMPLE_INDEX = 6;
+Constants.WIZARD_TOWER_INDEX = 7;
+Constants.SHIPMENT_INDEX = 8;
+Constants.ALCHEMY_LAB_INDEX = 9;
+Constants.PORTAL_INDEX = 10;
+Constants.TIME_MACHINE_INDEX = 11;
+Constants.ANTIMATTER_CONDENSER_INDEX = 12;
+Constants.PRISM_INDEX = 13;
+Constants.CHANCEMAKER_INDEX = 14;
 
 // Elder Wrath levels
 Constants.APPEASED = 0;
@@ -264,9 +268,7 @@ UltimateCookie.prototype.buy = function() {
 	// Get an Evaluator synced to the current game
 	if (!this.currentGame.matchesGame()) {
 		this.currentGame.syncToGame();
-	} else {
-		console.log("mismatch: " + this.lastError);
-	}
+	} 
 
 	if (this.currentGame.matchesGame()) {
 		var time = new Date().getTime();
@@ -282,7 +284,7 @@ UltimateCookie.prototype.buy = function() {
 
 		var nextPurchase = this.determineNextPurchase(this.currentGame);
 		// Shutdown if out of sync
-		var cookieBank = this.currentGame.getCookieBankSize(Game.goldenCookie.time / Game.fps);
+		var cookieBank = this.currentGame.getCookieBankSize(Game.shimmerTypes['golden'].getTimeMod(10));
 		// Cap cookie bank at 5% of total cookies earned
 		cookieBank = Math.min(Game.cookiesEarned / 20, cookieBank);
 		if (Game.cookies - cookieBank > nextPurchase.getCost()) {
@@ -306,7 +308,14 @@ UltimateCookie.prototype.buy = function() {
 				}
 			}
 		}
-	}
+	} else if (Config.failHard) {
+		// Fail hard option, mostly used for debugging
+		console.log(this.matchError);
+		Config.autoClick = false;
+		Config.autoBuy = false;
+		Config.autoClickGoldenCookies = false;
+		Config.autoClickReindeer = false;
+	} 
 }
 
 UltimateCookie.prototype.popShimmer = function(type)
@@ -506,15 +515,6 @@ Evaluator.prototype.matchesGame = function() {
 			this.lastError = Constants.VERSION_ERROR;
 		}
 	}
-	// Fail hard option, mostly used for debugging
-	if (Config.failHard && errMsg) {
-		console.log(errMsg);
-		Config.autoClick = false;
-		Config.autoBuy = false;
-		Config.autoClickGoldenCookies = false;
-		Config.autoClickReindeer = false;
-	} 
-
 	return this.matchError == "";
 }
 
@@ -1268,14 +1268,18 @@ upgrade = function(name) {
 upgrade("Cursor"				).builds(Constants.CURSOR_INDEX, 1);
 upgrade("Grandma"				).builds(Constants.GRANDMA_INDEX, 1);
 upgrade("Farm"					).builds(Constants.FARM_INDEX, 1);
-upgrade("Factory"				).builds(Constants.FACTORY_INDEX, 1);
 upgrade("Mine"					).builds(Constants.MINE_INDEX, 1);
+upgrade("Factory"				).builds(Constants.FACTORY_INDEX, 1);
+upgrade("Bank"					).builds(Constants.BANK_INDEX, 1);
+upgrade("Temple"				).builds(Constants.TEMPLE_INDEX, 1);
+upgrade("Wizard tower"			).builds(Constants.WIZARD_TOWER_INDEX, 1);
 upgrade("Shipment"				).builds(Constants.SHIPMENT_INDEX, 1);
 upgrade("Alchemy lab"			).builds(Constants.ALCHEMY_LAB_INDEX, 1);
 upgrade("Portal"				).builds(Constants.PORTAL_INDEX, 1);
 upgrade("Time machine"			).builds(Constants.TIME_MACHINE_INDEX, 1);
 upgrade("Antimatter condenser"	).builds(Constants.ANTIMATTER_CONDENSER_INDEX, 1);
 upgrade("Prism"					).builds(Constants.PRISM_INDEX, 1);
+upgrade("Chancemaker"			).builds(Constants.CHANCEMAKER_INDEX, 1);
 
 // Upgrades that increase basic building cps
 upgrade("Forwards from grandma"		).boostsBuilding(Constants.GRANDMA_INDEX, 0.3);
