@@ -541,16 +541,16 @@ Evaluator.prototype.getCps = function() {
 
 	var cps = this.baseCps;
 	// Get the cps from buildings - start at 1, cursors generate clicks
-	for (i = 1; i < this.buildings.length; ++i) {
+	for (i = 0; i < this.buildings.length; ++i) {
 		cps += this.buildings[i].getCps();
 	}
 
 	// Scale it for production and heavely chip multipliers
 	var santaScale = (this.santaLevel + 1) * this.santaPower * 0.01;
-	var productionScale = this.productionMultiplier * 0.01;
 	var heavenlyScale = this.heavenlyChips * this.heavenlyPower * 0.02;
 
-	var scale = (1 + santaScale + productionScale + heavenlyScale);;
+	var scale = this.productionScale * (1 + santaScale + heavenlyScale);
+
 	// Scale it for milk
 	for (i = 0; i < this.milkUnlocks.length; ++i) {
 		scale *= (1 + this.milkUnlocks[i] * this.milkAmount * this.milkMultiplier * 0.01);
@@ -658,7 +658,7 @@ Evaluator.prototype.getCurrentCps = function() {
 
 // Calculate the effective Cps at the current games click rate
 Evaluator.prototype.getEffectiveCps = function() {
-	return this.getFrenziedCps(1) + this.getFrenziedCpc(1) * this.clickRate + this.getGoldenCookieCps() + this.getReindeerCps();
+	return this.getFrenziedCps(1) + this.getFrenziedCpc(1) * (this.clickRate + this.buildings[0].quantity * 0.1) + this.getGoldenCookieCps() + this.getReindeerCps();
 }
 
 // Get the current required cookie bank size, accounts for time until the
@@ -676,7 +676,6 @@ Evaluator.prototype.getCookieBankSize = function(timeSinceLastGoldenCookie) {
 	var chainBank;
 
 	var timeToNextCookie = Math.max(this.goldenCookieTime - Game.shimmerTypes['golden'] ? Game.shimmerTypes['golden'].time / Game.fps : 0, 0);
-	console.log("time to next golden: " + timeToNextCookie);
 
 	// Bank size varies on whether you can get another golden cookie during frenzy
 	if (this.frenzyDuration < this.goldenCookieTime) {
@@ -708,7 +707,7 @@ Evaluator.prototype.getCookieBankSize = function(timeSinceLastGoldenCookie) {
 Evaluator.prototype.initialize = function(uc) {
 	// Buildings
 	this.buildings = [];
-	this.buildings.push(new EvaluatorBuilding(this, 'Cursor',			   	         	  15, () => { return this.getCpc() / 10.0; } ));
+	this.buildings.push(new EvaluatorBuilding(this, 'Cursor',			   	         	  15,           0.1));
 	this.buildings.push(new EvaluatorBuilding(this, 'Grandma',			 	        	 100,           1.0));
 	this.buildings.push(new EvaluatorBuilding(this, 'Farm',				   		   	    1100,           8.0));
 	this.buildings.push(new EvaluatorBuilding(this, 'Mine',					      	   12000,          47.0));
@@ -737,7 +736,7 @@ Evaluator.prototype.initialize = function(uc) {
 
 	// Production multiplier
 	this.baseCps = 0;
-	this.productionMultiplier = 0;
+	this.productionScale = 1;
 	this.globalProductionMultiplier = 0;
 	this.centuryProductionMultiplier = 0;
 
@@ -831,8 +830,8 @@ Upgrade.prototype.applyUpgrade = function(eval) {
 		eval.buildings[this.boostsBuildingIndex].baseCps += this.boostsBuildingAmount;
 	if (this.scalesBuildingIndex != undefined)
 		eval.buildings[this.scalesBuildingIndex].multiplier *= this.scalesBuildingScale;
-	if (this.productionBoost != undefined)
-		eval.productionMultiplier += this.productionBoost;
+	if (this.productionScale != undefined)
+		eval.productionScale *= this.productionScale;
 	if (this.globalProductionBoost != undefined)
 		eval.globalProductionMultiplier += this.globalProductionBoost;
 	if (this.goldenCookieDelayScale != undefined)
@@ -896,8 +895,8 @@ Upgrade.prototype.revokeUpgrade = function(eval) {
 		eval.buildings[this.boostsBuildingIndex].baseCps -= this.boostsBuildingAmount;
 	if (this.scalesBuildingIndex != undefined)
 		eval.buildings[this.scalesBuildingIndex].multiplier /= this.scalesBuildingScale;
-	if (this.productionBoost != undefined)
-		eval.productionMultiplier -= this.productionBoost;
+	if (this.productionScale != undefined)
+		eval.productionScale /= this.productionScale;
 	if (this.globalProductionBoost != undefined)
 		eval.globalProductionMultiplier -= this.globalProductionBoost;
 	if (this.goldenCookieDelayScale != undefined)
@@ -1068,8 +1067,8 @@ Upgrade.prototype.scalesBuilding = function(index, scale) {
 	return this;
 }
 
-Upgrade.prototype.boostsProduction = function(amount) {
-	this.productionBoost = amount;
+Upgrade.prototype.scalesProduction = function(amount) {
+	this.productionScale = amount;
 	return this;
 }
 
@@ -1286,9 +1285,6 @@ upgrade("Prism"					).builds(Constants.PRISM_INDEX, 1);
 upgrade("Chancemaker"			).builds(Constants.CHANCEMAKER_INDEX, 1);
 
 // Upgrades that increase basic building cps
-// upgrade("Sturdier conveyor belts"	).boostsBuilding(Constants.FACTORY_INDEX, 4);
-// upgrade("Sugar gas"					).boostsBuilding(Constants.MINE_INDEX, 10);
-// upgrade("Vanilla nebulae"			).boostsBuilding(Constants.SHIPMENT_INDEX, 30);
 // upgrade("Antimony"					).boostsBuilding(Constants.ALCHEMY_LAB_INDEX, 100);
 // upgrade("Ancient tablet"			).boostsBuilding(Constants.PORTAL_INDEX, 1666);
 // upgrade("Flux capacitors"			).boostsBuilding(Constants.TIME_MACHINE_INDEX, 9876);
@@ -1296,14 +1292,14 @@ upgrade("Chancemaker"			).builds(Constants.CHANCEMAKER_INDEX, 1);
 // upgrade("Gem polish"				).boostsBuilding(Constants.PRISM_INDEX, 1000000);
 
 // Upgrades that double the productivity of a type of building
-// upgrade("Forwards from grandma"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
-// upgrade("Steel-plated rolling pins"		).scalesBuilding(Constants.GRANDMA_INDEX, 2);
-// upgrade("Lubricated dentures"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Forwards from grandma"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Steel-plated rolling pins"		).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Lubricated dentures"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 // upgrade("Farmer grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.FARM_INDEX, Constants.GRANDMA_INDEX, 0.01);
 // upgrade("Worker grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 // upgrade("Miner grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 // upgrade("Cosmic grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
-// upgrade("Prune juice"					).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Prune juice"					).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 // upgrade("Transmuted grandmas"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 // upgrade("Double-thick glasses"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 // upgrade("Altered grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
@@ -1311,22 +1307,33 @@ upgrade("Chancemaker"			).builds(Constants.CHANCEMAKER_INDEX, 1);
 // upgrade("Antigrandmas"					).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 // upgrade("Rainbow grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 // upgrade("Aging agents"					).scalesBuilding(Constants.GRANDMA_INDEX, 2);
-// upgrade("Cheap hoes"					).scalesBuilding(Constants.FARM_INDEX, 2);
-// upgrade("Fertilizer"					).scalesBuilding(Constants.FARM_INDEX, 2);
-// upgrade("Cookie trees"					).scalesBuilding(Constants.FARM_INDEX, 2);
-// upgrade("Genetically-modified cookies"	).scalesBuilding(Constants.FARM_INDEX, 2);
+upgrade("Cheap hoes"					).scalesBuilding(Constants.FARM_INDEX, 2);
+upgrade("Fertilizer"					).scalesBuilding(Constants.FARM_INDEX, 2);
+upgrade("Cookie trees"					).scalesBuilding(Constants.FARM_INDEX, 2);
+upgrade("Genetically-modified cookies"	).scalesBuilding(Constants.FARM_INDEX, 2);
 // upgrade("Gingerbread scarecrows"		).scalesBuilding(Constants.FARM_INDEX, 2);
 // upgrade("Pulsar sprinklers"				).scalesBuilding(Constants.FARM_INDEX, 2);
-// upgrade("Child labor"					).scalesBuilding(Constants.FACTORY_INDEX, 2);
-// upgrade("Sweatshop"						).scalesBuilding(Constants.FACTORY_INDEX, 2);
+upgrade("Sugar gas"						).scalesBuilding(Constants.MINE_INDEX, 2);
+upgrade("Megadrill"						).scalesBuilding(Constants.MINE_INDEX, 2);
+upgrade("Ultradrill"					).scalesBuilding(Constants.MINE_INDEX, 2);
+upgrade("Ultimadrill"					).scalesBuilding(Constants.MINE_INDEX, 2);
+// upgrade("H-bomb mining"					).scalesBuilding(Constants.MINE_INDEX, 2);
+// upgrade("Coreforge"						).scalesBuilding(Constants.MINE_INDEX, 2);
+upgrade("Sturdier conveyor belts"		).scalesBuilding(Constants.FACTORY_INDEX, 2);
+upgrade("Child labor"					).scalesBuilding(Constants.FACTORY_INDEX, 2);
+upgrade("Sweatshop"						).scalesBuilding(Constants.FACTORY_INDEX, 2);
 // upgrade("Radium reactors"				).scalesBuilding(Constants.FACTORY_INDEX, 2);
 // upgrade("Recombobulators"				).scalesBuilding(Constants.FACTORY_INDEX, 2);
 // upgrade("Deep-bake process"				).scalesBuilding(Constants.FACTORY_INDEX, 2);
-// upgrade("Megadrill"						).scalesBuilding(Constants.MINE_INDEX, 2);
-// upgrade("Ultradrill"					).scalesBuilding(Constants.MINE_INDEX, 2);
-// upgrade("Ultimadrill"					).scalesBuilding(Constants.MINE_INDEX, 2);
-// upgrade("H-bomb mining"					).scalesBuilding(Constants.MINE_INDEX, 2);
-// upgrade("Coreforge"						).scalesBuilding(Constants.MINE_INDEX, 2);
+upgrade("Taller tellers"				).scalesBuilding(Constants.BANK_INDEX, 2);
+upgrade("Scissor-resistant credit cards").scalesBuilding(Constants.BANK_INDEX, 2);
+upgrade("Acid-proof vaults"				).scalesBuilding(Constants.BANK_INDEX, 2);
+upgrade("Golden idols"					).scalesBuilding(Constants.TEMPLE_INDEX, 2);
+upgrade("Sacrifices"					).scalesBuilding(Constants.TEMPLE_INDEX, 2);
+upgrade("Delicious blessing"			).scalesBuilding(Constants.TEMPLE_INDEX, 2);
+upgrade("Pointier hats"					).scalesBuilding(Constants.WIZARD_TOWER, 2);
+upgrade("Beardlier beards"				).scalesBuilding(Constants.WIZARD_TOWER, 2);
+upgrade("Vanilla nebulae"				).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
 // upgrade("Wormholes"						).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
 // upgrade("Frequent flyer"				).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
 // upgrade("Warp drive"					).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
@@ -1359,52 +1366,52 @@ upgrade("Chancemaker"			).builds(Constants.CHANCEMAKER_INDEX, 1);
 // upgrade("Glow-in-the-dark"				).scalesBuilding(Constants.PRISM_INDEX, 2);
 
 // Upgrades that increase cookie production
-// upgrade("Sugar cookies"											).boostsProduction(5);
-// upgrade("Peanut butter cookies"									).boostsProduction(5);
-// upgrade("Plain cookies"											).boostsProduction(5);
-// upgrade("Oatmeal raisin cookies"								).boostsProduction(5);
-// upgrade("Coconut cookies"										).boostsProduction(5);
-// upgrade("White chocolate cookies"								).boostsProduction(5);
-// upgrade("Macadamia nut cookies"									).boostsProduction(5);
-// upgrade("White chocolate macadamia nut cookies"					).boostsProduction(10);
-// upgrade("Double-chip cookies"									).boostsProduction(10);
-// upgrade("All-chocolate cookies"									).boostsProduction(10);
-// upgrade("White chocolate-coated cookies"						).boostsProduction(15);
-// upgrade("Dark chocolate-coated cookies"							).boostsProduction(15);
-// upgrade("Eclipse cookies"										).boostsProduction(15);
-// upgrade("Zebra cookies"											).boostsProduction(15);
-// upgrade("Snickerdoodles"										).boostsProduction(15);
-// upgrade("Stroopwafels"											).boostsProduction(15);
-// upgrade("Empire biscuits"										).boostsProduction(15);
-// upgrade("Macaroons"												).boostsProduction(15);
-// upgrade("British tea biscuits"									).boostsProduction(15);
-// upgrade("Chocolate british tea biscuits"						).boostsProduction(15);
-// upgrade("Round british tea biscuits"							).boostsProduction(15);
-// upgrade("Round chocolate british tea biscuits"					).boostsProduction(15);
-// upgrade("Round british tea biscuits with heart motif"			).boostsProduction(15);
-// upgrade("Round chocolate british tea biscuits with heart motif"	).boostsProduction(15);
-// upgrade("Palets"												).boostsProduction(20);
-// upgrade("Sabl&eacute;s"											).boostsProduction(20);
-// upgrade("Madeleines"											).boostsProduction(20);
-// upgrade("Palmiers"												).boostsProduction(20);
-// upgrade("Shortfoils"											).boostsProduction(25);
-// upgrade("Fig gluttons"											).boostsProduction(25);
-// upgrade("Loreols"												).boostsProduction(25);
-// upgrade("Jaffa cakes"											).boostsProduction(25);
-// upgrade("Grease's cups"											).boostsProduction(25);
-// upgrade("Sagalongs"												).boostsProduction(25);
-// upgrade("Win mints"												).boostsProduction(25);
-// upgrade("Caramoas"												).boostsProduction(25);
-// upgrade("Gingerbread trees"										).boostsProduction(25);
-// upgrade("Gingerbread men"										).boostsProduction(25);
-// upgrade("Rose macarons"											).boostsProduction(30);
-// upgrade("Lemon macarons"										).boostsProduction(30);
-// upgrade("Chocolate macarons"									).boostsProduction(30);
-// upgrade("Pistachio macarons"									).boostsProduction(30);
-// upgrade("Hazelnut macarons"										).boostsProduction(30);
-// upgrade("Violet macarons"										).boostsProduction(30);
-// upgrade("Caramel macarons"										).boostsProduction(30);
-// upgrade("Licorice macarons"										).boostsProduction(30);
+upgrade("Plain cookies"											).scalesProduction(1.01);
+upgrade("Sugar cookies"											).scalesProduction(1.01);
+upgrade("Oatmeal raisin cookies"								).scalesProduction(1.01);
+upgrade("Peanut butter cookies"									).scalesProduction(1.01);
+upgrade("Coconut cookies"										).scalesProduction(1.01);
+upgrade("White chocolate cookies"								).scalesProduction(1.02);
+upgrade("Macadamia nut cookies"									).scalesProduction(1.02);
+upgrade("Double-chip cookies"									).scalesProduction(1.02);
+upgrade("White chocolate macadamia nut cookies"					).scalesProduction(1.02);
+upgrade("All-chocolate cookies"									).scalesProduction(1.02);
+upgrade("Dark chocolate-coated cookies"							).scalesProduction(1.04);
+upgrade("White chocolate-coated cookies"						).scalesProduction(1.04);
+upgrade("Eclipse cookies"										).scalesProduction(1.02);
+upgrade("Zebra cookies"											).scalesProduction(1.02);
+// upgrade("Snickerdoodles"										).scalesProduction(15);
+// upgrade("Stroopwafels"											).scalesProduction(15);
+// upgrade("Empire biscuits"										).scalesProduction(15);
+// upgrade("Macaroons"												).scalesProduction(15);
+// upgrade("British tea biscuits"									).scalesProduction(15);
+// upgrade("Chocolate british tea biscuits"						).scalesProduction(15);
+// upgrade("Round british tea biscuits"							).scalesProduction(15);
+// upgrade("Round chocolate british tea biscuits"					).scalesProduction(15);
+// upgrade("Round british tea biscuits with heart motif"			).scalesProduction(15);
+// upgrade("Round chocolate british tea biscuits with heart motif"	).scalesProduction(15);
+// upgrade("Palets"												).scalesProduction(20);
+// upgrade("Sabl&eacute;s"											).scalesProduction(20);
+// upgrade("Madeleines"											).scalesProduction(20);
+// upgrade("Palmiers"												).scalesProduction(20);
+// upgrade("Shortfoils"											).scalesProduction(25);
+// upgrade("Fig gluttons"											).scalesProduction(25);
+// upgrade("Loreols"												).scalesProduction(25);
+// upgrade("Jaffa cakes"											).scalesProduction(25);
+// upgrade("Grease's cups"											).scalesProduction(25);
+// upgrade("Sagalongs"												).scalesProduction(25);
+// upgrade("Win mints"												).scalesProduction(25);
+// upgrade("Caramoas"												).scalesProduction(25);
+// upgrade("Gingerbread trees"										).scalesProduction(25);
+// upgrade("Gingerbread men"										).scalesProduction(25);
+// upgrade("Rose macarons"											).scalesProduction(30);
+// upgrade("Lemon macarons"										).scalesProduction(30);
+// upgrade("Chocolate macarons"									).scalesProduction(30);
+// upgrade("Pistachio macarons"									).scalesProduction(30);
+// upgrade("Hazelnut macarons"										).scalesProduction(30);
+// upgrade("Violet macarons"										).scalesProduction(30);
+// upgrade("Caramel macarons"										).scalesProduction(30);
+// upgrade("Licorice macarons"										).scalesProduction(30);
 
 // Golden cookie upgrade functions
 // upgrade("Lucky day"		).scalesGoldenCookieDelay(0.5);
@@ -1414,14 +1421,14 @@ upgrade("Chancemaker"			).builds(Constants.CHANCEMAKER_INDEX, 1);
 // Research centre related upgrades
 // upgrade("Bingo center/Research facility").scalesBuilding(Constants.GRANDMA_INDEX, 4).startsResearch();
 // upgrade("Persistent memory"				).boostsResearch();
-// upgrade("Specialized chocolate chips"	).boostsProduction(1).startsResearch();
-// upgrade("Designer cocoa beans"			).boostsProduction(2).startsResearch();
+// upgrade("Specialized chocolate chips"	).scalesProduction(1).startsResearch();
+// upgrade("Designer cocoa beans"			).scalesProduction(2).startsResearch();
 // upgrade("Ritual rolling pins"			).scalesBuilding(Constants.GRANDMA_INDEX, 2).startsResearch();
-// upgrade("Underworld ovens"				).boostsProduction(3).startsResearch();
+// upgrade("Underworld ovens"				).scalesProduction(3).startsResearch();
 // upgrade("One mind"						).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02).angersGrandmas().startsResearch();
-// upgrade("Exotic nuts"					).boostsProduction(4).startsResearch();
+// upgrade("Exotic nuts"					).scalesProduction(4).startsResearch();
 // upgrade("Communal brainsweep"			).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02).angersGrandmas().startsResearch();
-// upgrade("Arcane sugar"					).boostsProduction(5).startsResearch();
+// upgrade("Arcane sugar"					).scalesProduction(5).startsResearch();
 // upgrade("Elder Pact"					).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.PORTAL_INDEX, 0.05).angersGrandmas();
 
 // Elder pledge related upgrades
@@ -1431,9 +1438,9 @@ upgrade("Chancemaker"			).builds(Constants.CHANCEMAKER_INDEX, 1);
 // upgrade("Sacrificial rolling pins"	).doublesElderPledge();
 
 // Assorted cursor / clicking upgrades
-// upgrade("Reinforced index finger"		).boostsBuilding(Constants.CURSOR_INDEX, 0.1).boostsClicking(1);
-// upgrade("Carpal tunnel prevention cream").scalesBaseClicking(2).scalesBuilding(Constants.CURSOR_INDEX, 2);
-// upgrade("Ambidextrous"					).scalesBaseClicking(2).scalesBuilding(Constants.CURSOR_INDEX, 2);
+upgrade("Reinforced index finger"		).scalesBaseClicking(2).scalesBuilding(Constants.CURSOR_INDEX, 2);
+upgrade("Carpal tunnel prevention cream").scalesBaseClicking(2).scalesBuilding(Constants.CURSOR_INDEX, 2);
+upgrade("Ambidextrous"					).scalesBaseClicking(2).scalesBuilding(Constants.CURSOR_INDEX, 2);
 // upgrade("Thousand fingers"				).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 0.1);
 // upgrade("Million fingers"				).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 0.5);
 // upgrade("Billion fingers"				).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 2);
@@ -1443,13 +1450,13 @@ upgrade("Chancemaker"			).builds(Constants.CHANCEMAKER_INDEX, 1);
 // upgrade("Sextillion fingers"			).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 200);
 // upgrade("Septillion fingers"			).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 400);
 // upgrade("Octillion fingers"				).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 800);
-// upgrade("Plastic mouse"					).boostsClickCps(0.01);
-// upgrade("Iron mouse"					).boostsClickCps(0.01),
-// upgrade("Titanium mouse"				).boostsClickCps(0.01),
-// upgrade("Adamantium mouse"				).boostsClickCps(0.01),
-// upgrade("Unobtainium mouse"				).boostsClickCps(0.01),
-// upgrade("Eludium mouse"					).boostsClickCps(0.01),
-// upgrade("Wishalloy mouse"				).boostsClickCps(0.01),
+upgrade("Plastic mouse"					).boostsClickCps(0.01);
+upgrade("Iron mouse"					).boostsClickCps(0.01);
+upgrade("Titanium mouse"				).boostsClickCps(0.01);
+upgrade("Adamantium mouse"				).boostsClickCps(0.01);
+// upgrade("Unobtainium mouse"				).boostsClickCps(0.01);
+// upgrade("Eludium mouse"					).boostsClickCps(0.01);
+// upgrade("Wishalloy mouse"				).boostsClickCps(0.01);
 
 // Milk and heavenly power increases
 // upgrade("Kitten helpers"		).unlocksMilk(0.05);
@@ -1472,21 +1479,21 @@ upgrade("Chancemaker"			).builds(Constants.CHANCEMAKER_INDEX, 1);
 // upgrade("Bunny biscuit"		).changesSeason(Constants.EASTER);
 
 // Valentines day season upgrades
-// upgrade("Pure heart biscuits"	).boostsProduction(25).forSeason(Constants.VALENTINES_DAY);
-// upgrade("Ardent heart biscuits"	).boostsProduction(25).forSeason(Constants.VALENTINES_DAY);
-// upgrade("Sour heart biscuits"	).boostsProduction(25).forSeason(Constants.VALENTINES_DAY);
-// upgrade("Weeping heart biscuits").boostsProduction(25).forSeason(Constants.VALENTINES_DAY);
-// upgrade("Golden heart biscuits"	).boostsProduction(25).forSeason(Constants.VALENTINES_DAY);
-// upgrade("Eternal heart biscuits").boostsProduction(25).forSeason(Constants.VALENTINES_DAY);
+// upgrade("Pure heart biscuits"	).scalesProduction(25).forSeason(Constants.VALENTINES_DAY);
+// upgrade("Ardent heart biscuits"	).scalesProduction(25).forSeason(Constants.VALENTINES_DAY);
+// upgrade("Sour heart biscuits"	).scalesProduction(25).forSeason(Constants.VALENTINES_DAY);
+// upgrade("Weeping heart biscuits").scalesProduction(25).forSeason(Constants.VALENTINES_DAY);
+// upgrade("Golden heart biscuits"	).scalesProduction(25).forSeason(Constants.VALENTINES_DAY);
+// upgrade("Eternal heart biscuits").scalesProduction(25).forSeason(Constants.VALENTINES_DAY);
 
 // Halloween season upgrades
-// upgrade("Skull cookies"		).boostsProduction(20).forSeason(Constants.HALLOWEEN);
-// upgrade("Ghost cookies"		).boostsProduction(20).forSeason(Constants.HALLOWEEN);
-// upgrade("Bat cookies"		).boostsProduction(20).forSeason(Constants.HALLOWEEN);
-// upgrade("Slime cookies"		).boostsProduction(20).forSeason(Constants.HALLOWEEN);
-// upgrade("Pumpkin cookies"	).boostsProduction(20).forSeason(Constants.HALLOWEEN);
-// upgrade("Eyeball cookies"	).boostsProduction(20).forSeason(Constants.HALLOWEEN);
-// upgrade("Spider cookies"	).boostsProduction(20).forSeason(Constants.HALLOWEEN);
+// upgrade("Skull cookies"		).scalesProduction(20).forSeason(Constants.HALLOWEEN);
+// upgrade("Ghost cookies"		).scalesProduction(20).forSeason(Constants.HALLOWEEN);
+// upgrade("Bat cookies"		).scalesProduction(20).forSeason(Constants.HALLOWEEN);
+// upgrade("Slime cookies"		).scalesProduction(20).forSeason(Constants.HALLOWEEN);
+// upgrade("Pumpkin cookies"	).scalesProduction(20).forSeason(Constants.HALLOWEEN);
+// upgrade("Eyeball cookies"	).scalesProduction(20).forSeason(Constants.HALLOWEEN);
+// upgrade("Spider cookies"	).scalesProduction(20).forSeason(Constants.HALLOWEEN);
 
 // Christmas season
 // upgrade("A festive hat"				).unlocksSantaLevels().forSeason(Constants.CHRISTMAS);
@@ -1500,18 +1507,18 @@ upgrade("Chancemaker"			).builds(Constants.CHANCEMAKER_INDEX, 1);
 // upgrade("Santa's helpers"			).scalesTotalClicking(1.1).forSeason(Constants.CHRISTMAS);
 // upgrade("Santa's legacy"			).boostsSantaPower(10).forSeason(Constants.CHRISTMAS);
 // upgrade("Santa's milk and cookies"	).scalesMilk(1.05).forSeason(Constants.CHRISTMAS);
-// upgrade("A lump of coal"			).boostsProduction(1).forSeason(Constants.CHRISTMAS);
-// upgrade("An itchy sweater"			).boostsProduction(1).forSeason(Constants.CHRISTMAS);
-// upgrade("Improved jolliness"		).boostsProduction(15).forSeason(Constants.CHRISTMAS);
-// upgrade("Increased merriness"		).boostsProduction(15).forSeason(Constants.CHRISTMAS);
-// upgrade("Christmas tree biscuits"	).boostsProduction(20).forSeason(Constants.CHRISTMAS);
-// upgrade("Snowflake biscuits"		).boostsProduction(20).forSeason(Constants.CHRISTMAS);
-// upgrade("Snowman biscuits"			).boostsProduction(20).forSeason(Constants.CHRISTMAS);
-// upgrade("Holly biscuits"			).boostsProduction(20).forSeason(Constants.CHRISTMAS);
-// upgrade("Candy cane biscuits"		).boostsProduction(20).forSeason(Constants.CHRISTMAS);
-// upgrade("Bell biscuits"				).boostsProduction(20).forSeason(Constants.CHRISTMAS);
-// upgrade("Present biscuits"			).boostsProduction(20).forSeason(Constants.CHRISTMAS);
-// upgrade("Santa's dominion"			).boostsProduction(50).scalesBuildingCost(0.99).scalesUpgradeCost(0.98).forSeason(Constants.CHRISTMAS);
+// upgrade("A lump of coal"			).scalesProduction(1).forSeason(Constants.CHRISTMAS);
+// upgrade("An itchy sweater"			).scalesProduction(1).forSeason(Constants.CHRISTMAS);
+// upgrade("Improved jolliness"		).scalesProduction(15).forSeason(Constants.CHRISTMAS);
+// upgrade("Increased merriness"		).scalesProduction(15).forSeason(Constants.CHRISTMAS);
+// upgrade("Christmas tree biscuits"	).scalesProduction(20).forSeason(Constants.CHRISTMAS);
+// upgrade("Snowflake biscuits"		).scalesProduction(20).forSeason(Constants.CHRISTMAS);
+// upgrade("Snowman biscuits"			).scalesProduction(20).forSeason(Constants.CHRISTMAS);
+// upgrade("Holly biscuits"			).scalesProduction(20).forSeason(Constants.CHRISTMAS);
+// upgrade("Candy cane biscuits"		).scalesProduction(20).forSeason(Constants.CHRISTMAS);
+// upgrade("Bell biscuits"				).scalesProduction(20).forSeason(Constants.CHRISTMAS);
+// upgrade("Present biscuits"			).scalesProduction(20).forSeason(Constants.CHRISTMAS);
+// upgrade("Santa's dominion"			).scalesProduction(50).scalesBuildingCost(0.99).scalesUpgradeCost(0.98).forSeason(Constants.CHRISTMAS);
 // upgrade("Naughty list"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).forSeason(Constants.CHRISTMAS);
 
 // Easter season
