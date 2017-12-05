@@ -396,7 +396,7 @@ UltimateCookie.prototype.reset = function() {
 //
 function BuildingScaler() {
 	// One per building type
-	this.scales = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+	this.scales = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 }
 
 BuildingScaler.prototype.getScale = function(buildings) {
@@ -1287,8 +1287,6 @@ upgrade("Prism"					).builds(Constants.PRISM_INDEX, 1);
 upgrade("Chancemaker"			).builds(Constants.CHANCEMAKER_INDEX, 1);
 
 // Upgrades that increase basic building cps
-// upgrade("Flux capacitors"			).boostsBuilding(Constants.TIME_MACHINE_INDEX, 9876);
-// upgrade("Sugar bosons"				).boostsBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 99999);
 // upgrade("Gem polish"				).boostsBuilding(Constants.PRISM_INDEX, 1000000);
 
 // Upgrades that double the productivity of a type of building
@@ -1297,19 +1295,19 @@ upgrade("Steel-plated rolling pins"		).scalesBuilding(Constants.GRANDMA_INDEX, 2
 upgrade("Lubricated dentures"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 upgrade("Double-thick glasses"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 upgrade("Prune juice"					).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Aging agents"					).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 upgrade("Farmer grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.FARM_INDEX, Constants.GRANDMA_INDEX, 0.01);
 upgrade("Miner grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.MINE_INDEX, Constants.GRANDMA_INDEX, 0.01 / 2);
 upgrade("Worker grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.FACTORY_INDEX, Constants.GRANDMA_INDEX, 0.01 / 3);
 upgrade("Banker grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.BANK_INDEX, Constants.GRANDMA_INDEX, 0.01 / 4);
 upgrade("Priestess grandmas"			).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.TEMPLE_INDEX, Constants.GRANDMA_INDEX, 0.01 / 5);
 upgrade("Witch grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.WIZARD_TOWER_INDEX, Constants.GRANDMA_INDEX, 0.01 / 6);
-upgrade("Cosmic grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.SHIPMENT_INDEX, Constants.GRANDMA_INDEX, 0.01 / 7);;
-upgrade("Transmuted grandmas"			).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.ALCHEMY_LAB_INDEX, Constants.GRANDMA_INDEX, 0.01 / 8);;
-// upgrade("Altered grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Cosmic grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.SHIPMENT_INDEX, Constants.GRANDMA_INDEX, 0.01 / 7);
+upgrade("Transmuted grandmas"			).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.ALCHEMY_LAB_INDEX, Constants.GRANDMA_INDEX, 0.01 / 8);
+upgrade("Altered grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.PORTAL_INDEX, Constants.GRANDMA_INDEX, 0.01 / 9);
 // upgrade("Grandmas' grandmas"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 // upgrade("Antigrandmas"					).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 // upgrade("Rainbow grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
-// upgrade("Aging agents"					).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 upgrade("Cheap hoes"					).scalesBuilding(Constants.FARM_INDEX, 2);
 upgrade("Fertilizer"					).scalesBuilding(Constants.FARM_INDEX, 2);
 upgrade("Cookie trees"					).scalesBuilding(Constants.FARM_INDEX, 2);
@@ -1336,9 +1334,9 @@ upgrade("Golden idols"					).scalesBuilding(Constants.TEMPLE_INDEX, 2);
 upgrade("Sacrifices"					).scalesBuilding(Constants.TEMPLE_INDEX, 2);
 upgrade("Delicious blessing"			).scalesBuilding(Constants.TEMPLE_INDEX, 2);
 upgrade("Sun festival"					).scalesBuilding(Constants.TEMPLE_INDEX, 2);
-upgrade("Pointier hats"					).scalesBuilding(Constants.WIZARD_TOWER, 2);
-upgrade("Beardlier beards"				).scalesBuilding(Constants.WIZARD_TOWER, 2);
-upgrade("Ancient grimoires"				).scalesBuilding(Constants.WIZARD_TOWER, 2);
+upgrade("Pointier hats"					).scalesBuilding(Constants.WIZARD_TOWER_INDEX, 2);
+upgrade("Beardlier beards"				).scalesBuilding(Constants.WIZARD_TOWER_INDEX, 2);
+upgrade("Ancient grimoires"				).scalesBuilding(Constants.WIZARD_TOWER_INDEX, 2);
 upgrade("Vanilla nebulae"				).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
 upgrade("Wormholes"						).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
 upgrade("Frequent flyer"				).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
@@ -1347,7 +1345,7 @@ upgrade("Frequent flyer"				).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
 // upgrade("Generation ship"				).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
 upgrade("Antimony"						).scalesBuilding(Constants.ALCHEMY_LAB_INDEX, 2);
 upgrade("Essence of dough"				).scalesBuilding(Constants.ALCHEMY_LAB_INDEX, 2);
-// upgrade("True chocolate"				).scalesBuilding(Constants.ALCHEMY_LAB_INDEX, 2);
+upgrade("True chocolate"				).scalesBuilding(Constants.ALCHEMY_LAB_INDEX, 2);
 // upgrade("Ambrosia"						).scalesBuilding(Constants.ALCHEMY_LAB_INDEX, 2);
 // upgrade("Aqua crustulae"				).scalesBuilding(Constants.ALCHEMY_LAB_INDEX, 2);
 // upgrade("Origin crucible"				).scalesBuilding(Constants.ALCHEMY_LAB_INDEX, 2);
@@ -1357,11 +1355,13 @@ upgrade("Insane oatling workers"		).scalesBuilding(Constants.PORTAL_INDEX, 2);
 // upgrade("Sanity dance"					).scalesBuilding(Constants.PORTAL_INDEX, 2);
 // upgrade("Brane transplant"				).scalesBuilding(Constants.PORTAL_INDEX, 2);
 // upgrade("Deity-sized portals"			).scalesBuilding(Constants.PORTAL_INDEX, 2);
-// upgrade("Time paradox resolver"			).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
+upgrade("Flux capacitors"				).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
+upgrade("Time paradox resolver"			).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
 // upgrade("Quantum conundrum"				).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
 // upgrade("Causality enforcer"			).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
 // upgrade("Yestermorrow comparators"		).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
 // upgrade("Far future enactment"			).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
+upgrade("Sugar bosons"					).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 // upgrade("String theory"					).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 // upgrade("Large macaron collider"		).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 // upgrade("Big bang bake"					).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
@@ -1396,6 +1396,8 @@ upgrade("Madeleines"											).scalesProduction(1.02);
 upgrade("Palmiers"												).scalesProduction(1.02);
 upgrade("Palets"												).scalesProduction(1.02);
 upgrade("Sabl&eacute;s"											).scalesProduction(1.02);
+upgrade("Gingerbread men"										).scalesProduction(1.02);
+upgrade("Gingerbread trees"										).scalesProduction(1.02);
 // upgrade("British tea biscuits"									).scalesProduction(15);
 // upgrade("Chocolate british tea biscuits"						).scalesProduction(15);
 // upgrade("Round british tea biscuits"							).scalesProduction(15);
@@ -1410,8 +1412,6 @@ upgrade("Sabl&eacute;s"											).scalesProduction(1.02);
 // upgrade("Sagalongs"												).scalesProduction(25);
 // upgrade("Win mints"												).scalesProduction(25);
 // upgrade("Caramoas"												).scalesProduction(25);
-// upgrade("Gingerbread trees"										).scalesProduction(25);
-// upgrade("Gingerbread men"										).scalesProduction(25);
 // upgrade("Rose macarons"											).scalesProduction(30);
 // upgrade("Lemon macarons"										).scalesProduction(30);
 // upgrade("Chocolate macarons"									).scalesProduction(30);
