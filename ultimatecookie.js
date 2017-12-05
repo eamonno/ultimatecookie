@@ -443,7 +443,7 @@ EvaluatorBuilding.prototype.getIndividualCps = function() {
 	if (typeof this.baseCps === 'function') {
 		return this.baseCps();
 	}
-	return (this.baseCps + this.buildingBaseScaler.getScale(this.evaluator.buildings)) * this.multiplier + this.buildingScaler.getScale(this.evaluator.buildings);
+	return this.baseCps * this.multiplier * (1 + this.buildingBaseScaler.getScale(this.evaluator.buildings)) * (1 + this.buildingScaler.getScale(this.evaluator.buildings));
 }
 
 EvaluatorBuilding.prototype.getCost = function() {
@@ -818,9 +818,11 @@ Evaluator.prototype.syncToGame = function() {
 
 var upgradeFunctions = {}
 var upgradeIndex = {}
+var upgradeCount = 0;
 
 Upgrade = function(name) {
 	this.name = name;
+	upgradeCount += 1;
 }
 
 Upgrade.prototype.applyUpgrade = function(eval) {
@@ -1285,8 +1287,6 @@ upgrade("Prism"					).builds(Constants.PRISM_INDEX, 1);
 upgrade("Chancemaker"			).builds(Constants.CHANCEMAKER_INDEX, 1);
 
 // Upgrades that increase basic building cps
-// upgrade("Antimony"					).boostsBuilding(Constants.ALCHEMY_LAB_INDEX, 100);
-// upgrade("Ancient tablet"			).boostsBuilding(Constants.PORTAL_INDEX, 1666);
 // upgrade("Flux capacitors"			).boostsBuilding(Constants.TIME_MACHINE_INDEX, 9876);
 // upgrade("Sugar bosons"				).boostsBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 99999);
 // upgrade("Gem polish"				).boostsBuilding(Constants.PRISM_INDEX, 1000000);
@@ -1295,13 +1295,16 @@ upgrade("Chancemaker"			).builds(Constants.CHANCEMAKER_INDEX, 1);
 upgrade("Forwards from grandma"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 upgrade("Steel-plated rolling pins"		).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 upgrade("Lubricated dentures"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
-// upgrade("Farmer grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.FARM_INDEX, Constants.GRANDMA_INDEX, 0.01);
-// upgrade("Worker grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
-// upgrade("Miner grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
-// upgrade("Cosmic grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Double-thick glasses"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 upgrade("Prune juice"					).scalesBuilding(Constants.GRANDMA_INDEX, 2);
-// upgrade("Transmuted grandmas"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
-// upgrade("Double-thick glasses"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Farmer grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.FARM_INDEX, Constants.GRANDMA_INDEX, 0.01);
+upgrade("Miner grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.MINE_INDEX, Constants.GRANDMA_INDEX, 0.01 / 2);
+upgrade("Worker grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.FACTORY_INDEX, Constants.GRANDMA_INDEX, 0.01 / 3);
+upgrade("Banker grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.BANK_INDEX, Constants.GRANDMA_INDEX, 0.01 / 4);
+upgrade("Priestess grandmas"			).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.TEMPLE_INDEX, Constants.GRANDMA_INDEX, 0.01 / 5);
+upgrade("Witch grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.WIZARD_TOWER_INDEX, Constants.GRANDMA_INDEX, 0.01 / 6);
+upgrade("Cosmic grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.SHIPMENT_INDEX, Constants.GRANDMA_INDEX, 0.01 / 7);;
+upgrade("Transmuted grandmas"			).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.ALCHEMY_LAB_INDEX, Constants.GRANDMA_INDEX, 0.01 / 8);;
 // upgrade("Altered grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 // upgrade("Grandmas' grandmas"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 // upgrade("Antigrandmas"					).scalesBuilding(Constants.GRANDMA_INDEX, 2);
@@ -1322,29 +1325,34 @@ upgrade("Ultimadrill"					).scalesBuilding(Constants.MINE_INDEX, 2);
 upgrade("Sturdier conveyor belts"		).scalesBuilding(Constants.FACTORY_INDEX, 2);
 upgrade("Child labor"					).scalesBuilding(Constants.FACTORY_INDEX, 2);
 upgrade("Sweatshop"						).scalesBuilding(Constants.FACTORY_INDEX, 2);
-// upgrade("Radium reactors"				).scalesBuilding(Constants.FACTORY_INDEX, 2);
+upgrade("Radium reactors"				).scalesBuilding(Constants.FACTORY_INDEX, 2);
 // upgrade("Recombobulators"				).scalesBuilding(Constants.FACTORY_INDEX, 2);
 // upgrade("Deep-bake process"				).scalesBuilding(Constants.FACTORY_INDEX, 2);
 upgrade("Taller tellers"				).scalesBuilding(Constants.BANK_INDEX, 2);
 upgrade("Scissor-resistant credit cards").scalesBuilding(Constants.BANK_INDEX, 2);
 upgrade("Acid-proof vaults"				).scalesBuilding(Constants.BANK_INDEX, 2);
+upgrade("Chocolate coins"				).scalesBuilding(Constants.BANK_INDEX, 2);
 upgrade("Golden idols"					).scalesBuilding(Constants.TEMPLE_INDEX, 2);
 upgrade("Sacrifices"					).scalesBuilding(Constants.TEMPLE_INDEX, 2);
 upgrade("Delicious blessing"			).scalesBuilding(Constants.TEMPLE_INDEX, 2);
+upgrade("Sun festival"					).scalesBuilding(Constants.TEMPLE_INDEX, 2);
 upgrade("Pointier hats"					).scalesBuilding(Constants.WIZARD_TOWER, 2);
 upgrade("Beardlier beards"				).scalesBuilding(Constants.WIZARD_TOWER, 2);
+upgrade("Ancient grimoires"				).scalesBuilding(Constants.WIZARD_TOWER, 2);
 upgrade("Vanilla nebulae"				).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
-// upgrade("Wormholes"						).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
-// upgrade("Frequent flyer"				).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
+upgrade("Wormholes"						).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
+upgrade("Frequent flyer"				).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
 // upgrade("Warp drive"					).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
 // upgrade("Chocolate monoliths"			).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
 // upgrade("Generation ship"				).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
-// upgrade("Essence of dough"				).scalesBuilding(Constants.ALCHEMY_LAB_INDEX, 2);
+upgrade("Antimony"						).scalesBuilding(Constants.ALCHEMY_LAB_INDEX, 2);
+upgrade("Essence of dough"				).scalesBuilding(Constants.ALCHEMY_LAB_INDEX, 2);
 // upgrade("True chocolate"				).scalesBuilding(Constants.ALCHEMY_LAB_INDEX, 2);
 // upgrade("Ambrosia"						).scalesBuilding(Constants.ALCHEMY_LAB_INDEX, 2);
 // upgrade("Aqua crustulae"				).scalesBuilding(Constants.ALCHEMY_LAB_INDEX, 2);
 // upgrade("Origin crucible"				).scalesBuilding(Constants.ALCHEMY_LAB_INDEX, 2);
-// upgrade("Insane oatling workers"		).scalesBuilding(Constants.PORTAL_INDEX, 2);
+upgrade("Ancient tablet"				).scalesBuilding(Constants.PORTAL_INDEX, 2);
+upgrade("Insane oatling workers"		).scalesBuilding(Constants.PORTAL_INDEX, 2);
 // upgrade("Soul bond"						).scalesBuilding(Constants.PORTAL_INDEX, 2);
 // upgrade("Sanity dance"					).scalesBuilding(Constants.PORTAL_INDEX, 2);
 // upgrade("Brane transplant"				).scalesBuilding(Constants.PORTAL_INDEX, 2);
@@ -1380,20 +1388,20 @@ upgrade("Dark chocolate-coated cookies"							).scalesProduction(1.04);
 upgrade("White chocolate-coated cookies"						).scalesProduction(1.04);
 upgrade("Eclipse cookies"										).scalesProduction(1.02);
 upgrade("Zebra cookies"											).scalesProduction(1.02);
-// upgrade("Snickerdoodles"										).scalesProduction(15);
-// upgrade("Stroopwafels"											).scalesProduction(15);
-// upgrade("Empire biscuits"										).scalesProduction(15);
-// upgrade("Macaroons"												).scalesProduction(15);
+upgrade("Snickerdoodles"										).scalesProduction(1.02);
+upgrade("Stroopwafels"											).scalesProduction(1.02);
+upgrade("Macaroons"												).scalesProduction(1.02);
+upgrade("Empire biscuits"										).scalesProduction(1.02);
+upgrade("Madeleines"											).scalesProduction(1.02);
+upgrade("Palmiers"												).scalesProduction(1.02);
+upgrade("Palets"												).scalesProduction(1.02);
+upgrade("Sabl&eacute;s"											).scalesProduction(1.02);
 // upgrade("British tea biscuits"									).scalesProduction(15);
 // upgrade("Chocolate british tea biscuits"						).scalesProduction(15);
 // upgrade("Round british tea biscuits"							).scalesProduction(15);
 // upgrade("Round chocolate british tea biscuits"					).scalesProduction(15);
 // upgrade("Round british tea biscuits with heart motif"			).scalesProduction(15);
 // upgrade("Round chocolate british tea biscuits with heart motif"	).scalesProduction(15);
-// upgrade("Palets"												).scalesProduction(20);
-// upgrade("Sabl&eacute;s"											).scalesProduction(20);
-// upgrade("Madeleines"											).scalesProduction(20);
-// upgrade("Palmiers"												).scalesProduction(20);
 // upgrade("Shortfoils"											).scalesProduction(25);
 // upgrade("Fig gluttons"											).scalesProduction(25);
 // upgrade("Loreols"												).scalesProduction(25);
@@ -1454,8 +1462,8 @@ upgrade("Plastic mouse"					).boostsClickCps(0.01);
 upgrade("Iron mouse"					).boostsClickCps(0.01);
 upgrade("Titanium mouse"				).boostsClickCps(0.01);
 upgrade("Adamantium mouse"				).boostsClickCps(0.01);
-// upgrade("Unobtainium mouse"				).boostsClickCps(0.01);
-// upgrade("Eludium mouse"					).boostsClickCps(0.01);
+upgrade("Unobtainium mouse"				).boostsClickCps(0.01);
+upgrade("Eludium mouse"					).boostsClickCps(0.01);
 // upgrade("Wishalloy mouse"				).boostsClickCps(0.01);
 
 // Milk and heavenly power increases

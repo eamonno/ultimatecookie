@@ -1,8 +1,22 @@
 = Ultimate Cookie
 
-I got big into cookie clicker at one stage and decided to write my own auto-runner. It needs some
-updating to work with the latest version of cookie clicker. Use with the old version at:
+Ultimate Cookie is an automation suite for the Cookie Clicker game (http://orteil.dashnet.org/cookieclicker/). It is 
+a work in progress for now while I add support for the current game version as it was neglected as a project since the
+1.0466 version of the game.
 
-http://orteil.dashnet.org/cookieclicker/v10466/
+What is working now and what is yet to do:
+- Auto clicks, auto purchases, purchase prioritisation is working.
+- Building prices and scaling are all up to date.
+- 66 / 356 upgrades supported.
 
-Just copy paste everything into a javascript console to use it.
+Known issues:
+- Purchasing stalls during frenzies.
+- No support for prestige.
+- Not all upgrades are supported, there have been a huge number of changes to these over time so I am having to go back.
+  and update them one by one. There are also a lot of new upgrades (150ish) that I need to add support for.
+- Purchasing an unsupported upgrade disables purchases (this isn't a bug, its a config option, set Config.failHard to false to change it).
+- Seasons not supported.
+- The new frenzy types not supported (they dont do harm but they are not accounted for in calculations).
+
+Time to unlock prestige 1 on new save:
+- 04-Dec-2017 - 4 hours 17 mins.
