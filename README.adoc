@@ -7,7 +7,7 @@ a work in progress for now while I add support for the current game version as i
 What is working now and what is yet to do:
 - Auto clicks, auto purchases, purchase prioritisation is working.
 - Building prices and scaling are all up to date.
-- 93 / 356 upgrades supported.
+- 90 / 356 upgrades supported.
 
 Known issues:
 - Purchasing stalls during frenzies.
