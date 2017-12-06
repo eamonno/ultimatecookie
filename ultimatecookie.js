@@ -1304,9 +1304,6 @@ upgrade("Antimatter condenser"	).builds(Constants.ANTIMATTER_CONDENSER_INDEX, 1)
 upgrade("Prism"					).builds(Constants.PRISM_INDEX, 1);
 upgrade("Chancemaker"			).builds(Constants.CHANCEMAKER_INDEX, 1);
 
-// Upgrades that increase basic building cps
-// upgrade("Gem polish"				).boostsBuilding(Constants.PRISM_INDEX, 1000000);
-
 // Upgrades that double the productivity of a type of building
 upgrade("Forwards from grandma"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 upgrade("Steel-plated rolling pins"		).scalesBuilding(Constants.GRANDMA_INDEX, 2);
@@ -1324,7 +1321,7 @@ upgrade("Cosmic grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesP
 upgrade("Transmuted grandmas"			).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.ALCHEMY_LAB_INDEX, Constants.GRANDMA_INDEX, 0.01 / 8);
 upgrade("Altered grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.PORTAL_INDEX, Constants.GRANDMA_INDEX, 0.01 / 9);
 upgrade("Grandmas' grandmas"			).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.TIME_MACHINE_INDEX, Constants.GRANDMA_INDEX, 0.01 / 10);
-// upgrade("Antigrandmas"					).scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Antigrandmas"					).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.ANTIMATTER_CONDENSER_INDEX, Constants.GRANDMA_INDEX, 0.01 / 11);
 // upgrade("Rainbow grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 upgrade("Cheap hoes"					).scalesBuilding(Constants.FARM_INDEX, 2);
 upgrade("Fertilizer"					).scalesBuilding(Constants.FARM_INDEX, 2);
@@ -1376,7 +1373,7 @@ upgrade("Soul bond"						).scalesBuilding(Constants.PORTAL_INDEX, 2);
 // upgrade("Deity-sized portals"			).scalesBuilding(Constants.PORTAL_INDEX, 2);
 upgrade("Flux capacitors"				).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
 upgrade("Time paradox resolver"			).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
-// upgrade("Quantum conundrum"				).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
+upgrade("Quantum conundrum"				).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
 // upgrade("Causality enforcer"			).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
 // upgrade("Yestermorrow comparators"		).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
 // upgrade("Far future enactment"			).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2);
@@ -1386,6 +1383,7 @@ upgrade("String theory"					).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDE
 // upgrade("Big bang bake"					).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 // upgrade("Reverse cyclotrons"			).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 // upgrade("Nanocosmics"					).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
+upgrade("Gem polish"					).scalesBuilding(Constants.PRISM_INDEX, 2);
 // upgrade("9th color"						).scalesBuilding(Constants.PRISM_INDEX, 2);
 // upgrade("Chocolate light"				).scalesBuilding(Constants.PRISM_INDEX, 2);
 // upgrade("Grainbow"						).scalesBuilding(Constants.PRISM_INDEX, 2);
@@ -1420,6 +1418,8 @@ upgrade("Gingerbread trees"										).scalesProduction(1.02);
 upgrade("Pure black chocolate cookies"							).scalesProduction(1.04);
 upgrade("Pure white chocolate cookies"							).scalesProduction(1.04);
 upgrade("Ladyfingers"											).scalesProduction(1.03);
+upgrade("Tuiles"												).scalesProduction(1.03);
+upgrade("Chocolate-stuffed biscuits"							).scalesProduction(1.03);
 // upgrade("British tea biscuits"									).scalesProduction(15);
 // upgrade("Chocolate british tea biscuits"						).scalesProduction(15);
 // upgrade("Round british tea biscuits"							).scalesProduction(15);
