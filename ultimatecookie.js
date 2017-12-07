@@ -391,32 +391,60 @@ UltimateCookie.prototype.reset = function() {
 	Game.Reset(1, 0);
 }
 
+
 //
-// Class used for the X gains Y per building of type Z upgrades
+// Counts all the buildings with a scaling factor for each building type
 //
-function BuildingScaler() {
+function BuildingCounter() {
 	// One per building type
 	this.scales = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 }
 
-BuildingScaler.prototype.getScale = function(buildings) {
-	var scale = 0;
+BuildingCounter.prototype.getCount = function(buildings) {
+	var count = 0;
 	var i;
 	for (i = 0; i < this.scales.length; ++i) {
-		scale += this.scales[i] * buildings[i].quantity;
+		count += this.scales[i] * buildings[i].quantity;
 	}
-	return scale;
+	return count;
 }
 
-BuildingScaler.prototype.scaleAll = function(amount) {
+BuildingCounter.prototype.addCountOne = function(index, scale=1) {
+	this.scales[index] += scale;
+}
+
+BuildingCounter.prototype.addCountAll = function(scale=1) {
 	var i;
 	for (i = 0; i < this.scales.length; ++i) {
 		this.scales[i] += amount;
 	}
 }
 
-BuildingScaler.prototype.scaleOne = function(index, amount) {
-	this.scales[index] += amount;
+BuildingCounter.prototype.addCountMost = function(excludes, scale=1) {
+	var i;
+	for (i = 0; i < this.scales.length; ++i) {
+		if (excludes.indexOf(i) != -1)
+			this.scales[i] += amount;
+	}
+}
+
+BuildingCounter.prototype.subtractCountOne = function(index, scale=1) {
+	this.scales[index] -= scale;
+}
+
+BuildingCounter.prototype.subtractCountAll = function(scale=1) {
+	var i;
+	for (i = 0; i < this.scales.length; ++i) {
+		this.scales[i] -= amount;
+	}
+}
+
+BuildingCounter.prototype.subtractCountMost = function(excludes, scale=1) {
+	var i;
+	for (i = 0; i < this.scales.length; ++i) {
+		if (excludes.indexOf(i) != -1)
+			this.scales[i] -= amount;
+	}
 }
 
 
@@ -431,8 +459,8 @@ function EvaluatorBuilding(evaluator, name, baseCost, baseCps) {
 	this.baseCps = baseCps;
 	this.quantity = 0;
 	this.multiplier = 1;
-	this.buildingScaler = new BuildingScaler();
-	this.buildingBaseScaler = new BuildingScaler();
+	this.buildingCounter = new BuildingCounter();
+	this.buildingBaseScaler = new BuildingCounter();
 }
 
 EvaluatorBuilding.prototype.getCps = function() {
@@ -443,7 +471,7 @@ EvaluatorBuilding.prototype.getIndividualCps = function() {
 	if (typeof this.baseCps === 'function') {
 		return this.baseCps();
 	}
-	return this.baseCps * this.multiplier * (1 + this.buildingBaseScaler.getScale(this.evaluator.buildings)) * (1 + this.buildingScaler.getScale(this.evaluator.buildings));
+	return this.baseCps * this.multiplier * (1 + this.buildingBaseScaler.getCount(this.evaluator.buildings)) * (1 + this.buildingCounter.getCount(this.evaluator.buildings));
 }
 
 EvaluatorBuilding.prototype.getCost = function() {
@@ -493,7 +521,7 @@ Evaluator.prototype.matchesGame = function() {
 	}
 	// Check that all buildings are supported
 	if (this.buildings.length != Game.ObjectsById.length)
-		errMsg += "- Building Count " + this.buildings.length + " does not match " + Game.ObjectsById.length + "\n";
+		errMsg += "- Building getCount " + this.buildings.length + " does not match " + Game.ObjectsById.length + "\n";
 
 	// Check that all available upgrade costs match those of similar upgrade functions
 	for (i = 0; i < Game.UpgradesInStore.length; ++i) {
@@ -523,7 +551,7 @@ Evaluator.prototype.matchesGame = function() {
 // Get the current cookies per click amount
 Evaluator.prototype.getCpc = function() {
 	var cpc = this.cpcBase * this.cpcBaseMultiplier;			// Base cpc
-	cpc += this.buildings[Constants.CURSOR_INDEX].buildingScaler.getScale(this.buildings);	// Add building scaled cpc
+	cpc += this.buildings[Constants.CURSOR_INDEX].buildingCounter.getCount(this.buildings);	// Add building scaled cpc
 	// Add in percentage click scaling
 	cpc += this.getCps() * this.cpcCpsMultiplier;
 	// Multiply by total multiplier
@@ -704,24 +732,6 @@ Evaluator.prototype.getCookieBankSize = function(timeSinceLastGoldenCookie) {
 	return Math.max(bank, 0);
 }
 
-// BuildingCounter.prototype.exclude = function(buildings) {
-// 	var i;
-// 	for (i = 0; i < buildings.length; ++i) {
-// 		this.buildings; 
-// 	}
-// 	return this;
-// }
-
-// BuildingCounter.prototype.only = function(buildings) {
-// 	var i;
-// 	for (i = 0; i < buildings.length; ++i) {
-// 		this.buildings = buildings; 
-// 	}
-// 	return this;
-// }
-
-
-
 Evaluator.prototype.initialize = function(uc) {
 	// Buildings
 	this.buildings = [];
@@ -859,7 +869,7 @@ Upgrade.prototype.applyUpgrade = function(eval) {
 	if (this.goldenCookieDurationScale != undefined)
 		eval.frenzyDuration *= this.goldenCookieDurationScale;
 	if (this.givesPerBuildingBoostTo != undefined)
-		eval.buildings[this.givesPerBuildingBoostTo].buildingBaseScaler.scaleOne(this.givesPerBuildingBoostFrom, this.givesPerBuildingBoostAmount);
+		eval.buildings[this.givesPerBuildingBoostTo].buildingBaseScaler.addCountOne(this.givesPerBuildingBoostFrom, this.givesPerBuildingBoostAmount);
 	if (this.enablesElderCovenant != undefined)
 		eval.elderCovenant = true;
 	if (this.disablesElderCovenant != undefined)
@@ -868,10 +878,8 @@ Upgrade.prototype.applyUpgrade = function(eval) {
 		eval.cpcBase += this.clickBoost;
 	if (this.baseClickScale != undefined)
 		eval.cpcBaseMultiplier *= this.baseClickScale;
-	if (this.givesTotalBuildingBonusTo != undefined) {
-		eval.buildings[this.givesTotalBuildingBonusTo].buildingScaler.scaleAll(this.givesTotalBuildingBonusAmount);
-		eval.buildings[this.givesTotalBuildingBonusTo].buildingScaler.scaleOne(this.givesTotalBuildingBonusExcluding, -this.givesTotalBuildingBonusAmount);
-	}
+	if (this.givesTotalBuildingBonusTo != undefined)
+		eval.buildings[this.givesTotalBuildingBonusTo].buildingCounter.addCountMost(this.givesTotalBuildingBonusExcluding, this.givesTotalBuildingBonusAmount);
 	if (this.makesGrandmasAngry)
 		eval.grandmatriarchStatus++;
 	if (this.clickCpsBoost != undefined)
@@ -924,7 +932,7 @@ Upgrade.prototype.revokeUpgrade = function(eval) {
 	if (this.goldenCookieDurationScale != undefined)
 		eval.frenzyDuration /= this.goldenCookieDurationScale;
 	if (this.givesPerBuildingBoostTo != undefined)
-		eval.buildings[this.givesPerBuildingBoostTo].buildingBaseScaler.scaleOne(this.givesPerBuildingBoostFrom, -this.givesPerBuildingBoostAmount);
+		eval.buildings[this.givesPerBuildingBoostTo].buildingBaseScaler.subtractCountOne(this.givesPerBuildingBoostFrom, this.givesPerBuildingBoostAmount);
 	if (this.enablesElderCovenant != undefined)
 		eval.elderCovenant = false;
 	if (this.disablesElderCovenant != undefined)
@@ -933,10 +941,8 @@ Upgrade.prototype.revokeUpgrade = function(eval) {
 		eval.cpcBase -= this.clickBoost;
 	if (this.baseClickScale != undefined)
 		eval.cpcBaseMultiplier /= this.baseClickScale;
-	if (this.givesTotalBuildingBonusTo != undefined) {
-		eval.buildings[this.givesTotalBuildingBonusTo].buildingScaler.scaleAll(-this.givesTotalBuildingBonusAmount);
-		eval.buildings[this.givesTotalBuildingBonusTo].buildingScaler.scaleOne(this.givesTotalBuildingBonusExcluding, this.givesTotalBuildingBonusAmount);
-	}
+	if (this.givesTotalBuildingBonusTo != undefined)
+		eval.buildings[this.givesTotalBuildingBonusTo].buildingCounter.subtractCountMost(this.givesTotalBuildingBonusExcluding, this.givesTotalBuildingBonusAmount);
 	if (this.makesGrandmasAngry)
 		eval.grandmatriarchStatus--;
 	if (this.clickCpsBoost != undefined)
@@ -1311,17 +1317,17 @@ upgrade("Lubricated dentures"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 upgrade("Double-thick glasses"			).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 upgrade("Prune juice"					).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 upgrade("Aging agents"					).scalesBuilding(Constants.GRANDMA_INDEX, 2);
-upgrade("Farmer grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.FARM_INDEX, Constants.GRANDMA_INDEX, 0.01);
-upgrade("Miner grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.MINE_INDEX, Constants.GRANDMA_INDEX, 0.01 / 2);
-upgrade("Worker grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.FACTORY_INDEX, Constants.GRANDMA_INDEX, 0.01 / 3);
-upgrade("Banker grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.BANK_INDEX, Constants.GRANDMA_INDEX, 0.01 / 4);
-upgrade("Priestess grandmas"			).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.TEMPLE_INDEX, Constants.GRANDMA_INDEX, 0.01 / 5);
-upgrade("Witch grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.WIZARD_TOWER_INDEX, Constants.GRANDMA_INDEX, 0.01 / 6);
-upgrade("Cosmic grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.SHIPMENT_INDEX, Constants.GRANDMA_INDEX, 0.01 / 7);
-upgrade("Transmuted grandmas"			).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.ALCHEMY_LAB_INDEX, Constants.GRANDMA_INDEX, 0.01 / 8);
-upgrade("Altered grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.PORTAL_INDEX, Constants.GRANDMA_INDEX, 0.01 / 9);
-upgrade("Grandmas' grandmas"			).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.TIME_MACHINE_INDEX, Constants.GRANDMA_INDEX, 0.01 / 10);
-upgrade("Antigrandmas"					).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.ANTIMATTER_CONDENSER_INDEX, Constants.GRANDMA_INDEX, 0.01 / 11);
+upgrade("Farmer grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.FARM_INDEX, [Constants.GRANDMA_INDEX], 0.01);
+upgrade("Miner grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.MINE_INDEX, [Constants.GRANDMA_INDEX], 0.01 / 2);
+upgrade("Worker grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.FACTORY_INDEX, [Constants.GRANDMA_INDEX], 0.01 / 3);
+upgrade("Banker grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.BANK_INDEX, [Constants.GRANDMA_INDEX], 0.01 / 4);
+upgrade("Priestess grandmas"			).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.TEMPLE_INDEX, [Constants.GRANDMA_INDEX], 0.01 / 5);
+upgrade("Witch grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.WIZARD_TOWER_INDEX, [Constants.GRANDMA_INDEX], 0.01 / 6);
+upgrade("Cosmic grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.SHIPMENT_INDEX, [Constants.GRANDMA_INDEX], 0.01 / 7);
+upgrade("Transmuted grandmas"			).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.ALCHEMY_LAB_INDEX, [Constants.GRANDMA_INDEX], 0.01 / 8);
+upgrade("Altered grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.PORTAL_INDEX, [Constants.GRANDMA_INDEX], 0.01 / 9);
+upgrade("Grandmas' grandmas"			).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.TIME_MACHINE_INDEX, [Constants.GRANDMA_INDEX], 0.01 / 10);
+upgrade("Antigrandmas"					).scalesBuilding(Constants.GRANDMA_INDEX, 2).givesPerBuildingBoost(Constants.ANTIMATTER_CONDENSER_INDEX, [Constants.GRANDMA_INDEX], 0.01 / 11);
 // upgrade("Rainbow grandmas"				).scalesBuilding(Constants.GRANDMA_INDEX, 2);
 upgrade("Cheap hoes"					).scalesBuilding(Constants.FARM_INDEX, 2);
 upgrade("Fertilizer"					).scalesBuilding(Constants.FARM_INDEX, 2);
