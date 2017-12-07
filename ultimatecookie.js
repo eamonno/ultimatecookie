@@ -290,11 +290,11 @@ UltimateCookie.prototype.buy = function() {
 		if (Game.cookies - cookieBank > nextPurchase.getCost()) {
 			this.lastPurchaseTime = time;
 			if (!nextPurchase.setsSeason || !this.lockSeasons) {
-				if ((this.currentGame.currentTime - this.currentGame.sessionStartTime) < 30000) {
-					nextPurchase.purchaseMany();
-				} else {
+//				if ((this.currentGame.currentTime - this.currentGame.sessionStartTime) < 30000) {
+//					nextPurchase.purchaseMany();
+//				} else {
 					nextPurchase.purchase();
-				}
+//				}
 			}
 			if (nextPurchase.setsSeason) {
 				this.lockSeasonsTimer = time + Constants.SEASON_SWITCH_DELAY;
@@ -1384,7 +1384,7 @@ upgrade("String theory"					).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDE
 // upgrade("Reverse cyclotrons"			).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 // upgrade("Nanocosmics"					).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 upgrade("Gem polish"					).scalesBuilding(Constants.PRISM_INDEX, 2);
-// upgrade("9th color"						).scalesBuilding(Constants.PRISM_INDEX, 2);
+upgrade("9th color"						).scalesBuilding(Constants.PRISM_INDEX, 2);
 // upgrade("Chocolate light"				).scalesBuilding(Constants.PRISM_INDEX, 2);
 // upgrade("Grainbow"						).scalesBuilding(Constants.PRISM_INDEX, 2);
 // upgrade("Pure cosmic light"				).scalesBuilding(Constants.PRISM_INDEX, 2);
@@ -1487,6 +1487,7 @@ upgrade("Adamantium mouse"				).boostsClickCps(0.01);
 upgrade("Unobtainium mouse"				).boostsClickCps(0.01);
 upgrade("Eludium mouse"					).boostsClickCps(0.01);
 upgrade("Wishalloy mouse"				).boostsClickCps(0.01);
+upgrade("Fantasteel mouse"				).boostsClickCps(0.01);
 
 // Milk and heavenly power increases
 // upgrade("Kitten helpers"		).unlocksMilk(0.05);
