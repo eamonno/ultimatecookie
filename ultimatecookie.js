@@ -1,7 +1,7 @@
 var Constants = {};
 var Config = {};
 
-Config.failHard = true;
+Config.failHard = false;
 Config.autoClick = true;
 Config.autoClickGoldenCookies = true;
 Config.autoClickReindeer = true;
@@ -116,6 +116,8 @@ function UltimateCookie() {
 	this.currentGame = new Evaluator();
 	this.currentGame.syncToGame();
 	this.needsResync = false;
+	this.lastGameCps = Game.cookiesPs;
+	this.lastGameCpc = Game.mouseCps();
 	
 	// Start off the automatic things
 	this.autoClick(Constants.AUTO_CLICK_INTERVAL);
@@ -266,10 +268,16 @@ UltimateCookie.prototype.click = function() {
 }
 
 UltimateCookie.prototype.buy = function() {
+	// Resync if the game has changed
+	if (this.lastGameCps != Game.cookiesPs || this.lastGameCpc != Game.mouseCps())
+		this.needsResync = true;
+
 	// Get an Evaluator synced to the current game
 	if (this.needsResync && Game.recalculateGains == 0) {
 		this.currentGame.syncToGame();
 		this.needsResync = false;
+		this.lastGameCps = Game.cookiesPs;
+		this.lastGameCpc = Game.mouseCps();
 	} 
 
 	// If Game.recalculateGains is 1 that means we are out of sync until the next
@@ -323,6 +331,9 @@ UltimateCookie.prototype.buy = function() {
 			Config.autoBuy = false;
 			Config.autoClickGoldenCookies = false;
 			Config.autoClickReindeer = false;
+		} else {
+			// Resync, something has gone wrong
+			this.currentGame.syncToGame();
 		}
 	} 
 }
@@ -856,7 +867,7 @@ Evaluator.prototype.syncToGame = function() {
 	}
 	this.heavenlyChips = Game.heavenlyChips;
 	this.milkAmount = Game.AchievementsOwned / 25;
-	this.frenzy = Game.hasBuff('Frenzy');
+	this.frenzy = Game.hasBuff('Frenzy') ? 1 : 0;
 	this.frenzyMultiplier = Game.hasBuff('Frenzy') ? Constants.FRENZY_MULTIPLIER : 1;
 	this.clickFrenzy = Game.clickFrenzy;
 	this.santaLevel = Game.santaLevel;

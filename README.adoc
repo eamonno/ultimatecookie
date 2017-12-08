@@ -18,7 +18,7 @@ To load this mod in game bring up a javascript console and enter the command:
 Game.LoadMod('https://rawgithub.com/eamonno/ultimatecookie/master/ultimatecookie.js')
 
 Known issues:
-- Purchasing stalls during frenzies.
+- Purchasing stalls during most multiplier golden cookies (except for frenzy).
 - No support for prestige.
 - Not all upgrades are supported, there have been a huge number of changes to these over time so I am having to go back.
   and update them one by one. There are also a lot of new upgrades (150ish) that I need to add support for.
