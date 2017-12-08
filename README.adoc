@@ -4,10 +4,14 @@ Ultimate Cookie is an automation suite for the Cookie Clicker game (http://ortei
 a work in progress for now while I add support for the current game version as it was neglected as a project since the
 1.0466 version of the game.
 
+The goal was to play the game as fast and as efficiently as possible while only acting in a manner that a human sitting at
+the computer could theoretically do (assuming they could click the cookie hundreds of times a second). This primarily means
+no working around the games internal clicks per second limit of 250 (in practice you won't really get this anyway).
+
 What is working now and what is yet to do:
 - Auto clicks, auto purchases, purchase prioritisation is working.
 - Building prices and scaling are all up to date.
-- 105 / 356 upgrades supported.
+- 112 / 356 upgrades supported.
 
 Known issues:
 - Purchasing stalls during frenzies.

@@ -862,11 +862,14 @@ Evaluator.prototype.syncToGame = function() {
 
 var upgradeFunctions = {}
 var upgradeIndex = {}
-var upgradeCount = 0;
+var upgradesSupported = 0;
+var buildingsSupported = 0;
 
-Upgrade = function(name) {
+Upgrade = function(name, supported) {
 	this.name = name;
-	upgradeCount += 1;
+	if (supported) {
+		upgradesSupported += 1;
+	}
 }
 
 Upgrade.prototype.applyUpgrade = function(eval) {
@@ -1099,9 +1102,13 @@ Upgrade.prototype.getValue = function(eval) {
 	return val;
 }
 
+// Upgrade wrapper for purchasing buildings. By including buildings as a type of upgrade it makes the 
+// process of sorting the next purchase a lot simpler.
 Upgrade.prototype.builds = function(index, quantity) {
 	this.buildsIndex = index;
 	this.buildsQuantity = quantity;
+	upgradesSupported -= 1;
+	buildingsSupported += 1;
 	return this;
 }
 
@@ -1327,8 +1334,8 @@ Upgrade.prototype.scalesCookieBank = function(scale) {
 	return this;
 }
 
-upgrade = function(name) {
-	var u = new Upgrade(name);
+upgrade = function(name, supported=1) {
+	var u = new Upgrade(name, supported);
 	upgradeIndex[name] = u;
 	upgradeFunctions[u.getVariableName()] = u;
 	return u;
@@ -1625,7 +1632,7 @@ upgrade("Kitten overseers"		).unlocksMilk(0.175);
 
 getUpgradeFunction = function(name) {
 	if (upgradeIndex[name] == undefined) {
-		upgrade(name);
+		upgrade(name, 0);
 		console.log("Unknown upgrade: " + name);
 	}
 	return upgradeIndex[name];
@@ -1644,4 +1651,4 @@ function floatEqual(a, b) {
 // Create the upgradeInfo and Ultimate Cookie instances
 var ultimateCookie = new UltimateCookie();
 
-console.log("Ultimate Cookie started at " + new Date());
+console.log("Ultimate Cookie started at " + new Date() + " supporting " + upgradesSupported + " upgrades and " + buildingsSupported + " buildings.");
