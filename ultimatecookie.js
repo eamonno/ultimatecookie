@@ -1,7 +1,7 @@
 var Constants = {};
 var Config = {};
 
-Config.failHard = false;
+Config.failHard = true;
 Config.autoClick = true;
 Config.autoClickGoldenCookies = true;
 Config.autoClickReindeer = true;
@@ -115,7 +115,8 @@ function UltimateCookie() {
 	this.matchError = "";
 	this.currentGame = new Evaluator();
 	this.currentGame.syncToGame();
-
+	this.needsResync = false;
+	
 	// Start off the automatic things
 	this.autoClick(Constants.AUTO_CLICK_INTERVAL);
 	this.autoUpdate(Constants.AUTO_UPDATE_INTERVAL);
@@ -266,11 +267,16 @@ UltimateCookie.prototype.click = function() {
 
 UltimateCookie.prototype.buy = function() {
 	// Get an Evaluator synced to the current game
-	if (!this.currentGame.matchesGame()) {
+	if (this.needsResync && Game.recalculateGains == 0) {
 		this.currentGame.syncToGame();
+		this.needsResync = false;
 	} 
 
-	if (this.currentGame.matchesGame()) {
+	// If Game.recalculateGains is 1 that means we are out of sync until the next
+	// update which should be within a fraction of a second, just assume that currentGame
+	// is correct until then. This allows for fast purchasing without stalling until the
+	// game does a full update
+	if (Game.recalculateGains == 1 || this.currentGame.matchesGame()) {
 		var time = new Date().getTime();
 
 		// If all upgrades for current season are bought, unlock season switching
@@ -294,6 +300,7 @@ UltimateCookie.prototype.buy = function() {
 //					nextPurchase.purchaseMany();
 //				} else {
 					nextPurchase.purchase();
+					this.needsResync = true;
 //				}
 			}
 			if (nextPurchase.setsSeason) {
@@ -308,13 +315,15 @@ UltimateCookie.prototype.buy = function() {
 				}
 			}
 		}
-	} else if (Config.failHard) {
+	} else {
 		// Fail hard option, mostly used for debugging
-		console.log(this.matchError);
-		Config.autoClick = false;
-		Config.autoBuy = false;
-		Config.autoClickGoldenCookies = false;
-		Config.autoClickReindeer = false;
+		console.log(this.currentGame.matchError);
+		if (Config.failHard) {
+			Config.autoClick = false;
+			Config.autoBuy = false;
+			Config.autoClickGoldenCookies = false;
+			Config.autoClickReindeer = false;
+		}
 	} 
 }
 
@@ -847,8 +856,8 @@ Evaluator.prototype.syncToGame = function() {
 	}
 	this.heavenlyChips = Game.heavenlyChips;
 	this.milkAmount = Game.AchievementsOwned / 25;
-	this.frenzy = Game.hasBuff('frenzy');
-	this.frenzyMultiplier = Game.hasBuff('frenzy') ? 7 : 1;
+	this.frenzy = Game.hasBuff('Frenzy');
+	this.frenzyMultiplier = Game.hasBuff('Frenzy') ? Constants.FRENZY_MULTIPLIER : 1;
 	this.clickFrenzy = Game.clickFrenzy;
 	this.santaLevel = Game.santaLevel;
 	this.season = Game.season;
@@ -1651,7 +1660,7 @@ function floatEqual(a, b) {
 	return eps <= Math.abs(a) && eps <= Math.abs(b);
 }
 
+console.log("Ultimate Cookie starting at " + new Date() + " supporting " + upgradesSupported + " upgrades and " + buildingsSupported + " buildings.");
+
 // Create the upgradeInfo and Ultimate Cookie instances
 var ultimateCookie = new UltimateCookie();
-
-console.log("Ultimate Cookie started at " + new Date() + " supporting " + upgradesSupported + " upgrades and " + buildingsSupported + " buildings.");
