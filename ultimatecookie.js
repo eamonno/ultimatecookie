@@ -596,7 +596,7 @@ Evaluator.prototype.getCps = function() {
 
 	// Scale it for milk
 	for (i = 0; i < this.milkUnlocks.length; ++i) {
-		scale *= (1 + this.milkUnlocks[i] * this.milkAmount * this.milkMultiplier * 0.01);
+		scale *= (1 + this.milkUnlocks[i] * this.milkAmount * this.milkMultiplier);
 	}
 	// Scale it for global production
 	var sessionDays = Math.min(Math.floor((this.currentTime - this.sessionStartTime) / 1000 / 10) * 10 / 60 / 60 / 24, 100);
@@ -846,7 +846,7 @@ Evaluator.prototype.syncToGame = function() {
 		}
 	}
 	this.heavenlyChips = Game.heavenlyChips;
-	this.milkAmount = Game.AchievementsOwned * 4;
+	this.milkAmount = Game.AchievementsOwned / 25;
 	this.frenzy = Game.hasBuff('frenzy');
 	this.frenzyMultiplier = Game.hasBuff('frenzy') ? 7 : 1;
 	this.clickFrenzy = Game.clickFrenzy;
@@ -1403,7 +1403,7 @@ upgrade("Kitchen curses"				).scalesBuilding(Constants.WIZARD_TOWER_INDEX, 2);
 upgrade("Vanilla nebulae"				).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
 upgrade("Wormholes"						).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
 upgrade("Frequent flyer"				).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
-// upgrade("Warp drive"					).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
+upgrade("Warp drive"					).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
 // upgrade("Chocolate monoliths"			).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
 // upgrade("Generation ship"				).scalesBuilding(Constants.SHIPMENT_INDEX, 2);
 upgrade("Antimony"						).scalesBuilding(Constants.ALCHEMY_LAB_INDEX, 2);
@@ -1468,6 +1468,7 @@ upgrade("Pure white chocolate cookies"							).scalesProduction(1.04);
 upgrade("Ladyfingers"											).scalesProduction(1.03);
 upgrade("Tuiles"												).scalesProduction(1.03);
 upgrade("Chocolate-stuffed biscuits"							).scalesProduction(1.03);
+upgrade("Checker cookies"										).scalesProduction(1.03);
 // upgrade("British tea biscuits"									).scalesProduction(15);
 // upgrade("Chocolate british tea biscuits"						).scalesProduction(15);
 // upgrade("Round british tea biscuits"							).scalesProduction(15);
@@ -1538,10 +1539,10 @@ upgrade("Wishalloy mouse"				).boostsClickCps(0.01);
 upgrade("Fantasteel mouse"				).boostsClickCps(0.01);
 
 // Milk and heavenly power increases
-// upgrade("Kitten helpers"		).unlocksMilk(0.05);
-// upgrade("Kitten workers"		).unlocksMilk(0.1);
-// upgrade("Kitten engineers"		).unlocksMilk(0.2);
-// upgrade("Kitten overseers"		).unlocksMilk(0.2);
+upgrade("Kitten helpers"		).unlocksMilk(0.1);
+upgrade("Kitten workers"		).unlocksMilk(0.125);
+upgrade("Kitten engineers"		).unlocksMilk(0.15);
+upgrade("Kitten overseers"		).unlocksMilk(0.175);
 // upgrade("Kitten managers"		).unlocksMilk(0.2);
 // upgrade("Heavenly chip secret"	).boostsHeavenlyPower(0.05);
 // upgrade("Heavenly cookie stand"	).boostsHeavenlyPower(0.20);
