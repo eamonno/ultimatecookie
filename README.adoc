@@ -11,7 +11,11 @@ no working around the games internal clicks per second limit of 250 (in practice
 What is working now and what is yet to do:
 - Auto clicks, auto purchases, purchase prioritisation is working.
 - Building prices and scaling are all up to date.
-- 112 / 356 upgrades supported.
+- 117 / 356 upgrades supported.
+
+To load this mod in game bring up a javascript console and enter the command:
+
+Game.LoadMod('https://rawgithub.com/eamonno/ultimatecookie/master/ultimatecookie.js')
 
 Known issues:
 - Purchasing stalls during frenzies.
@@ -24,3 +28,4 @@ Known issues:
 
 Time to unlock prestige 1 on new save:
 - 04-Dec-2017 - 4 hours 17 mins.
+- 08-Dec-2017 - 2 hours 14 mins.
