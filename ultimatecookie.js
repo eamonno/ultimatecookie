@@ -885,6 +885,40 @@ var upgradeIndex = {}
 var upgradesSupported = 0;
 var buildingsSupported = 0;
 
+//
+// Upgrades. 
+//
+// The way these work is pretty simple, each Upgrade has a list of functions
+// that are used to apply or revoke the upgrade from a CCSimulation. Creating
+// an Upgrade involves declaring it by name then using the builder function to
+// chain all the different things it does one after the other. Each creation
+// adds an applyFunction and a revokeFunction. If both are called on a 
+// CCSimulation the resulting simulation should be unchanged overall. 
+//
+class TestUpgrade {
+	constructor(name) {
+		this.name = name;
+		this.appliers = [];
+		this.revokers = [];
+	}
+
+	applyTo(sim) {
+		for (var applier in this.appliers)
+			applier(sim);
+	}
+
+	revokeFrom(sim) {
+		for (var revoker in this.revokers)
+			revoker(sim);
+	}
+
+	builds(index, quantity) {
+		this.appliers.push(function(sim) { sim.buildings[index].quantity += quantity; });
+		this.revokers.push(function(sim) { sim.buildings[index].quantity -= quantity; });
+		return this;
+	}
+}
+
 Upgrade = function(name, supported) {
 	this.name = name;
 	if (supported) {
@@ -1417,7 +1451,7 @@ upgrade("Child labor"					).scalesBuilding(Constants.FACTORY_INDEX, 2);
 upgrade("Sweatshop"						).scalesBuilding(Constants.FACTORY_INDEX, 2);
 upgrade("Radium reactors"				).scalesBuilding(Constants.FACTORY_INDEX, 2);
 upgrade("Recombobulators"				).scalesBuilding(Constants.FACTORY_INDEX, 2);
-// upgrade("Deep-bake process"				).scalesBuilding(Constants.FACTORY_INDEX, 2);
+upgrade("Deep-bake process"				).scalesBuilding(Constants.FACTORY_INDEX, 2);
 upgrade("Taller tellers"				).scalesBuilding(Constants.BANK_INDEX, 2);
 upgrade("Scissor-resistant credit cards").scalesBuilding(Constants.BANK_INDEX, 2);
 upgrade("Acid-proof vaults"				).scalesBuilding(Constants.BANK_INDEX, 2);
@@ -1459,18 +1493,19 @@ upgrade("Causality enforcer"			).scalesBuilding(Constants.TIME_MACHINE_INDEX, 2)
 upgrade("Sugar bosons"					).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 upgrade("String theory"					).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 upgrade("Large macaron collider"		).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
-// upgrade("Big bang bake"					).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
+upgrade("Big bang bake"					).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 // upgrade("Reverse cyclotrons"			).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 // upgrade("Nanocosmics"					).scalesBuilding(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 upgrade("Gem polish"					).scalesBuilding(Constants.PRISM_INDEX, 2);
 upgrade("9th color"						).scalesBuilding(Constants.PRISM_INDEX, 2);
 upgrade("Chocolate light"				).scalesBuilding(Constants.PRISM_INDEX, 2);
-// upgrade("Grainbow"						).scalesBuilding(Constants.PRISM_INDEX, 2);
+upgrade("Grainbow"						).scalesBuilding(Constants.PRISM_INDEX, 2);
 // upgrade("Pure cosmic light"				).scalesBuilding(Constants.PRISM_INDEX, 2);
 // upgrade("Glow-in-the-dark"				).scalesBuilding(Constants.PRISM_INDEX, 2);
 upgrade("Your lucky cookie"				).scalesBuilding(Constants.CHANCEMAKER_INDEX, 2);
 upgrade('"All Bets Are Off" magic coin' ).scalesBuilding(Constants.CHANCEMAKER_INDEX, 2);
 upgrade("Winning lottery ticket" 		).scalesBuilding(Constants.CHANCEMAKER_INDEX, 2);
+upgrade("Four-leaf clover field" 		).scalesBuilding(Constants.CHANCEMAKER_INDEX, 2);
 
 // Upgrades that increase cookie production
 upgrade("Plain cookies"											).scalesProduction(1.01);
@@ -1540,14 +1575,14 @@ upgrade("Vanity cookies"										).scalesProduction(1.04);
 upgrade("Bingo center/Research facility").startsResearch().scalesBuilding(Constants.GRANDMA_INDEX, 4);
 upgrade("Specialized chocolate chips"	).startsResearch().scalesProduction(1.01);
 upgrade("Designer cocoa beans"			).startsResearch().scalesProduction(1.02);
+upgrade("Ritual rolling pins"			).startsResearch().scalesBuilding(Constants.GRANDMA_INDEX, 2);
+upgrade("Underworld ovens"				).startsResearch().scalesProduction(1.03);
+upgrade("One mind"						).startsResearch().givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02).angersGrandmas();
+upgrade("Exotic nuts"					).startsResearch().scalesProduction(1.04);
+upgrade("Communal brainsweep"			).startsResearch().givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02).angersGrandmas();
+upgrade("Arcane sugar"					).startsResearch().scalesProduction(1.05);
+upgrade("Elder Pact"					).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.PORTAL_INDEX, 0.05).angersGrandmas();
 // upgrade("Persistent memory"				).boostsResearch();
-// upgrade("Ritual rolling pins"			).scalesBuilding(Constants.GRANDMA_INDEX, 2).startsResearch();
-// upgrade("Underworld ovens"				).scalesProduction(3).startsResearch();
-// upgrade("One mind"						).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02).angersGrandmas().startsResearch();
-// upgrade("Exotic nuts"					).scalesProduction(4).startsResearch();
-// upgrade("Communal brainsweep"			).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02).angersGrandmas().startsResearch();
-// upgrade("Arcane sugar"					).scalesProduction(5).startsResearch();
-// upgrade("Elder Pact"					).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.PORTAL_INDEX, 0.05).angersGrandmas();
 
 // Elder pledge related upgrades
 // upgrade("Elder Covenant"			).startsElderCovenant();
@@ -1583,7 +1618,7 @@ upgrade("Kitten helpers"		).unlocksMilk(0.1);
 upgrade("Kitten workers"		).unlocksMilk(0.125);
 upgrade("Kitten engineers"		).unlocksMilk(0.15);
 upgrade("Kitten overseers"		).unlocksMilk(0.175);
-// upgrade("Kitten managers"		).unlocksMilk(0.2);
+upgrade("Kitten managers"		).unlocksMilk(0.2);
 // upgrade("Heavenly chip secret"	).boostsHeavenlyPower(0.05);
 // upgrade("Heavenly cookie stand"	).boostsHeavenlyPower(0.20);
 // upgrade("Heavenly bakery"		).boostsHeavenlyPower(0.25);
