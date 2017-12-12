@@ -23,6 +23,7 @@ Constants.AUTO_CLICK_INTERVAL = 1;
 Constants.AUTO_UPDATE_INTERVAL = 1000;
 Constants.CLICK_RATE_ESTIMATE_SAMPLES = 120;
 Constants.SEASON_SWITCH_DELAY = 11000;			// Season changes dont register in game immediately, this stops rapid switching
+Constants.CLOT_MULTIPLIER = 0.5;				// Clot halves CpS
 Constants.FRENZY_MULTIPLIER = 7;				// Frenzy multiplies CpS by 7
 Constants.CLICK_FRENZY_MULTIPLIER = 777;		// Click frenzies give 777x cookier per click
 Constants.REINDEER_CPS_MULTIPLIER = 60;			// Reindeer provide 60 seconds of CpS
@@ -376,7 +377,7 @@ UltimateCookie.prototype.update = function() {
 	}
 	if (Config.autoReset) {
 		// Wait until frenzy or clickFrenzy is over to reset
-		if (!Game.frenzy && !Game.clickFrenzy) {
+		if (!Game.frenzy && Game.clickFrenzy) {
 			var hcs = Game.HowMuchPrestige(Game.cookiesReset);
 			var resethcs = Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned);
 
@@ -494,7 +495,7 @@ function EvaluatorBuilding(evaluator, name, baseCost, baseCps) {
 	this.perBuildingFlatCpcBoostCounter = new BuildingCounter();
 	this.perBuildingFlatCpsBoostCounter = new BuildingCounter();
 	this.buildingScaler = new BuildingCounter();
-	this.buildingBaseScaler = new BuildingCounter();
+	this.scaleCounter = new BuildingCounter();
 }
 
 EvaluatorBuilding.prototype.getCps = function() {
@@ -505,7 +506,7 @@ EvaluatorBuilding.prototype.getIndividualCps = function() {
 	if (typeof this.baseCps === 'function') {
 		return this.baseCps();
 	}
-	return this.perBuildingFlatCpsBoostCounter.getCount(this.evaluator.buildings) + this.baseCps * this.multiplier * (1 + this.buildingBaseScaler.getCount(this.evaluator.buildings)) * (1 + this.buildingScaler.getCount(this.evaluator.buildings));
+	return this.perBuildingFlatCpsBoostCounter.getCount(this.evaluator.buildings) + this.baseCps * this.multiplier * (1 + this.scaleCounter.getCount(this.evaluator.buildings)) * (1 + this.buildingScaler.getCount(this.evaluator.buildings));
 }
 
 EvaluatorBuilding.prototype.getCost = function() {
@@ -614,9 +615,9 @@ Evaluator.prototype.getCps = function() {
 
 	// Scale it for production and heavely chip multipliers
 	var santaScale = (this.santaLevel + 1) * this.santaPower * 0.01;
-	var heavenlyScale = this.heavenlyChips * this.heavenlyPower * 0.02;
+	var prestigeScale = this.prestige * this.prestigeUnlocked * 0.01;
 
-	var scale = this.productionScale * (1 + santaScale + heavenlyScale);
+	var scale = this.productionScale * (1 + santaScale + prestigeScale);
 
 	// Scale it for milk
 	for (i = 0; i < this.milkUnlocks.length; ++i) {
@@ -627,11 +628,7 @@ Evaluator.prototype.getCps = function() {
 	var centuryMult = (1 - Math.pow(1 - sessionDays / 100, 3)) * this.centuryProductionMultiplier;
 
 	scale *= (1 + (this.globalProductionMultiplier + centuryMult) * 0.01);
-
-	// Scale it for frenzy
-	if (this.frenzy) {
-		scale *= this.frenzyMultiplier;
-	}
+	scale *= this.frenzyMultiplier;
 
 	if (this.elderCovenant) {
 		scale *= 0.95;
@@ -642,14 +639,11 @@ Evaluator.prototype.getCps = function() {
 
 // Calculate the CpS at a specific frenzy multiplier
 Evaluator.prototype.getFrenziedCps = function(multiplier) {
-	var frenzy = this.frenzy;
 	var clickFrenzy = this.clickFrenzy;
 	var frenzyMultiplier = this.frenzyMultiplier;
-	this.frenzy = 1;
 	this.frenzyMultiplier = multiplier;
 	this.clickFrenzy = 0;
 	var cps = this.getCps();
-	this.frenzy = frenzy;
 	this.clickFrenzy = clickFrenzy;
 	this.frenzyMultiplier = frenzyMultiplier;
 	return cps;
@@ -657,14 +651,11 @@ Evaluator.prototype.getFrenziedCps = function(multiplier) {
 
 // Calculate the CpC at a specific frenzy multiplier
 Evaluator.prototype.getFrenziedCpc = function(multiplier) {
-	var frenzy = this.frenzy;
 	var clickFrenzy = this.clickFrenzy;
 	var frenzyMultiplier = this.frenzyMultiplier;
-	this.frenzy = 1;
 	this.frenzyMultiplier = multiplier;
 	this.clickFrenzy = 0;
 	var cpc = this.getCpc();
-	this.frenzy = frenzy;
 	this.clickFrenzy = clickFrenzy;
 	this.frenzyMultiplier = frenzyMultiplier;
 	return cpc;
@@ -810,7 +801,10 @@ Evaluator.prototype.initialize = function(uc) {
 
 	// Heavenly chips
 	this.heavenlyChips = 0;
-	this.heavenlyPower = 0;
+
+	// Prestige
+	this.prestige = 0;
+	this.prestigeUnlocked = 0;
 
 	// Milk scaling
 	this.milkAmount = 0;
@@ -818,7 +812,6 @@ Evaluator.prototype.initialize = function(uc) {
 	this.milkUnlocks = [];
 
 	// Game status indicators
-	this.frenzy = 0
 	this.frenzyPower = 1;
 	this.clickFrenzy = 0;
 
@@ -870,15 +863,16 @@ Evaluator.prototype.syncToGame = function() {
 		}
 	}
 	this.heavenlyChips = Game.heavenlyChips;
+	this.prestige = Game.prestige;
 	this.milkAmount = Game.AchievementsOwned / 25;
-	this.frenzy = Game.hasBuff('Frenzy') ? 1 : 0;
 	this.frenzyMultiplier = 1;
-	if (Game.hasBuff('frenzy'))
-		this.frenzyMultiplier *= 7;
-	if (Game.hasBuff('clot'))
-		this.frenzyMultiplier *= 0.5;
-
-	this.clickFrenzy = Game.clickFrenzy;
+	if (Game.hasBuff('Frenzy'))
+		this.frenzyMultiplier *= Constants.FRENZY_MULTIPLIER;
+	if (Game.hasBuff('Clot'))
+		this.frenzyMultiplier *= Constants.CLOT_MULTIPLIER;
+	if (Game.hasBuff('Click frenzy'))
+		this.clickFrenzy = 1;
+	
 	this.santaLevel = Game.santaLevel;
 	this.season = Game.season;
 	this.sessionStartTime = Game.startDate;
@@ -976,6 +970,12 @@ class Upgrade {
 		return this;
 	}
 
+	boostsClickCps(amount) {
+		this.appliers.push(function(sim) { sim.cpcCpsMultiplier += amount; });
+		this.revokers.push(function(sim) { sim.cpcCpsMultiplier -= amount; });
+		return this;
+	}
+	
 	scalesBuildingCps(index, scale) {
 		this.appliers.push(function(sim) { sim.buildings[index].multiplier *= scale; });
 		this.revokers.push(function(sim) { sim.buildings[index].multiplier /= scale; });
@@ -983,9 +983,15 @@ class Upgrade {
 	}
 
 	givesPerBuildingBoost(receiver, source, amount) {
-		this.appliers.push(function(sim) { sim.buildings[receiver].buildingBaseScaler.addCountOne(source, amount); });
-		this.revokers.push(function(sim) { sim.buildings[receiver].buildingBaseScaler.subtractCountOne(source, amount); });
+		this.appliers.push(function(sim) { sim.buildings[receiver].scaleCounter.addCountOne(source, amount); });
+		this.revokers.push(function(sim) { sim.buildings[receiver].scaleCounter.subtractCountOne(source, amount); });
 		return this;
+	}
+
+	unlocksPrestige(amount) {
+		this.appliers.push(function(sim) { sim.prestigeUnlocked += amount; });
+		this.revokers.push(function(sim) { sim.prestigeUnlocked -= amount; });
+		return this;		
 	}
 }
 
@@ -1014,14 +1020,10 @@ Upgrade.prototype.applyUpgrade = function(eval) {
 		eval.buildings[this.givesTotalBuildingBonusTo].buildingScaler.addCountMost(this.givesTotalBuildingBonusExcluding, this.givesTotalBuildingBonusAmount);
 	if (this.makesGrandmasAngry)
 		eval.grandmatriarchStatus++;
-	if (this.clickCpsBoost != undefined)
-		eval.cpcCpsMultiplier += this.clickCpsBoost;
 	if (this.milkUnlock != undefined) {
 		eval.milkUnlocks.push(this.milkUnlock);
 		eval.milkUnlocks.sort();
 	}
-	if (this.heavenlyPowerBoost != undefined)
-		eval.heavenlyPower += this.heavenlyPowerBoost;
 	if (this.buildingCostScale != undefined)
 		eval.buildingCostScale *= this.buildingCostScale;
 	if (this.totalClickScale != undefined)
@@ -1073,12 +1075,8 @@ Upgrade.prototype.revokeUpgrade = function(eval) {
 		eval.buildings[this.givesTotalBuildingBonusTo].buildingScaler.subtractCountMost(this.givesTotalBuildingBonusExcluding, this.givesTotalBuildingBonusAmount);
 	if (this.makesGrandmasAngry)
 		eval.grandmatriarchStatus--;
-	if (this.clickCpsBoost != undefined)
-		eval.cpcCpsMultiplier -= this.clickCpsBoost;
 	if (this.milkUnlock != undefined)
 		eval.milkUnlocks.splice(eval.milkUnlocks.indexOf(this.milkUnlock), 1);
-	if (this.heavenlyPowerBoost != undefined)
-		eval.heavenlyPower -= this.heavenlyPowerBoost;
 	if (this.buildingCostScale != undefined)
 		eval.buildingCostScale /= this.buildingCostScale;
 	if (this.totalClickScale != undefined)
@@ -1273,18 +1271,8 @@ Upgrade.prototype.scalesBaseClicking = function(scale) {
 	return this;
 }
 
-Upgrade.prototype.boostsClickCps = function(amount) {
-	this.clickCpsBoost = amount;
-	return this;
-}
-
 Upgrade.prototype.unlocksMilk = function(amount) {
 	this.milkUnlock = amount;
-	return this;
-}
-
-Upgrade.prototype.boostsHeavenlyPower = function(amount) {
-	this.heavenlyPowerBoost = amount;
 	return this;
 }
 
@@ -1439,12 +1427,14 @@ upgrade("Cookie trees"					).scalesBuildingCps(Constants.FARM_INDEX, 2);
 upgrade("Genetically-modified cookies"	).scalesBuildingCps(Constants.FARM_INDEX, 2);
 upgrade("Gingerbread scarecrows"		).scalesBuildingCps(Constants.FARM_INDEX, 2);
 upgrade("Pulsar sprinklers"				).scalesBuildingCps(Constants.FARM_INDEX, 2);
+upgrade("Fudge fungus"					).scalesBuildingCps(Constants.FARM_INDEX, 2);
 upgrade("Sugar gas"						).scalesBuildingCps(Constants.MINE_INDEX, 2);
 upgrade("Megadrill"						).scalesBuildingCps(Constants.MINE_INDEX, 2);
 upgrade("Ultradrill"					).scalesBuildingCps(Constants.MINE_INDEX, 2);
 upgrade("Ultimadrill"					).scalesBuildingCps(Constants.MINE_INDEX, 2);
 upgrade("H-bomb mining"					).scalesBuildingCps(Constants.MINE_INDEX, 2);
 upgrade("Coreforge"						).scalesBuildingCps(Constants.MINE_INDEX, 2);
+upgrade("Planetsplitters"				).scalesBuildingCps(Constants.MINE_INDEX, 2);
 upgrade("Sturdier conveyor belts"		).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
 upgrade("Child labor"					).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
 upgrade("Sweatshop"						).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
@@ -1456,6 +1446,7 @@ upgrade("Scissor-resistant credit cards").scalesBuildingCps(Constants.BANK_INDEX
 upgrade("Acid-proof vaults"				).scalesBuildingCps(Constants.BANK_INDEX, 2);
 upgrade("Chocolate coins"				).scalesBuildingCps(Constants.BANK_INDEX, 2);
 upgrade("Exponential interest rates"	).scalesBuildingCps(Constants.BANK_INDEX, 2);
+upgrade("Financial zen"					).scalesBuildingCps(Constants.BANK_INDEX, 2);
 upgrade("Golden idols"					).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
 upgrade("Sacrifices"					).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
 upgrade("Delicious blessing"			).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
@@ -1470,7 +1461,7 @@ upgrade("Vanilla nebulae"				).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
 upgrade("Wormholes"						).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
 upgrade("Frequent flyer"				).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
 upgrade("Warp drive"					).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
-// upgrade("Chocolate monoliths"			).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
+upgrade("Chocolate monoliths"			).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
 // upgrade("Generation ship"				).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
 upgrade("Antimony"						).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
 upgrade("Essence of dough"				).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
@@ -1545,6 +1536,8 @@ upgrade("Cinnamon cookies"										).scalesProduction(1.04);
 upgrade("Vanity cookies"										).scalesProduction(1.04);
 upgrade("Cigars"												).scalesProduction(1.04);
 upgrade("Pinwheel cookies"										).scalesProduction(1.04);
+upgrade("Fudge squares"											).scalesProduction(1.04);
+upgrade("Shortbread biscuits"									).scalesProduction(1.04);
 // upgrade("British tea biscuits"									).scalesProduction(15);
 // upgrade("Chocolate british tea biscuits"						).scalesProduction(15);
 // upgrade("Round british tea biscuits"							).scalesProduction(15);
@@ -1602,7 +1595,7 @@ upgrade("Billion fingers"				).givesBuildingPerBuildingBaseCpsBoost(Constants.CU
 upgrade("Trillion fingers"				).givesBuildingPerBuildingBaseCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 50).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 50);
 upgrade("Quadrillion fingers"			).givesBuildingPerBuildingBaseCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 500).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 500);
 upgrade("Quintillion fingers"			).givesBuildingPerBuildingBaseCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 5000).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 5000);
-// upgrade("Sextillion fingers"			).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 200);
+upgrade("Sextillion fingers"			).givesBuildingPerBuildingBaseCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 50000).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 50000);
 // upgrade("Septillion fingers"			).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 400);
 // upgrade("Octillion fingers"				).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 800);
 upgrade("Plastic mouse"					).boostsClickCps(0.01);
@@ -1614,6 +1607,7 @@ upgrade("Eludium mouse"					).boostsClickCps(0.01);
 upgrade("Wishalloy mouse"				).boostsClickCps(0.01);
 upgrade("Fantasteel mouse"				).boostsClickCps(0.01);
 upgrade("Nevercrack mouse"				).boostsClickCps(0.01);
+upgrade("Armythril mouse"				).boostsClickCps(0.01);
 
 // Milk and heavenly power increases
 upgrade("Kitten helpers"		).unlocksMilk(0.1);
@@ -1621,11 +1615,11 @@ upgrade("Kitten workers"		).unlocksMilk(0.125);
 upgrade("Kitten engineers"		).unlocksMilk(0.15);
 upgrade("Kitten overseers"		).unlocksMilk(0.175);
 upgrade("Kitten managers"		).unlocksMilk(0.2);
-// upgrade("Heavenly chip secret"	).boostsHeavenlyPower(0.05);
-// upgrade("Heavenly cookie stand"	).boostsHeavenlyPower(0.20);
-// upgrade("Heavenly bakery"		).boostsHeavenlyPower(0.25);
-// upgrade("Heavenly confectionery").boostsHeavenlyPower(0.25);
-// upgrade("Heavenly key"			).boostsHeavenlyPower(0.25);
+upgrade("Heavenly chip secret"	).unlocksPrestige(0.05);
+upgrade("Heavenly cookie stand"	).unlocksPrestige(0.20);
+upgrade("Heavenly bakery"		).unlocksPrestige(0.25);
+upgrade("Heavenly confectionery").unlocksPrestige(0.25);
+upgrade("Heavenly key"			).unlocksPrestige(0.25);
 
 // Season switcher and season changers
 // upgrade("Season switcher"	).unlocksSeasonSwitching();
