@@ -11,7 +11,7 @@ no working around the games internal clicks per second limit of 250 (in practice
 What is working now and what is yet to do:
 - Auto clicks, auto purchases, purchase prioritisation is working.
 - Building prices and scaling are all up to date.
-- 174 / 356 upgrades supported.
+- 178 / 356 upgrades supported.
 
 To load this mod in game bring up a javascript console and enter the command:
 

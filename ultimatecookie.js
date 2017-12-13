@@ -509,7 +509,7 @@ EvaluatorBuilding.prototype.getIndividualCps = function() {
 	if (typeof this.baseCps === 'function') {
 		return this.baseCps();
 	}
-	return this.perBuildingFlatCpsBoostCounter.getCount(this.evaluator.buildings) + this.baseCps * this.multiplier * (1 + this.scaleCounter.getCount(this.evaluator.buildings)) * (1 + this.buildingScaler.getCount(this.evaluator.buildings));
+	return this.perBuildingFlatCpsBoostCounter.getCount(this.evaluator.buildings) + this.baseCps * (1 + this.scaleCounter.getCount(this.evaluator.buildings)) * (1 + this.buildingScaler.getCount(this.evaluator.buildings)) * this.multiplier;
 }
 
 EvaluatorBuilding.prototype.getCost = function() {
@@ -891,6 +891,41 @@ var upgradesSupported = 0;
 var upgradeBuildingsSupported = 0;
 
 //
+// Modifier.
+//
+// The modifier is a base class for anything that modifies a Simulation. Any
+// modifier can be applied to or revoked from a Simulation.
+//
+
+class Modifier {
+	constructor(name) {
+		this.name = name;
+		this.appliers = [];
+		this.revokers = [];
+	}
+
+	applyTo(sim) {
+		var i;
+		for (i = 0; i < this.appliers.length; ++i)
+			this.appliers[i](sim);
+	}
+
+	revokeFrom(sim) {
+		var i;
+		for (i = 0; i < this.revokers.length; ++i)
+			this.revokers[i](sim);
+	}
+
+	addApplier(func) {
+		this.appliers.push(func);
+	}
+
+	addRevoker(func) {
+		this.revokers.push(func);
+	}
+}
+
+//
 // Upgrades. 
 //
 // The way these work is pretty simple, each Upgrade has a list of functions
@@ -912,14 +947,12 @@ var upgradeBuildingsSupported = 0;
 // Scale - A scale is multiplied with another scaling factor to increase that
 //         scaling.
 // 
-class Upgrade {
+class Upgrade extends Modifier {
 	constructor(name, supported) {
-		this.name = name;
+		super(name);
 		if (supported) {
 			upgradesSupported += 1;
 		}
-		this.appliers = [];
-		this.revokers = [];
 	}
 
 	get variableName() {
@@ -939,170 +972,85 @@ class Upgrade {
 	}
 	
 	//
-	// Apply and revoke this upgrade from a simulation
-	//
-
-	applyTo(sim) {
-		var i;
-		for (i = 0; i < this.appliers.length; ++i)
-			this.appliers[i](sim);
-		// Temporary while upgrading upgrade code
-		this.applyUpgrade(sim);
-	}
-
-	revokeFrom(sim) {
-		var i;
-		for (i = 0; i < this.revokers.length; ++i)
-			this.revokers[i](sim);
-		// Temporary while upgrading upgrade code
-		this.revokeUpgrade(sim);
-	}
-
-	//
 	// Implementation of the various upgrades themselves
 	//
+
+	angersGrandmas() {
+		this.addApplier(function(sim) { sim.grandmatriarchStatus++; });
+		this.addRevoker(function(sim) { sim.grandmatriarchStatus--; });
+		return this;
+	}
 
 	builds(index, quantity) {
 		upgradesSupported -= 1;
 		upgradeBuildingsSupported += 1;
-		this.appliers.push(function(sim) { sim.buildings[index].quantity += quantity; });
-		this.revokers.push(function(sim) { sim.buildings[index].quantity -= quantity; });
+		this.addApplier(function(sim) { sim.buildings[index].quantity += quantity; });
+		this.addRevoker(function(sim) { sim.buildings[index].quantity -= quantity; });
 		// Need to override getGameObject for buildings
 		this.getGameObject = function() { return Game.ObjectsById[index]; }
 		return this;
 	}
 
 	boostsClickCps(amount) {
-		this.appliers.push(function(sim) { sim.cpcCpsMultiplier += amount; });
-		this.revokers.push(function(sim) { sim.cpcCpsMultiplier -= amount; });
+		this.addApplier(function(sim) { sim.cpcCpsMultiplier += amount; });
+		this.addRevoker(function(sim) { sim.cpcCpsMultiplier -= amount; });
 		return this;
 	}
 	
+	scalesBaseClicking(scale) {
+		this.addApplier(function(sim) { sim.cpcBaseMultiplier *= scale; });
+		this.addRevoker(function(sim) { sim.cpcBaseMultiplier /= scale; });
+		return this;
+	}
+
 	scalesBuildingCps(index, scale) {
-		this.appliers.push(function(sim) { sim.buildings[index].multiplier *= scale; });
-		this.revokers.push(function(sim) { sim.buildings[index].multiplier /= scale; });
+		this.addApplier(function(sim) { sim.buildings[index].multiplier *= scale; });
+		this.addRevoker(function(sim) { sim.buildings[index].multiplier /= scale; });
+		return this;
+	}
+
+	scalesProduction(scale)	{
+		this.addApplier(function(sim) { sim.productionScale *= scale; });
+		this.addRevoker(function(sim) { sim.productionScale /= scale; });
+		return this;
+	}
+
+	startsResearch() {
+		// Used in sorting to make sure that research boosters are bought before research starters.
+		this.isResearchStarter = true;
+		return this;
+	}
+	
+	givesBuildingPerBuildingFlatCpsBoost(receiver, excludes, amount) {
+		this.addApplier(function(sim) { sim.buildings[receiver].perBuildingFlatCpsBoostCounter.addCountMost(excludes, amount); });
+		this.addRevoker(function(sim) { sim.buildings[receiver].perBuildingFlatCpsBoostCounter.subtractCountMost(excludes, amount); });
 		return this;
 	}
 
 	givesPerBuildingBoost(receiver, source, amount) {
-		this.appliers.push(function(sim) { sim.buildings[receiver].scaleCounter.addCountOne(source, amount); });
-		this.revokers.push(function(sim) { sim.buildings[receiver].scaleCounter.subtractCountOne(source, amount); });
+		this.addApplier(function(sim) { sim.buildings[receiver].scaleCounter.addCountOne(source, amount); });
+		this.addRevoker(function(sim) { sim.buildings[receiver].scaleCounter.subtractCountOne(source, amount); });
 		return this;
 	}
 
-	unlocksPrestige(amount) {
-		this.appliers.push(function(sim) { sim.prestigeUnlocked += amount; });
-		this.revokers.push(function(sim) { sim.prestigeUnlocked -= amount; });
+	givesPerBuildingFlatCpcBoost(excludes, amount)
+	{
+		this.addApplier(function(sim) { sim.perBuildingFlatCpcBoostCounter.addCountMost(excludes, amount); });
+		this.addRevoker(function(sim) { sim.perBuildingFlatCpcBoostCounter.subtractCountMost(excludes, amount); });
+		return this;
+	}
+
+	unlocksMilk(amount) {
+		this.addApplier(function(sim) { sim.milkUnlocks.push(amount); sim.milkUnlocks.sort(); });
+		this.addRevoker(function(sim) { sim.milkUnlocks.splice(sim.milkUnlocks.indexOf(amount), 1); });
 		return this;		
 	}
-}
 
-Upgrade.prototype.applyUpgrade = function(eval) {
-	if (this.productionScale != undefined)
-		eval.productionScale *= this.productionScale;
-	if (this.globalProductionBoost != undefined)
-		eval.globalProductionMultiplier += this.globalProductionBoost;
-	if (this.goldenCookieDelayScale != undefined)
-		eval.goldenCookieTime *= this.goldenCookieDelayScale;
-	if (this.goldenCookieDurationScale != undefined)
-		eval.frenzyDuration *= this.goldenCookieDurationScale;
-	if (this.givesBuildingPerBuildingBaseCpsBoostTo != undefined)
-		eval.buildings[this.givesBuildingPerBuildingBaseCpsBoostTo].perBuildingFlatCpsBoostCounter.addCounter(this.givesBuildingPerBuildingBaseCpsBoostCounter);
-	if (this.givesPerBuildingFlatCpcBoostCounter != undefined)
-		eval.perBuildingFlatCpcBoostCounter.addCounter(this.givesPerBuildingFlatCpcBoostCounter);
-	if (this.enablesElderCovenant != undefined)
-		eval.elderCovenant = true;
-	if (this.disablesElderCovenant != undefined)
-		eval.elderCovenant = false;
-	if (this.clickBoost != undefined)
-		eval.cpcBase += this.clickBoost;
-	if (this.baseClickScale != undefined)
-		eval.cpcBaseMultiplier *= this.baseClickScale;
-	if (this.givesTotalBuildingBonusTo != undefined)
-		eval.buildings[this.givesTotalBuildingBonusTo].buildingScaler.addCountMost(this.givesTotalBuildingBonusExcluding, this.givesTotalBuildingBonusAmount);
-	if (this.makesGrandmasAngry)
-		eval.grandmatriarchStatus++;
-	if (this.milkUnlock != undefined) {
-		eval.milkUnlocks.push(this.milkUnlock);
-		eval.milkUnlocks.sort();
+	unlocksPrestige(amount) {
+		this.addApplier(function(sim) { sim.prestigeUnlocked += amount; });
+		this.addRevoker(function(sim) { sim.prestigeUnlocked -= amount; });
+		return this;		
 	}
-	if (this.buildingCostScale != undefined)
-		eval.buildingCostScale *= this.buildingCostScale;
-	if (this.totalClickScale != undefined)
-		eval.cpcMultiplier *= this.totalClickScale;
-	if (this.santaPowerBoost != undefined)
-		eval.santaPower += this.santaPowerBoost;
-	if (this.milkScale != undefined)
-		eval.milkMultiplier *= this.milkScale;
-	if (this.increasesSantaLevel != undefined)
-		++eval.santaLevel;
-	if (this.reindeerFrequencyScale != undefined)
-		eval.reindeerTime /= this.reindeerFrequencyScale;
-	if (this.reindeerScale != undefined)
-		eval.reindeerMultiplier *= this.reindeerScale;
-	if (this.setsSeason != undefined) {
-		this.restoreSeason = eval.season;
-		eval.season = this.setsSeason;
-	}
-	if (this.baseCpsBoost != undefined)
-		eval.baseCps += this.baseCpsBoost;
-	if (this.centuryProductionBoost != undefined)
-		eval.centuryProductionMultiplier += this.centuryProductionBoost;
-	if (this.wrinklerScale != undefined)
-		eval.wrinklerMultiplier *= this.wrinklerScale;
-}
-
-Upgrade.prototype.revokeUpgrade = function(eval) {
-	if (this.productionScale != undefined)
-		eval.productionScale /= this.productionScale;
-	if (this.globalProductionBoost != undefined)
-		eval.globalProductionMultiplier -= this.globalProductionBoost;
-	if (this.goldenCookieDelayScale != undefined)
-		eval.goldenCookieTime /= this.goldenCookieDelayScale;
-	if (this.goldenCookieDurationScale != undefined)
-		eval.frenzyDuration /= this.goldenCookieDurationScale;
-	if (this.givesBuildingPerBuildingBaseCpsBoostTo != undefined)
-		eval.buildings[this.givesBuildingPerBuildingBaseCpsBoostTo].perBuildingFlatCpsBoostCounter.subtractCounter(this.givesBuildingPerBuildingBaseCpsBoostCounter);
-	if (this.givesPerBuildingFlatCpcBoostCounter != undefined)
-		eval.perBuildingFlatCpcBoostCounter.subtractCounter(this.givesPerBuildingFlatCpcBoostCounter);
-	if (this.enablesElderCovenant != undefined)
-		eval.elderCovenant = false;
-	if (this.disablesElderCovenant != undefined)
-		eval.elderCovenant = true;
-	if (this.clickBoost != undefined)
-		eval.cpcBase -= this.clickBoost;
-	if (this.baseClickScale != undefined)
-		eval.cpcBaseMultiplier /= this.baseClickScale;
-	if (this.givesTotalBuildingBonusTo != undefined)
-		eval.buildings[this.givesTotalBuildingBonusTo].buildingScaler.subtractCountMost(this.givesTotalBuildingBonusExcluding, this.givesTotalBuildingBonusAmount);
-	if (this.makesGrandmasAngry)
-		eval.grandmatriarchStatus--;
-	if (this.milkUnlock != undefined)
-		eval.milkUnlocks.splice(eval.milkUnlocks.indexOf(this.milkUnlock), 1);
-	if (this.buildingCostScale != undefined)
-		eval.buildingCostScale /= this.buildingCostScale;
-	if (this.totalClickScale != undefined)
-		eval.cpcMultiplier /= this.totalClickScale;
-	if (this.santaPowerBoost != undefined)
-		eval.santaPower -= this.santaPowerBoost;
-	if (this.milkScale != undefined)
-		eval.milkMultiplier /= this.milkScale;
-	if (this.increasesSantaLevel != undefined)
-		--eval.santaLevel;
-	if (this.reindeerFrequencyScale != undefined)
-		eval.reindeerTime *= this.reindeerFrequencyScale;
-	if (this.reindeerScale != undefined)
-		eval.reindeerMultiplier /= this.reindeerScale;
-	if (this.restoreSeason != undefined) {
-		eval.season = this.restoreSeason;
-		this.restoreSeason = null;
-	}
-	if (this.baseCpsBoost != undefined)
-		eval.baseCps -= this.baseCpsBoost;
-	if (this.centuryProductionBoost != undefined)
-		eval.centuryProductionMultiplier -= this.centuryProductionBoost;
-	if (this.wrinklerScale != undefined)
-		eval.wrinklerMultiplier /= this.wrinklerScale;
 }
 
 Upgrade.prototype.getCost = function() {
@@ -1184,198 +1132,238 @@ Upgrade.prototype.getValue = function(eval) {
 	return val;
 }
 
-Upgrade.prototype.scalesProduction = function(amount) {
-	this.productionScale = amount;
-	return this;
-}
+// Upgrade.prototype.applyUpgrade = function(eval) {
+// 	if (this.globalProductionBoost != undefined)
+// 		eval.globalProductionMultiplier += this.globalProductionBoost;
+// 	if (this.goldenCookieDelayScale != undefined)
+// 		eval.goldenCookieTime *= this.goldenCookieDelayScale;
+// 	if (this.goldenCookieDurationScale != undefined)
+// 		eval.frenzyDuration *= this.goldenCookieDurationScale;
+// 	if (this.enablesElderCovenant != undefined)
+// 		eval.elderCovenant = true;
+// 	if (this.disablesElderCovenant != undefined)
+// 		eval.elderCovenant = false;
+// 	if (this.clickBoost != undefined)
+// 		eval.cpcBase += this.clickBoost;
+// 	if (this.givesTotalBuildingBonusTo != undefined)
+// 		eval.buildings[this.givesTotalBuildingBonusTo].buildingScaler.addCountMost(this.givesTotalBuildingBonusExcluding, this.givesTotalBuildingBonusAmount);
+// 	if (this.buildingCostScale != undefined)
+// 		eval.buildingCostScale *= this.buildingCostScale;
+// 	if (this.totalClickScale != undefined)
+// 		eval.cpcMultiplier *= this.totalClickScale;
+// 	if (this.santaPowerBoost != undefined)
+// 		eval.santaPower += this.santaPowerBoost;
+// 	if (this.milkScale != undefined)
+// 		eval.milkMultiplier *= this.milkScale;
+// 	if (this.increasesSantaLevel != undefined)
+// 		++eval.santaLevel;
+// 	if (this.reindeerFrequencyScale != undefined)
+// 		eval.reindeerTime /= this.reindeerFrequencyScale;
+// 	if (this.reindeerScale != undefined)
+// 		eval.reindeerMultiplier *= this.reindeerScale;
+// 	if (this.setsSeason != undefined) {
+// 		this.restoreSeason = eval.season;
+// 		eval.season = this.setsSeason;
+// 	}
+// 	if (this.baseCpsBoost != undefined)
+// 		eval.baseCps += this.baseCpsBoost;
+// 	if (this.centuryProductionBoost != undefined)
+// 		eval.centuryProductionMultiplier += this.centuryProductionBoost;
+// 	if (this.wrinklerScale != undefined)
+// 		eval.wrinklerMultiplier *= this.wrinklerScale;
+// }
 
-Upgrade.prototype.boostsGlobalProduction = function(amount) {
-	this.globalProductionBoost = amount;
-	return this;
-}
+// Upgrade.prototype.revokeUpgrade = function(eval) {
+// 	if (this.globalProductionBoost != undefined)
+// 		eval.globalProductionMultiplier -= this.globalProductionBoost;
+// 	if (this.goldenCookieDelayScale != undefined)
+// 		eval.goldenCookieTime /= this.goldenCookieDelayScale;
+// 	if (this.goldenCookieDurationScale != undefined)
+// 		eval.frenzyDuration /= this.goldenCookieDurationScale;
+// 	if (this.enablesElderCovenant != undefined)
+// 		eval.elderCovenant = false;
+// 	if (this.disablesElderCovenant != undefined)
+// 		eval.elderCovenant = true;
+// 	if (this.clickBoost != undefined)
+// 		eval.cpcBase -= this.clickBoost;
+// 	if (this.givesTotalBuildingBonusTo != undefined)
+// 		eval.buildings[this.givesTotalBuildingBonusTo].buildingScaler.subtractCountMost(this.givesTotalBuildingBonusExcluding, this.givesTotalBuildingBonusAmount);
+// 	if (this.buildingCostScale != undefined)
+// 		eval.buildingCostScale /= this.buildingCostScale;
+// 	if (this.totalClickScale != undefined)
+// 		eval.cpcMultiplier /= this.totalClickScale;
+// 	if (this.santaPowerBoost != undefined)
+// 		eval.santaPower -= this.santaPowerBoost;
+// 	if (this.milkScale != undefined)
+// 		eval.milkMultiplier /= this.milkScale;
+// 	if (this.increasesSantaLevel != undefined)
+// 		--eval.santaLevel;
+// 	if (this.reindeerFrequencyScale != undefined)
+// 		eval.reindeerTime *= this.reindeerFrequencyScale;
+// 	if (this.reindeerScale != undefined)
+// 		eval.reindeerMultiplier /= this.reindeerScale;
+// 	if (this.restoreSeason != undefined) {
+// 		eval.season = this.restoreSeason;
+// 		this.restoreSeason = null;
+// 	}
+// 	if (this.baseCpsBoost != undefined)
+// 		eval.baseCps -= this.baseCpsBoost;
+// 	if (this.centuryProductionBoost != undefined)
+// 		eval.centuryProductionMultiplier -= this.centuryProductionBoost;
+// 	if (this.wrinklerScale != undefined)
+// 		eval.wrinklerMultiplier /= this.wrinklerScale;
+// }
 
-Upgrade.prototype.scalesGoldenCookieDelay = function(scale) {
-	this.goldenCookieDelayScale = scale;
-	return this;
-}
+// Upgrade.prototype.boostsGlobalProduction = function(amount) {
+// 	this.globalProductionBoost = amount;
+// 	return this;
+// }
 
-Upgrade.prototype.scalesGoldenCookieDuration = function(scale) {
-	this.goldenCookieDurationScale = scale;
-	return this;
-}
+// Upgrade.prototype.scalesGoldenCookieDelay = function(scale) {
+// 	this.goldenCookieDelayScale = scale;
+// 	return this;
+// }
 
-Upgrade.prototype.boostsResearch = function() {
-	this.isResearchBooster = true;
-	return this;
-}
+// Upgrade.prototype.scalesGoldenCookieDuration = function(scale) {
+// 	this.goldenCookieDurationScale = scale;
+// 	return this;
+// }
 
-Upgrade.prototype.startsResearch = function() {
-	this.isResearchStarter = true;
-	return this;
-}
+// Upgrade.prototype.boostsResearch = function() {
+// 	this.isResearchBooster = true;
+// 	return this;
+// }
 
-Upgrade.prototype.startsElderCovenant = function() {
-	this.enablesElderCovenant = true;
-	return this;
-}
+// Upgrade.prototype.startsElderCovenant = function() {
+// 	this.enablesElderCovenant = true;
+// 	return this;
+// }
 
-Upgrade.prototype.endsElderCovenant = function() {
-	this.disablesElderCovenant = true;
-	return this;
-}
+// Upgrade.prototype.endsElderCovenant = function() {
+// 	this.disablesElderCovenant = true;
+// 	return this;
+// }
 
-Upgrade.prototype.startsElderPledge = function() {
-	this.beginsElderPledge = true;
-	return this;
-}
+// Upgrade.prototype.startsElderPledge = function() {
+// 	this.beginsElderPledge = true;
+// 	return this;
+// }
 
-Upgrade.prototype.doublesElderPledge = function() {
-	this.doublesElderPledgeDuration = true;
-	return this;
-}
+// Upgrade.prototype.doublesElderPledge = function() {
+// 	this.doublesElderPledgeDuration = true;
+// 	return this;
+// }
 
-// Adds a flat amount to the base CpS of a building based on count of buildings
-// This amount is added before any other scaling factors are applied
-Upgrade.prototype.givesBuildingPerBuildingBaseCpsBoost = function(receiver, excludes, amount)
-{
-	this.givesBuildingPerBuildingBaseCpsBoostTo = receiver;
-	this.givesBuildingPerBuildingBaseCpsBoostCounter = new BuildingCounter().addCountMost(excludes, amount);
-	return this;
-}
+// Upgrade.prototype.givesTotalBuildingBonus = function(receiver, exclude, amount) {
+// 	this.givesTotalBuildingBonusTo = receiver;
+// 	this.givesTotalBuildingBonusExcluding = exclude;
+// 	this.givesTotalBuildingBonusAmount = amount;
+// 	return this;
+// }
 
-// Add a flat amount to each click. This amount doesn't scale with any other multipliers and is added
-// directly to the CpC amount after all other scaling is applied.
-Upgrade.prototype.givesPerBuildingFlatCpcBoost = function(excludes, amount)
-{
-	this.givesPerBuildingFlatCpcBoostCounter = new BuildingCounter().addCountMost(excludes, amount);
-	return this;
-}
+// Upgrade.prototype.boostsClicking = function(amount) {
+// 	this.clickBoost = amount;
+// 	return this;
+// }
 
-Upgrade.prototype.givesTotalBuildingBonus = function(receiver, exclude, amount) {
-	this.givesTotalBuildingBonusTo = receiver;
-	this.givesTotalBuildingBonusExcluding = exclude;
-	this.givesTotalBuildingBonusAmount = amount;
-	return this;
-}
+// Upgrade.prototype.unlocksSantaLevels = function() {
+// 	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.01;
+// 	return this;
+// }
 
-Upgrade.prototype.boostsClicking = function(amount) {
-	this.clickBoost = amount;
-	return this;
-}
+// Upgrade.prototype.scalesBuildingCpsCost = function(scale) {
+// 	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + (1 - scale);
+// 	this.buildingCostScale = scale;
+// 	return this;
+// }
 
-Upgrade.prototype.angersGrandmas = function() {
-	this.makesGrandmasAngry = true;
-	return this;
-}
+// Upgrade.prototype.scalesUpgradeCost = function(scale) {
+// 	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.01 * (1 - scale);
+// 	return this;
+// }
 
-Upgrade.prototype.scalesBaseClicking = function(scale) {
-	this.baseClickScale = scale;
-	return this;
-}
+// Upgrade.prototype.increasesRandomDropChance = function(amount) {
+// 	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.0001 * amount;
+// 	return this;
+// }
 
-Upgrade.prototype.unlocksMilk = function(amount) {
-	this.milkUnlock = amount;
-	return this;
-}
+// Upgrade.prototype.scalesTotalClicking = function(scale) {
+// 	this.totalClickScale = scale;
+// 	return this;
+// }
 
-Upgrade.prototype.unlocksSantaLevels = function() {
-	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.01;
-	return this;
-}
+// Upgrade.prototype.boostsSantaPower = function(amount) {
+// 	this.santaPowerBoost = amount;
+// 	return this;
+// }
 
-Upgrade.prototype.scalesBuildingCpsCost = function(scale) {
-	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + (1 - scale);
-	this.buildingCostScale = scale;
-	return this;
-}
+// Upgrade.prototype.increasesSantasLevel = function() {
+// 	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.005;
+// 	this.increasesSantaLevel = true;
+// 	return this;
+// }
 
-Upgrade.prototype.scalesUpgradeCost = function(scale) {
-	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.01 * (1 - scale);
-	return this;
-}
+// Upgrade.prototype.scalesMilk = function(scale) {
+// 	this.milkScale = scale;
+// 	return this;
+// }
 
-Upgrade.prototype.increasesRandomDropChance = function(amount) {
-	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.0001 * amount;
-	return this;
-}
+// Upgrade.prototype.slowsReindeer = function(scale) {
+// 	// Set a tiny percentage CPS value just to buy it
+// 	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.0001;
+// 	return this;
+// }
 
-Upgrade.prototype.scalesTotalClicking = function(scale) {
-	this.totalClickScale = scale;
-	return this;
-}
+// Upgrade.prototype.scalesReindeerFrequency = function(scale) {
+// 	this.reindeerFrequencyScale = scale;
+// 	return this;
+// }
 
-Upgrade.prototype.boostsSantaPower = function(amount) {
-	this.santaPowerBoost = amount;
-	return this;
-}
+// Upgrade.prototype.scalesReindeer = function(scale) {
+// 	this.reindeerScale = scale;
+// 	return this;
+// }
 
-Upgrade.prototype.increasesSantasLevel = function() {
-	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.005;
-	this.increasesSantaLevel = true;
-	return this;
-}
+// Upgrade.prototype.unlocksSeasonSwitching = function() {
+// 	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.05;
+// 	this.unlocksSeasons = true;
+// 	return this;
+// }
 
-Upgrade.prototype.scalesMilk = function(scale) {
-	this.milkScale = scale;
-	return this;
-}
+// Upgrade.prototype.changesSeason = function(season) {
+// 	this.setsSeason = season;
+// 	return this;
+// }
 
-Upgrade.prototype.slowsReindeer = function(scale) {
-	// Set a tiny percentage CPS value just to buy it
-	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.0001;
-	return this;
-}
+// Upgrade.prototype.forSeason = function(season) {
+// 	this.season = season;
+// 	return this;
+// }
 
-Upgrade.prototype.scalesReindeerFrequency = function(scale) {
-	this.reindeerFrequencyScale = scale;
-	return this;
-}
+// Upgrade.prototype.boostsBaseCps = function(amount) {
+// 	this.baseCpsBoost = amount;
+// 	return this;
+// }
 
-Upgrade.prototype.scalesReindeer = function(scale) {
-	this.reindeerScale = scale;
-	return this;
-}
+// Upgrade.prototype.boostsCenturyProduction = function(amount) {
+// 	this.centuryProductionBoost = amount;
+// 	return this;
+// }
 
-Upgrade.prototype.unlocksSeasonSwitching = function() {
-	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.05;
-	this.unlocksSeasons = true;
-	return this;
-}
+// Upgrade.prototype.scalesWrinklers = function(scale) {
+// 	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.05;
+// 	this.wrinklerScale = scale;
+// 	return this;
+// }
 
-Upgrade.prototype.changesSeason = function(season) {
-	this.setsSeason = season;
-	return this;
-}
+// Upgrade.prototype.increasesEggDropChance = function(amount) {
+// 	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.0001 * amount;
+// 	return this;
+// }
 
-Upgrade.prototype.forSeason = function(season) {
-	this.season = season;
-	return this;
-}
-
-Upgrade.prototype.boostsBaseCps = function(amount) {
-	this.baseCpsBoost = amount;
-	return this;
-}
-
-Upgrade.prototype.boostsCenturyProduction = function(amount) {
-	this.centuryProductionBoost = amount;
-	return this;
-}
-
-Upgrade.prototype.scalesWrinklers = function(scale) {
-	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.05;
-	this.wrinklerScale = scale;
-	return this;
-}
-
-Upgrade.prototype.increasesEggDropChance = function(amount) {
-	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.0001 * amount;
-	return this;
-}
-
-Upgrade.prototype.scalesCookieBank = function(scale) {
-	return this;
-}
+// Upgrade.prototype.scalesCookieBank = function(scale) {
+// 	return this;
+// }
 
 upgrade = function(name, supported=1) {
 	var u = new Upgrade(name, supported);
@@ -1462,6 +1450,7 @@ upgrade("Beardlier beards"				).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 
 upgrade("Ancient grimoires"				).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
 upgrade("Kitchen curses"				).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
 upgrade("School of sorcery"				).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
+upgrade("Dark formulas"					).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
 upgrade("Vanilla nebulae"				).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
 upgrade("Wormholes"						).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
 upgrade("Frequent flyer"				).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
@@ -1490,13 +1479,13 @@ upgrade("Sugar bosons"					).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_IN
 upgrade("String theory"					).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 upgrade("Large macaron collider"		).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 upgrade("Big bang bake"					).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
-// upgrade("Reverse cyclotrons"			).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
+upgrade("Reverse cyclotrons"			).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 // upgrade("Nanocosmics"					).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 upgrade("Gem polish"					).scalesBuildingCps(Constants.PRISM_INDEX, 2);
 upgrade("9th color"						).scalesBuildingCps(Constants.PRISM_INDEX, 2);
 upgrade("Chocolate light"				).scalesBuildingCps(Constants.PRISM_INDEX, 2);
 upgrade("Grainbow"						).scalesBuildingCps(Constants.PRISM_INDEX, 2);
-// upgrade("Pure cosmic light"				).scalesBuildingCps(Constants.PRISM_INDEX, 2);
+upgrade("Pure cosmic light"				).scalesBuildingCps(Constants.PRISM_INDEX, 2);
 // upgrade("Glow-in-the-dark"				).scalesBuildingCps(Constants.PRISM_INDEX, 2);
 upgrade("Your lucky cookie"				).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
 upgrade('"All Bets Are Off" magic coin' ).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
@@ -1545,6 +1534,7 @@ upgrade("Fudge squares"											).scalesProduction(1.04);
 upgrade("Shortbread biscuits"									).scalesProduction(1.04);
 upgrade("Millionaires' shortbreads"								).scalesProduction(1.04);
 upgrade("Caramel cookies"										).scalesProduction(1.04);
+upgrade("Pecan sandies"											).scalesProduction(1.04);
 // upgrade("British tea biscuits"									).scalesProduction(15);
 // upgrade("Chocolate british tea biscuits"						).scalesProduction(15);
 // upgrade("Round british tea biscuits"							).scalesProduction(15);
@@ -1596,13 +1586,13 @@ upgrade("Elder Pact"					).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Consta
 upgrade("Reinforced index finger"		).scalesBaseClicking(2).scalesBuildingCps(Constants.CURSOR_INDEX, 2);
 upgrade("Carpal tunnel prevention cream").scalesBaseClicking(2).scalesBuildingCps(Constants.CURSOR_INDEX, 2);
 upgrade("Ambidextrous"					).scalesBaseClicking(2).scalesBuildingCps(Constants.CURSOR_INDEX, 2);
-upgrade("Thousand fingers"				).givesBuildingPerBuildingBaseCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 0.1).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 0.1);
-upgrade("Million fingers"				).givesBuildingPerBuildingBaseCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 0.5).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 0.5);
-upgrade("Billion fingers"				).givesBuildingPerBuildingBaseCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 5).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 5);
-upgrade("Trillion fingers"				).givesBuildingPerBuildingBaseCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 50).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 50);
-upgrade("Quadrillion fingers"			).givesBuildingPerBuildingBaseCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 500).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 500);
-upgrade("Quintillion fingers"			).givesBuildingPerBuildingBaseCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 5000).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 5000);
-upgrade("Sextillion fingers"			).givesBuildingPerBuildingBaseCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 50000).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 50000);
+upgrade("Thousand fingers"				).givesBuildingPerBuildingFlatCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 0.1).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 0.1);
+upgrade("Million fingers"				).givesBuildingPerBuildingFlatCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 0.5).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 0.5);
+upgrade("Billion fingers"				).givesBuildingPerBuildingFlatCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 5).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 5);
+upgrade("Trillion fingers"				).givesBuildingPerBuildingFlatCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 50).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 50);
+upgrade("Quadrillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 500).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 500);
+upgrade("Quintillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 5000).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 5000);
+upgrade("Sextillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 50000).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 50000);
 // upgrade("Septillion fingers"			).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 400);
 // upgrade("Octillion fingers"				).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 800);
 upgrade("Plastic mouse"					).boostsClickCps(0.01);
