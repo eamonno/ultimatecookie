@@ -13,6 +13,7 @@ Config.autoPopWrinklers = true;
 Config.skipHalloween = false;
 Config.resetLimit = 1.1;
 Config.maintainCookieBank = false;
+Config.clickRateForCalculations = 0;	// 0 to disable
 
 // General purpose constants
 Constants.SUPPORTED_VERSION = "2.0042";
@@ -202,7 +203,7 @@ UltimateCookie.prototype.sortTest = function() {
 
 UltimateCookie.prototype.comparePurchases = function(eval, a, b) {
 	// If autoPledge is active, Elder Pledge trumps all
-	if (Config.autoPledge && (!seasons[eval.season].wrinklersDropUpgrades || eval.lockedSeasonUpgrades[eval.season] == 0)) {
+	if (Config.autoPledge && Game.elderWrath > 0 && (!seasons[eval.season].wrinklersDropUpgrades || eval.lockedSeasonUpgrades[eval.season] == 0)) {
 		if (a.beginsElderPledge && !b.beginsElderPledge) {
 			return -1;
 		} else if (b.beginsElderPledge && !a.beginsElderPledge) {
@@ -262,7 +263,7 @@ UltimateCookie.prototype.determineNextPurchase = function(eval) {
 
 	if (purchases[p].name != this.lastDeterminedPurchase) {
 		this.lastDeterminedPurchase = purchases[p].name;
-		console.log("CpS margin: " + Math.round(eval.getCps() - Game.cookiesPs) + ", next: " + this.lastDeterminedPurchase);
+		console.log("Clickrate: " + this.clickRate + ", CpS margin: " + Math.round(eval.getCps() - Game.cookiesPs) + ", next: " + this.lastDeterminedPurchase);
 	}
 	return purchases[p];
 }
@@ -369,7 +370,7 @@ UltimateCookie.prototype.update = function() {
 		//console.log("Click rate - Last Second: " + Math.floor(newRate) +", Average: " + this.clickRate);
 		this.lastClickCount = Game.cookieClicks;
 		this.lastClickRateCheckTime = now;
-		this.currentGame.clickRate = this.clickRate;
+		this.currentGame.clickRate = Config.clickRateForCalculations ? Config.clickRateForCalculations : this.clickRate;
 	}
 	if (Config.autoClickGoldenCookies) {
 		this.popShimmer("golden");
@@ -996,6 +997,11 @@ class Upgrade extends Modifier {
 		this.addRevoker(function(sim) { sim.cpcCpsMultiplier -= amount; });
 		return this;
 	}
+
+	calmsGrandmas() {
+		this.beginsElderPledge = true;
+		return this;
+	}
 	
 	scalesBaseClicking(scale) {
 		this.addApplier(function(sim) { sim.cpcBaseMultiplier *= scale; });
@@ -1244,11 +1250,6 @@ Upgrade.prototype.getValue = function(eval) {
 // 	return this;
 // }
 
-// Upgrade.prototype.startsElderPledge = function() {
-// 	this.beginsElderPledge = true;
-// 	return this;
-// }
-
 // Upgrade.prototype.doublesElderPledge = function() {
 // 	this.doublesElderPledgeDuration = true;
 // 	return this;
@@ -1419,6 +1420,7 @@ upgrade("Genetically-modified cookies"	).scalesBuildingCps(Constants.FARM_INDEX,
 upgrade("Gingerbread scarecrows"		).scalesBuildingCps(Constants.FARM_INDEX, 2);
 upgrade("Pulsar sprinklers"				).scalesBuildingCps(Constants.FARM_INDEX, 2);
 upgrade("Fudge fungus"					).scalesBuildingCps(Constants.FARM_INDEX, 2);
+upgrade("Wheat triffids"				).scalesBuildingCps(Constants.FARM_INDEX, 2);
 upgrade("Sugar gas"						).scalesBuildingCps(Constants.MINE_INDEX, 2);
 upgrade("Megadrill"						).scalesBuildingCps(Constants.MINE_INDEX, 2);
 upgrade("Ultradrill"					).scalesBuildingCps(Constants.MINE_INDEX, 2);
@@ -1426,6 +1428,7 @@ upgrade("Ultimadrill"					).scalesBuildingCps(Constants.MINE_INDEX, 2);
 upgrade("H-bomb mining"					).scalesBuildingCps(Constants.MINE_INDEX, 2);
 upgrade("Coreforge"						).scalesBuildingCps(Constants.MINE_INDEX, 2);
 upgrade("Planetsplitters"				).scalesBuildingCps(Constants.MINE_INDEX, 2);
+upgrade("Canola oil wells"				).scalesBuildingCps(Constants.MINE_INDEX, 2);
 upgrade("Sturdier conveyor belts"		).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
 upgrade("Child labor"					).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
 upgrade("Sweatshop"						).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
@@ -1439,12 +1442,14 @@ upgrade("Acid-proof vaults"				).scalesBuildingCps(Constants.BANK_INDEX, 2);
 upgrade("Chocolate coins"				).scalesBuildingCps(Constants.BANK_INDEX, 2);
 upgrade("Exponential interest rates"	).scalesBuildingCps(Constants.BANK_INDEX, 2);
 upgrade("Financial zen"					).scalesBuildingCps(Constants.BANK_INDEX, 2);
+upgrade("Way of the wallet"				).scalesBuildingCps(Constants.BANK_INDEX, 2);
 upgrade("Golden idols"					).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
 upgrade("Sacrifices"					).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
 upgrade("Delicious blessing"			).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
 upgrade("Sun festival"					).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
 upgrade("Enlarged pantheon"				).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
 upgrade("Great Baker in the sky"		).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
+upgrade("Creation myth"					).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
 upgrade("Pointier hats"					).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
 upgrade("Beardlier beards"				).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
 upgrade("Ancient grimoires"				).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
@@ -1456,13 +1461,13 @@ upgrade("Wormholes"						).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
 upgrade("Frequent flyer"				).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
 upgrade("Warp drive"					).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
 upgrade("Chocolate monoliths"			).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
-// upgrade("Generation ship"				).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
+upgrade("Generation ship"				).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
 upgrade("Antimony"						).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
 upgrade("Essence of dough"				).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
 upgrade("True chocolate"				).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
 upgrade("Ambrosia"						).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
 upgrade("Aqua crustulae"				).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
-// upgrade("Origin crucible"				).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
+upgrade("Origin crucible"				).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
 upgrade("Ancient tablet"				).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
 upgrade("Insane oatling workers"		).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
 upgrade("Soul bond"						).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
@@ -1491,6 +1496,7 @@ upgrade("Your lucky cookie"				).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 
 upgrade('"All Bets Are Off" magic coin' ).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
 upgrade("Winning lottery ticket" 		).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
 upgrade("Four-leaf clover field" 		).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
+upgrade("A recipe book about books"		).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
 
 // Upgrades that increase cookie production
 upgrade("Plain cookies"											).scalesProduction(1.01);
@@ -1535,6 +1541,10 @@ upgrade("Shortbread biscuits"									).scalesProduction(1.04);
 upgrade("Millionaires' shortbreads"								).scalesProduction(1.04);
 upgrade("Caramel cookies"										).scalesProduction(1.04);
 upgrade("Pecan sandies"											).scalesProduction(1.04);
+upgrade("Moravian spice cookies"								).scalesProduction(1.04);
+upgrade("Milk chocolate butter biscuit"							).scalesProduction(1.10);
+upgrade("Anzac biscuits"										).scalesProduction(1.04);
+upgrade("Buttercakes"											).scalesProduction(1.04);
 // upgrade("British tea biscuits"									).scalesProduction(15);
 // upgrade("Chocolate british tea biscuits"						).scalesProduction(15);
 // upgrade("Round british tea biscuits"							).scalesProduction(15);
@@ -1576,10 +1586,10 @@ upgrade("Arcane sugar"					).startsResearch().scalesProduction(1.05);
 upgrade("Elder Pact"					).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.PORTAL_INDEX, 0.05).angersGrandmas();
 // upgrade("Persistent memory"				).boostsResearch();
 
-// Elder pledge related upgrades
+// Elder pledge
+upgrade("Elder Pledge", false			).calmsGrandmas();		// The false means this isn't one of the listed upgrades on the stats page
 // upgrade("Elder Covenant"			).startsElderCovenant();
 // upgrade("Revoke Elder Covenant"		).endsElderCovenant();
-// upgrade("Elder Pledge"				).startsElderPledge();
 // upgrade("Sacrificial rolling pins"	).doublesElderPledge();
 
 // Assorted cursor / clicking upgrades
@@ -1593,7 +1603,7 @@ upgrade("Trillion fingers"				).givesBuildingPerBuildingFlatCpsBoost(Constants.C
 upgrade("Quadrillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 500).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 500);
 upgrade("Quintillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 5000).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 5000);
 upgrade("Sextillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 50000).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 50000);
-// upgrade("Septillion fingers"			).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 400);
+upgrade("Septillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 500000).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 500000);
 // upgrade("Octillion fingers"				).givesTotalBuildingBonus(Constants.CURSOR_INDEX, Constants.CURSOR_INDEX, 800);
 upgrade("Plastic mouse"					).boostsClickCps(0.01);
 upgrade("Iron mouse"					).boostsClickCps(0.01);
@@ -1613,6 +1623,7 @@ upgrade("Kitten engineers"		).unlocksMilk(0.15);
 upgrade("Kitten overseers"		).unlocksMilk(0.175);
 upgrade("Kitten managers"		).unlocksMilk(0.2);
 upgrade("Kitten accountants"	).unlocksMilk(0.2);
+upgrade("Kitten specialists"	).unlocksMilk(0.2);
 
 // Prestige power unlocks
 upgrade("Heavenly chip secret"	).unlocksPrestige(0.05);
