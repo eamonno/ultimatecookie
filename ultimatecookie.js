@@ -1003,6 +1003,11 @@ class Upgrade extends Modifier {
 		return this;
 	}
 	
+	doublesElderPledge() {
+		this.getValue = function(sim) { return this.prototype.getValue() + upgradeFunctions.elderPledge.getCost() / 3600; };
+		return this;
+	}
+
 	scalesBaseClicking(scale) {
 		this.addApplier(function(sim) { sim.cpcBaseMultiplier *= scale; });
 		this.addRevoker(function(sim) { sim.cpcBaseMultiplier /= scale; });
@@ -1119,9 +1124,6 @@ Upgrade.prototype.getValue = function(eval) {
 	var val = this.getEffectiveCps(eval);
 	if (this.valueFromTotalCps)
 		val += eval.getEffectiveCps() * this.valueFromTotalCps;
-	if (this.doublesElderPledgeDuration) {
-		val += upgradeFunctions.elderPledge.getCost() / 3600;
-	}
 	if (this.setsSeason == Constants.VALENTINES_DAY && eval.lockedSeasonUpgrades[Constants.VALENTINES_DAY] > 0) {
 		val = upgradeFunctions.pureHeartBiscuits.getValue(eval);
 	}
@@ -1247,11 +1249,6 @@ Upgrade.prototype.getValue = function(eval) {
 
 // Upgrade.prototype.endsElderCovenant = function() {
 // 	this.disablesElderCovenant = true;
-// 	return this;
-// }
-
-// Upgrade.prototype.doublesElderPledge = function() {
-// 	this.doublesElderPledgeDuration = true;
 // 	return this;
 // }
 
@@ -1436,6 +1433,7 @@ upgrade("Radium reactors"				).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
 upgrade("Recombobulators"				).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
 upgrade("Deep-bake process"				).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
 upgrade("Cyborg workforce"				).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
+upgrade("78-hour days"					).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
 upgrade("Taller tellers"				).scalesBuildingCps(Constants.BANK_INDEX, 2);
 upgrade("Scissor-resistant credit cards").scalesBuildingCps(Constants.BANK_INDEX, 2);
 upgrade("Acid-proof vaults"				).scalesBuildingCps(Constants.BANK_INDEX, 2);
@@ -1473,7 +1471,7 @@ upgrade("Insane oatling workers"		).scalesBuildingCps(Constants.PORTAL_INDEX, 2)
 upgrade("Soul bond"						).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
 upgrade("Sanity dance"					).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
 upgrade("Brane transplant"				).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
-// upgrade("Deity-sized portals"			).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
+upgrade("Deity-sized portals"			).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
 upgrade("Flux capacitors"				).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
 upgrade("Time paradox resolver"			).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
 upgrade("Quantum conundrum"				).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
@@ -1588,9 +1586,9 @@ upgrade("Elder Pact"					).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Consta
 
 // Elder pledge
 upgrade("Elder Pledge", false			).calmsGrandmas();		// The false means this isn't one of the listed upgrades on the stats page
+upgrade("Sacrificial rolling pins"		).doublesElderPledge();
 // upgrade("Elder Covenant"			).startsElderCovenant();
 // upgrade("Revoke Elder Covenant"		).endsElderCovenant();
-// upgrade("Sacrificial rolling pins"	).doublesElderPledge();
 
 // Assorted cursor / clicking upgrades
 upgrade("Reinforced index finger"		).scalesBaseClicking(2).scalesBuildingCps(Constants.CURSOR_INDEX, 2);

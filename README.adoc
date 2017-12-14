@@ -8,14 +8,46 @@ The goal was to play the game as fast and as efficiently as possible while only 
 the computer could theoretically do (assuming they could click the cookie hundreds of times a second). This primarily means
 no working around the games internal clicks per second limit of 250 (in practice you won't really get this anyway).
 
-What is working now and what is yet to do:
-- Auto clicks, auto purchases, purchase prioritisation is working.
-- Building prices and scaling are all up to date.
-- 191 / 356 upgrades supported.
-
 To load this mod in game bring up a javascript console and enter the command:
 
 Game.LoadMod('https://rawgithub.com/eamonno/ultimatecookie/master/ultimatecookie.js')
+
+There are a bunch of features still missing. I have laid out below a road map of sorts for getting to completion. These are
+in rough order of priority.
+
+1. Revamp the update loop so everything is updated in a single loop. Should make it easier to debug occasional click rate
+   drops and see what's going on.
+2. Treat buffs as modifiers. This should allow for accurate valuation of things liks golden cookie duration and frequency
+   upgrades as well as laying necessary groundwork to correctly value a cookie bank.
+3. Cookie bank. Dynamically determine the optimal number of cookies to bank.
+4. Valuation for buffs that unlock other buffs.
+5. Prestige upgrades. Right now only the baseline Legacy upgrade is supported. It would be easy enough to add support for
+   the upgrades themselves but it relies on being able to accurately value buffs that unlock other buffs.
+6. Building levels and sugar. Decide how to spend sugar and when.
+7. Mini games. Play them passively and efficiently.
+8. GUI for addon. Allow for configuration and information without needing to use the javascript console.
+9. Legacy strategies. Determine when to legacy and automate the process.
+10. Release. 
+
+Release should mean working with every combination of upgrades, buildings etc, in the game. There are however a few other
+things that will be added on an ongoing basis. Missing these doesn't interfere with base functionality and for the most
+part they represent changes that would offer very minor gains in efficiency for a relatively large amount of work. These
+may or may not ever be implemented as it just might not justify the effort. These are efficiencies small enough that the
+occasional loss of a click due to the extra calculations involved would probably outway the minor, highly situational
+benefits they convey. I.e. they might be satisfying from an accuracy perspective but ultimately a loss from a performance
+perspective.
+
+1. Farming of achievements that require different play styles. Handle getting those achievements that won't be acquired 
+   in the normal run of play.
+2. Purchase bundles, allow for ranking of a list of purchases vs an individual item. For example if buying two buildings
+   more unlocks a doubling upgrade it is probably higher priority than the next individual purchase would be on its own.
+3. Account for things that unlock achievements as part of purchase bundles.
+4. Performance tweaks. Tweak game settings for better performance, that sort of stuff.
+
+Then of course there are the ongoing changes. 
+- Upgrade support: Currently 194 / 356 supported.
+- Prestige Upgrade support: Currently 1 / 65 supported.
+- Whatever other bugfixes and improvements I get sidetracked by in the meantime.
 
 Known issues:
 - Purchasing stalls during most multiplier golden cookies (except for frenzy).
