@@ -101,6 +101,37 @@ seasons[Constants.VALENTINES_DAY] = {
 };
 
 //
+// Periodical
+//
+// Periodicals are functions that execute on a set frequency. They can be 
+// enabled or disbled and have various timings etc.
+//
+
+class Periodical {
+	constructor(name, minInterval, maxInterval, callback) {
+		this.name = name;
+		this.minInterval = minInterval;
+		this.maxInterval = maxInterval;
+		this.interval = this.minInterval;
+		this.callback = callback;
+		this.nextTimeMillis = 0;
+	}
+
+	check(timeMillis) {
+		if (timeMillis >= nextTimeMillis) {
+			if (this.callback())
+				interval = this.minInterval;
+			else
+				interval = Math.min(this.interval * 2, this.maxInterval);
+			this.nextTimeMillis = timeMillis + this.interval;
+		}
+	}
+}
+// Periodical("Auto-Clicker", 1, 1, function() { return this.click(); });
+// Periodical("Auto-Buyer", 1, 1000, function() { return this.buy(); });
+// Periodical("Golden Cookie Auto-Clicker", 1, 1000, function() { return this.clickGoldenCookie(); });
+
+//
 // UltimateCookie represents the app itself
 //
 
@@ -1004,7 +1035,7 @@ class Upgrade extends Modifier {
 	}
 	
 	doublesElderPledge() {
-		this.getValue = function(sim) { return this.prototype.getValue() + upgradeFunctions.elderPledge.getCost() / 3600; };
+		this.getValue = function(sim) { return upgradeFunctions.elderPledge.getCost() / 3600; };
 		return this;
 	}
 
@@ -1387,6 +1418,8 @@ upgrade("Antimatter condenser"	).builds(Constants.ANTIMATTER_CONDENSER_INDEX, 1)
 upgrade("Prism"					).builds(Constants.PRISM_INDEX, 1);
 upgrade("Chancemaker"			).builds(Constants.CHANCEMAKER_INDEX, 1);
 
+upgrade("Chancemaker"			).builds(Constants.CHANCEMAKER_INDEX, 1);
+
 // Upgrades that double the productivity of a type of building
 upgrade("Forwards from grandma"			).scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
 upgrade("Steel-plated rolling pins"		).scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
@@ -1418,6 +1451,7 @@ upgrade("Gingerbread scarecrows"		).scalesBuildingCps(Constants.FARM_INDEX, 2);
 upgrade("Pulsar sprinklers"				).scalesBuildingCps(Constants.FARM_INDEX, 2);
 upgrade("Fudge fungus"					).scalesBuildingCps(Constants.FARM_INDEX, 2);
 upgrade("Wheat triffids"				).scalesBuildingCps(Constants.FARM_INDEX, 2);
+upgrade("Humane pesticides"				).scalesBuildingCps(Constants.FARM_INDEX, 2);
 upgrade("Sugar gas"						).scalesBuildingCps(Constants.MINE_INDEX, 2);
 upgrade("Megadrill"						).scalesBuildingCps(Constants.MINE_INDEX, 2);
 upgrade("Ultradrill"					).scalesBuildingCps(Constants.MINE_INDEX, 2);
@@ -1426,6 +1460,7 @@ upgrade("H-bomb mining"					).scalesBuildingCps(Constants.MINE_INDEX, 2);
 upgrade("Coreforge"						).scalesBuildingCps(Constants.MINE_INDEX, 2);
 upgrade("Planetsplitters"				).scalesBuildingCps(Constants.MINE_INDEX, 2);
 upgrade("Canola oil wells"				).scalesBuildingCps(Constants.MINE_INDEX, 2);
+upgrade("Mole people"					).scalesBuildingCps(Constants.MINE_INDEX, 2);
 upgrade("Sturdier conveyor belts"		).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
 upgrade("Child labor"					).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
 upgrade("Sweatshop"						).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
@@ -1434,6 +1469,7 @@ upgrade("Recombobulators"				).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
 upgrade("Deep-bake process"				).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
 upgrade("Cyborg workforce"				).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
 upgrade("78-hour days"					).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
+upgrade("Machine learning"				).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
 upgrade("Taller tellers"				).scalesBuildingCps(Constants.BANK_INDEX, 2);
 upgrade("Scissor-resistant credit cards").scalesBuildingCps(Constants.BANK_INDEX, 2);
 upgrade("Acid-proof vaults"				).scalesBuildingCps(Constants.BANK_INDEX, 2);
@@ -1441,6 +1477,8 @@ upgrade("Chocolate coins"				).scalesBuildingCps(Constants.BANK_INDEX, 2);
 upgrade("Exponential interest rates"	).scalesBuildingCps(Constants.BANK_INDEX, 2);
 upgrade("Financial zen"					).scalesBuildingCps(Constants.BANK_INDEX, 2);
 upgrade("Way of the wallet"				).scalesBuildingCps(Constants.BANK_INDEX, 2);
+upgrade("The stuff rationale"			).scalesBuildingCps(Constants.BANK_INDEX, 2);
+upgrade("Edible money"					).scalesBuildingCps(Constants.BANK_INDEX, 2);
 upgrade("Golden idols"					).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
 upgrade("Sacrifices"					).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
 upgrade("Delicious blessing"			).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
@@ -1448,48 +1486,54 @@ upgrade("Sun festival"					).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
 upgrade("Enlarged pantheon"				).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
 upgrade("Great Baker in the sky"		).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
 upgrade("Creation myth"					).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
+upgrade("Theocracy"						).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
 upgrade("Pointier hats"					).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
 upgrade("Beardlier beards"				).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
 upgrade("Ancient grimoires"				).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
 upgrade("Kitchen curses"				).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
 upgrade("School of sorcery"				).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
 upgrade("Dark formulas"					).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
+upgrade("Cookiemancy"					).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
+upgrade("Rabbit trick"					).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
 upgrade("Vanilla nebulae"				).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
 upgrade("Wormholes"						).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
 upgrade("Frequent flyer"				).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
 upgrade("Warp drive"					).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
 upgrade("Chocolate monoliths"			).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
 upgrade("Generation ship"				).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
+upgrade("Dyson sphere"					).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
 upgrade("Antimony"						).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
 upgrade("Essence of dough"				).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
 upgrade("True chocolate"				).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
 upgrade("Ambrosia"						).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
 upgrade("Aqua crustulae"				).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
 upgrade("Origin crucible"				).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
+upgrade("Theory of atomic fluidity"		).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
 upgrade("Ancient tablet"				).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
 upgrade("Insane oatling workers"		).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
 upgrade("Soul bond"						).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
 upgrade("Sanity dance"					).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
 upgrade("Brane transplant"				).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
 upgrade("Deity-sized portals"			).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
+upgrade("End of times back-up plan"		).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
 upgrade("Flux capacitors"				).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
 upgrade("Time paradox resolver"			).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
 upgrade("Quantum conundrum"				).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
 upgrade("Causality enforcer"			).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
 upgrade("Yestermorrow comparators"		).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
-// upgrade("Far future enactment"			).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
+upgrade("Far future enactment"			).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
 upgrade("Sugar bosons"					).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 upgrade("String theory"					).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 upgrade("Large macaron collider"		).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 upgrade("Big bang bake"					).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 upgrade("Reverse cyclotrons"			).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
-// upgrade("Nanocosmics"					).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
+upgrade("Nanocosmics"					).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 upgrade("Gem polish"					).scalesBuildingCps(Constants.PRISM_INDEX, 2);
 upgrade("9th color"						).scalesBuildingCps(Constants.PRISM_INDEX, 2);
 upgrade("Chocolate light"				).scalesBuildingCps(Constants.PRISM_INDEX, 2);
 upgrade("Grainbow"						).scalesBuildingCps(Constants.PRISM_INDEX, 2);
 upgrade("Pure cosmic light"				).scalesBuildingCps(Constants.PRISM_INDEX, 2);
-// upgrade("Glow-in-the-dark"				).scalesBuildingCps(Constants.PRISM_INDEX, 2);
+upgrade("Glow-in-the-dark"				).scalesBuildingCps(Constants.PRISM_INDEX, 2);
 upgrade("Your lucky cookie"				).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
 upgrade('"All Bets Are Off" magic coin' ).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
 upgrade("Winning lottery ticket" 		).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
@@ -1543,6 +1587,7 @@ upgrade("Moravian spice cookies"								).scalesProduction(1.04);
 upgrade("Milk chocolate butter biscuit"							).scalesProduction(1.10);
 upgrade("Anzac biscuits"										).scalesProduction(1.04);
 upgrade("Buttercakes"											).scalesProduction(1.04);
+upgrade("Ice cream sandwiches"									).scalesProduction(1.04);
 // upgrade("British tea biscuits"									).scalesProduction(15);
 // upgrade("Chocolate british tea biscuits"						).scalesProduction(15);
 // upgrade("Round british tea biscuits"							).scalesProduction(15);
@@ -1622,6 +1667,7 @@ upgrade("Kitten overseers"		).unlocksMilk(0.175);
 upgrade("Kitten managers"		).unlocksMilk(0.2);
 upgrade("Kitten accountants"	).unlocksMilk(0.2);
 upgrade("Kitten specialists"	).unlocksMilk(0.2);
+upgrade("Kitten experts"		).unlocksMilk(0.2);
 
 // Prestige power unlocks
 upgrade("Heavenly chip secret"	).unlocksPrestige(0.05);
@@ -1656,6 +1702,7 @@ upgrade("Heavenly key"			).unlocksPrestige(0.25);
 // upgrade("Spider cookies"	).scalesProduction(20).forSeason(Constants.HALLOWEEN);
 
 // Christmas season
+upgrade("Santa Level"				);	// Incomplete definition, temporary bug workaround
 // upgrade("A festive hat"				).unlocksSantaLevels().forSeason(Constants.CHRISTMAS);
 // upgrade("Santa Level"				).increasesSantasLevel().forSeason(Constants.CHRISTMAS);
 // upgrade("Weighted sleighs"			).slowsReindeer(2).forSeason(Constants.CHRISTMAS);
@@ -1671,13 +1718,13 @@ upgrade("Heavenly key"			).unlocksPrestige(0.25);
 // upgrade("An itchy sweater"			).scalesProduction(1).forSeason(Constants.CHRISTMAS);
 // upgrade("Improved jolliness"		).scalesProduction(15).forSeason(Constants.CHRISTMAS);
 // upgrade("Increased merriness"		).scalesProduction(15).forSeason(Constants.CHRISTMAS);
-// upgrade("Christmas tree biscuits"	).scalesProduction(20).forSeason(Constants.CHRISTMAS);
-// upgrade("Snowflake biscuits"		).scalesProduction(20).forSeason(Constants.CHRISTMAS);
-// upgrade("Snowman biscuits"			).scalesProduction(20).forSeason(Constants.CHRISTMAS);
-// upgrade("Holly biscuits"			).scalesProduction(20).forSeason(Constants.CHRISTMAS);
-// upgrade("Candy cane biscuits"		).scalesProduction(20).forSeason(Constants.CHRISTMAS);
-// upgrade("Bell biscuits"				).scalesProduction(20).forSeason(Constants.CHRISTMAS);
-// upgrade("Present biscuits"			).scalesProduction(20).forSeason(Constants.CHRISTMAS);
+upgrade("Christmas tree biscuits"	).scalesProduction(1.02);//.forSeason(Constants.CHRISTMAS);
+upgrade("Snowflake biscuits"		).scalesProduction(1.02);//.forSeason(Constants.CHRISTMAS);
+upgrade("Snowman biscuits"			).scalesProduction(1.02);//.forSeason(Constants.CHRISTMAS);
+upgrade("Holly biscuits"			).scalesProduction(1.02);//.forSeason(Constants.CHRISTMAS);
+upgrade("Candy cane biscuits"		).scalesProduction(1.02);//.forSeason(Constants.CHRISTMAS);
+upgrade("Bell biscuits"				).scalesProduction(1.02);//.forSeason(Constants.CHRISTMAS);
+upgrade("Present biscuits"			).scalesProduction(1.02);//.forSeason(Constants.CHRISTMAS);
 // upgrade("Santa's dominion"			).scalesProduction(50).scalesBuildingCpsCost(0.99).scalesUpgradeCost(0.98).forSeason(Constants.CHRISTMAS);
 // upgrade("Naughty list"				).scalesBuildingCps(Constants.GRANDMA_INDEX, 2).forSeason(Constants.CHRISTMAS);
 

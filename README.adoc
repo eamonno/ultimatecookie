@@ -44,8 +44,8 @@ perspective.
 3. Account for things that unlock achievements as part of purchase bundles.
 4. Performance tweaks. Tweak game settings for better performance, that sort of stuff.
 
-Then of course there are the ongoing changes. 
-- Upgrade support: Currently 194 / 356 supported.
+Then of course there are the ongoing changes.
+- Upgrade support: Currently 218 / 356 supported.
 - Prestige Upgrade support: Currently 1 / 65 supported.
 - Whatever other bugfixes and improvements I get sidetracked by in the meantime.
 
