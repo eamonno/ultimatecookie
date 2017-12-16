@@ -62,11 +62,11 @@ Constants.ANGERED = 3;
 // Season names
 // Constants.NO_SEASON = "";
 // Constants.BUSINESS_DAY = "fools";
-// Constants.CHRISTMAS = "christmas";
+Constants.CHRISTMAS = "christmas";
 // Constants.EASTER = "easter";
 // Constants.HALLOWEEN = "halloween";
 // Constants.VALENTINES_DAY = "valentines";
-// Constants.MAX_SANTA_LEVEL = 14;
+Constants.MAX_SANTA_LEVEL = 14;
 
 // var seasons = {};
 // seasons[Constants.NO_SEASON] = {
@@ -275,9 +275,9 @@ UltimateCookie.prototype.createPurchaseList = function() {
 	for (i = 0; i < Game.UpgradesInStore.length; ++i) {
 		purchases.push(getUpgradeFunction(Game.UpgradesInStore[i].name));
 	}
-	// Add santa level
-	if (Game.season == Constants.CHRISTMAS && Game.santaLevel < Constants.MAX_SANTA_LEVEL) {
-		purchases.push(upgradeFunctions.santaLevel);
+	// Add santa 
+	if (Game.season == Constants.CHRISTMAS && Game.santaLevel < Constants.MAX_SANTA_LEVEL && Game.Has("A festive hat")) {
+		purchases.push(allPurchases["Santa Level"]);
 	}
 	return purchases;
 }
@@ -340,12 +340,8 @@ UltimateCookie.prototype.buy = function() {
 		if (Game.cookies - cookieBank > nextPurchase.getCost()) {
 			this.lastPurchaseTime = time;
 			if (!nextPurchase.setsSeason || !this.lockSeasons) {
-//				if ((this.currentGame.currentTime - this.currentGame.sessionStartTime) < 30000) {
-//					nextPurchase.purchaseMany();
-//				} else {
-					nextPurchase.purchase();
-					this.needsResync = true;
-//				}
+				nextPurchase.purchase();
+				this.needsResync = true;
 			}
 			if (nextPurchase.setsSeason) {
 				this.lockSeasonsTimer = time + Constants.SEASON_SWITCH_DELAY;
@@ -623,6 +619,7 @@ class Evaluator {
 		// Santa level
 		this.santaLevel = 0;
 		this.santaPower = 0;
+		this.randomSantaRewardsRemaining = allRandomSantaRewards.slice(0);
 
 		// Building cost reduction
 		this.buildingCostScale = 1;
@@ -703,13 +700,14 @@ Evaluator.prototype.getCpc = function() {
 	var cpc = this.cpcBase * this.cpcBaseMultiplier;			// Base cpc
 	// Add in percentage click scaling
 	cpc += this.getCps() * this.cpcCpsMultiplier;
-	// Multiply by total multiplier
-	cpc *= this.cpcMultiplier;
 	// Increase if click frenzy is active
 	cpc *= this.clickFrenzyMultiplier;
 
 	// Add the flat per building boost
 	cpc += this.perBuildingFlatCpcBoostCounter.getCount(this.buildings);
+
+	// Multiply by total multiplier
+	cpc *= this.cpcMultiplier;
 
 	return cpc;
 }
@@ -724,10 +722,10 @@ Evaluator.prototype.getCps = function() {
 	}
 
 	// Scale it for production and heavely chip multipliers
-	var santaScale = (this.santaLevel + 1) * this.santaPower * 0.01;
+	var santaScale = 1 + (this.santaLevel + 1) * this.santaPower;
 	var prestigeScale = this.prestige * this.prestigeUnlocked * 0.01;
 
-	var scale = this.productionScale * (1 + santaScale + prestigeScale);
+	var scale = this.productionScale * santaScale * (1 + prestigeScale);
 
 	// Scale it for milk
 	for (i = 0; i < this.milkUnlocks.length; ++i) {
@@ -888,8 +886,16 @@ Evaluator.prototype.syncToGame = function() {
 			}
 		} else if (Game.UpgradesById[i].unlocked == 1) {
 			var uf = getUpgradeFunction(Game.UpgradesById[i].name);
+			if (this.randomSantaRewardsRemaining.indexOf(uf.name) != -1)
 			if (uf.season) {
 				this.lockedSeasonUpgrades[uf.season]--;
+			}
+		}
+		// Remove from random santa rewards if its bought or in store
+		if (Game.UpgradesById[i].bought == 1 || Game.UpgradesById[i].unlocked == 1) {
+			var uf = getUpgradeFunction(Game.UpgradesById[i].name);
+			if (this.randomSantaRewardsRemaining.indexOf(uf.name) != -1) {
+				this.randomSantaRewardsRemaining.splice(this.randomSantaRewardsRemaining.indexOf(uf.name), 1);				
 			}
 		}
 	}
@@ -944,7 +950,7 @@ class Modifier {
 
 	revokeFrom(sim) {
 		var i;
-		for (i = 0; i < this.revokers.length; ++i)
+		for (i = this.revokers.length - 1; i >= 0; --i)
 			this.revokers[i](sim);
 	}
 
@@ -961,7 +967,17 @@ class Modifier {
 		if (required.locks == undefined) 
 			required.locks = [];
 		required.locks.push(this);
+		return this;
 	}
+
+	// Calculate the amount of effective CpS this modifier adds directly
+	getEffectiveCps(sim) {
+		var cps = sim.getEffectiveCps();
+		this.applyTo(sim);
+		cps = sim.getEffectiveCps() - cps;
+		this.revokeFrom(sim);
+		return cps;
+	}	
 }
 
 //
@@ -982,6 +998,129 @@ class Season extends Modifier {
 }
 
 new Season("christmas");
+
+//
+// Purchases.
+//
+// Purchases are a subtype of modifier that can be bought in the game. They provide
+// information about costing that can be used to prioritise what to buy next.
+
+allPurchases = {};
+
+class Purchase extends Modifier {
+	constructor(name) {
+		super(name);
+		// Seperate set of Appliers and Revokers to use in valuation, same idea as before
+		// except these are applied to get a relative value rather than to get accurate CpS
+		this.valuationAppliers = [];
+		this.valuationRevokers = [];
+		allPurchases[name] = this;
+	}
+
+	applyValueTo(sim) {
+		var i;
+		for (i = 0; i < this.valuationAppliers.length; ++i)
+			this.valuationAppliers[i](sim);
+	}
+
+	revokeValueFrom(sim) {
+		var i;
+		for (i = this.valuationRevokers.length - 1; i >= 0; --i)
+			this.valuationRevokers[i](sim);
+	}
+	
+	addValueApplier(func) {
+		this.valuationAppliers.push(func);
+	}
+
+	addValueRevoker(func) {
+		this.valuationRevokers.push(func);
+	}
+
+	// Calculate the value of the Purchase. This may not relate directly to the actual CpS it adds
+	// but instead is a number used to estimate when the purchase should be bought. For example an
+	// upgrade that reduces building cost should return 0 from getEffectiveCps but a number proportional
+	// to the cost reduction from getValue.
+	getValue(sim) {
+		var cps = sim.getEffectiveCps();
+		this.applyValueTo(sim);
+		this.applyTo(sim);
+		var value = sim.getEffectiveCps() - cps;
+		this.revokeFrom(sim);
+		this.revokeValueFrom(sim);
+
+		if (this.locks == undefined) {
+			return value;	// If this doesn't unlock anything, its CpS is all it has to offer
+		}
+		//if (this.valueFromTotalCps)
+		//	val += sim.getEffectiveCps() * this.valueFromTotalCps;
+		// if (this.setsSeason == Constants.VALENTINES_DAY && eval.lockedSeasonUpgrades[Constants.VALENTINES_DAY] > 0) {
+		// 	val = upgradeFunctions.pureHeartBiscuits.getValue(eval);
+		// }
+		// if (this.setsSeason == Constants.EASTER && eval.lockedSeasonUpgrades[Constants.EASTER] > 0) {
+		// 	if (eval.grandmatriarchStatus >= Constants.AWOKEN) {
+		// 		val = upgradeFunctions.chickenEgg.getValue(eval);
+		// 	}
+		// }
+		// if (this.setsSeason == Constants.HALLOWEEN && eval.lockedSeasonUpgrades[Constants.HALLOWEEN] > 0) {
+		// 	if (eval.grandmatriarchStatus >= Constants.AWOKEN && !Config.skipHalloween) {
+		// 		val = upgradeFunctions.skullCookies.getValue(eval);
+		// 	}
+		// }
+		
+		// The next step is to look ahead in the unlock chain and find the best value there. If this 
+		// Purchase unlocks something much more valuable then the effective value of this purchase needs to
+		// be adjusted to account for that. This involves recursively working down through all the unlocks
+		// that can be chained together and finding the one which offers the best value and adjusting this
+		// upgrades value proportionally depending on that
+		var cost = this.getCost();
+		var best = -1;
+		var bestValue = value / cost;
+		var i;
+		for (i = 0; i < this.locks.length; ++i) {
+			var v = this.locks[i].getValue(sim) / this.locks[i].getCost();
+			if (v > bestValue)
+				bestValue = v;
+		}
+		return bestValue * cost;
+	}
+}
+
+class SantaLevel extends Purchase {
+	constructor() {
+		super("Santa Level");
+	}
+
+	purchase() {
+		Game.specialTab = "santa";	// Game bugs out if you don't do this
+		Game.UpgradeSanta();
+	}
+
+	getCost() {
+		return Math.pow(Game.santaLevel + 1, Game.santaLevel + 1);
+	}
+
+	getValue(sim) {
+		// The value is the average value of whatever remains in the random pool
+		var cost = this.getCost();
+		var value = this.getEffectiveCps(sim);
+		var randomValue = 0;
+		var i;
+		var p;
+		for (i = 0; i < sim.randomSantaRewardsRemaining.length; ++i) {
+			p = allPurchases[sim.randomSantaRewardsRemaining[i]];
+			// Cost triples each level, so account for that here, the upgrade will
+			// be three times as expensive as you think
+			randomValue += (p.getValue(sim) / (p.getCost() * 3)) * cost;
+		}
+		// Factor in Santa's dominion too
+		i++;
+		p = allPurchases["Santa's dominion"];
+		randomValue += (p.getValue(sim) / (p.getCost() + Math.pow(Constants.MAX_SANTA_LEVEL, Constants.MAX_SANTA_LEVEL))) * cost;
+		
+		return value + randomValue / i;
+	}
+}
 
 //
 // Upgrades. 
@@ -1007,8 +1146,9 @@ new Season("christmas");
 // 
 
 var allUpgrades = {};
+var allRandomSantaRewards = [];
 
-class Upgrade extends Modifier {
+class Upgrade extends Purchase {
 	constructor(name, supported) {
 		super(name);
 		if (supported) {
@@ -1028,10 +1168,6 @@ class Upgrade extends Modifier {
 		s = s.replace(/^\w/g, function(s) { return s.toLowerCase(); } );
 		return s;
 	}
-
-	getGameObject() {
-		return Game.Upgrades[this.name];
-	}
 	
 	//
 	// Implementation of the various upgrades themselves
@@ -1048,14 +1184,20 @@ class Upgrade extends Modifier {
 		upgradeBuildingsSupported += 1;
 		this.addApplier(function(sim) { sim.buildings[index].quantity += quantity; });
 		this.addRevoker(function(sim) { sim.buildings[index].quantity -= quantity; });
-		// Need to override getGameObject for buildings
-		this.getGameObject = function() { return Game.ObjectsById[index]; }
+		this.purchase = function() { Game.ObjectsById[index].buy(quantity); };
+		this.getCost = function() { return Game.ObjectsById[index].getPrice(); };
 		return this;
 	}
 
 	boostsClickCps(amount) {
 		this.addApplier(function(sim) { sim.cpcCpsMultiplier += amount; });
 		this.addRevoker(function(sim) { sim.cpcCpsMultiplier -= amount; });
+		return this;
+	}
+
+	boostsSantaPower(amount) {
+		this.addApplier(function(sim) { sim.santaPower += amount; });
+		this.addRevoker(function(sim) { sim.santaPower -= amount; });
 		return this;
 	}
 
@@ -1069,15 +1211,54 @@ class Upgrade extends Modifier {
 		return this;
 	}
 
+	getCost() {
+		return Game.Upgrades[this.name].getPrice();
+	}
+
+	isRandomSantaReward() {
+		allRandomSantaRewards.push(this.name);
+		return this;
+	}
+
+	purchase() {
+		return Game.Upgrades[this.name].buy(1);
+	}
+
 	scalesBaseClicking(scale) {
 		this.addApplier(function(sim) { sim.cpcBaseMultiplier *= scale; });
 		this.addRevoker(function(sim) { sim.cpcBaseMultiplier /= scale; });
 		return this;
 	}
 
+	scalesBuildingCost(scale) {
+		this.addApplier(function(sim) { sim.buildingCostScale *= scale; });
+		this.addRevoker(function(sim) { sim.buildingCostScale /= scale; });
+		this.addValueApplier(function(sim) { sim.productionScale /= scale; });
+		this.addValueRevoker(function(sim) { sim.productionScale *= scale; });
+		return this;
+	}
+
 	scalesBuildingCps(index, scale) {
 		this.addApplier(function(sim) { sim.buildings[index].multiplier *= scale; });
 		this.addRevoker(function(sim) { sim.buildings[index].multiplier /= scale; });
+		return this;
+	}
+
+	scalesClicking(scale) {
+		this.addApplier(function(sim) { sim.cpcMultiplier *= scale; });
+		this.addRevoker(function(sim) { sim.cpcMultiplier /= scale; });
+		return this;
+	}
+
+	scalesUpgradeCost(scale)	{
+		this.addValueApplier(function(sim) { sim.productionScale /= scale; });
+		this.addValueRevoker(function(sim) { sim.productionScale *= scale; });
+		return this;
+	}
+
+	scalesMilk(scale) {
+		this.addApplier(function(sim) { sim.milkMultiplier *= scale; });
+		this.addRevoker(function(sim) { sim.milkMultiplier /= scale; });
 		return this;
 	}
 
@@ -1124,80 +1305,12 @@ class Upgrade extends Modifier {
 	}
 }
 
-Upgrade.prototype.getCost = function() {
-	// if (this.setsSeason == Constants.VALENTINES_DAY) {
-	// 	return Math.max(upgradeFunctions.pureHeartBiscuits.getCost(), this.getGameObject().getPrice());
-	// }
-	// if (!Config.skipHalloween && this.setsSeason == Constants.HALLOWEEN) {
-	// 	return Math.max(upgradeFunctions.skullCookies.getCost(), this.getGameObject().getPrice());
-	// }
-	// if (this == upgradeFunctions.santaLevel) {
-	// 	return Math.pow(Game.santaLevel + 1, Game.santaLevel + 1)
-	// }
-	return this.getGameObject().getPrice();
-}
-
 Upgrade.prototype.isAvailableToPurchase = function() {
 	if (this.buildsIndex != undefined)
 		return true;
 	else
 		return Game.Upgrades[this.name].unlocked == 1 && Game.Upgrades[this.name].bought == 0;
 
-}
-
-Upgrade.prototype.purchase = function() {
-	if (this == upgradeFunctions.santaLevel) {
-		var mx = Game.mouseX;
-		var my = Game.mouseY;
-		var c = Game.Click;
-		Game.mouseX = 24;
-		Game.mouseY = Game.LeftBackground.canvas.height - 48;
-		Game.Click = 1;
-		Game.UpdateSanta();
-		Game.mouseX = mx;
-		Game.mouseY = my;
-		Game.Click = c;
-	} else {
-		this.getGameObject().buy(1);
-	}
-}
-
-Upgrade.prototype.purchaseMany = function() {
-	if (this.buildsIndex == undefined) {
-		this.purchase();
-	} else {
-		while (Game.cookies > this.getGameObject().getPrice()) {
-			this.getGameObject().buy(1);
-		}
-	}
-}
-
-Upgrade.prototype.getEffectiveCps = function(eval) {
-	var cps = eval.getEffectiveCps();
-	this.applyTo(eval);
-	cps = eval.getEffectiveCps() - cps;
-	this.revokeFrom(eval);
-	return cps;
-}
-
-Upgrade.prototype.getValue = function(eval) {
-	var val = this.getEffectiveCps(eval);
-	if (this.valueFromTotalCps)
-		val += eval.getEffectiveCps() * this.valueFromTotalCps;
-	// if (this.setsSeason == Constants.VALENTINES_DAY && eval.lockedSeasonUpgrades[Constants.VALENTINES_DAY] > 0) {
-	// 	val = upgradeFunctions.pureHeartBiscuits.getValue(eval);
-	// }
-	// if (this.setsSeason == Constants.EASTER && eval.lockedSeasonUpgrades[Constants.EASTER] > 0) {
-	// 	if (eval.grandmatriarchStatus >= Constants.AWOKEN) {
-	// 		val = upgradeFunctions.chickenEgg.getValue(eval);
-	// 	}
-	// }
-	// if (this.setsSeason == Constants.HALLOWEEN && eval.lockedSeasonUpgrades[Constants.HALLOWEEN] > 0) {
-	// 	if (eval.grandmatriarchStatus >= Constants.AWOKEN && !Config.skipHalloween) {
-	// 		val = upgradeFunctions.skullCookies.getValue(eval);
-	// 	}
-	// }
-	return val;
 }
 
 // Upgrade.prototype.applyUpgrade = function(eval) {
@@ -1215,16 +1328,6 @@ Upgrade.prototype.getValue = function(eval) {
 // 		eval.cpcBase += this.clickBoost;
 // 	if (this.givesTotalBuildingBonusTo != undefined)
 // 		eval.buildings[this.givesTotalBuildingBonusTo].buildingScaler.addCountMost(this.givesTotalBuildingBonusExcluding, this.givesTotalBuildingBonusAmount);
-// 	if (this.buildingCostScale != undefined)
-// 		eval.buildingCostScale *= this.buildingCostScale;
-// 	if (this.totalClickScale != undefined)
-// 		eval.cpcMultiplier *= this.totalClickScale;
-// 	if (this.santaPowerBoost != undefined)
-// 		eval.santaPower += this.santaPowerBoost;
-// 	if (this.milkScale != undefined)
-// 		eval.milkMultiplier *= this.milkScale;
-// 	if (this.increasesSantaLevel != undefined)
-// 		++eval.santaLevel;
 // 	if (this.reindeerFrequencyScale != undefined)
 // 		eval.reindeerTime /= this.reindeerFrequencyScale;
 // 	if (this.reindeerScale != undefined)
@@ -1256,16 +1359,6 @@ Upgrade.prototype.getValue = function(eval) {
 // 		eval.cpcBase -= this.clickBoost;
 // 	if (this.givesTotalBuildingBonusTo != undefined)
 // 		eval.buildings[this.givesTotalBuildingBonusTo].buildingScaler.subtractCountMost(this.givesTotalBuildingBonusExcluding, this.givesTotalBuildingBonusAmount);
-// 	if (this.buildingCostScale != undefined)
-// 		eval.buildingCostScale /= this.buildingCostScale;
-// 	if (this.totalClickScale != undefined)
-// 		eval.cpcMultiplier /= this.totalClickScale;
-// 	if (this.santaPowerBoost != undefined)
-// 		eval.santaPower -= this.santaPowerBoost;
-// 	if (this.milkScale != undefined)
-// 		eval.milkMultiplier /= this.milkScale;
-// 	if (this.increasesSantaLevel != undefined)
-// 		--eval.santaLevel;
 // 	if (this.reindeerFrequencyScale != undefined)
 // 		eval.reindeerTime *= this.reindeerFrequencyScale;
 // 	if (this.reindeerScale != undefined)
@@ -1324,11 +1417,6 @@ Upgrade.prototype.getValue = function(eval) {
 // 	return this;
 // }
 
-// Upgrade.prototype.unlocksSantaLevels = function() {
-// 	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.01;
-// 	return this;
-// }
-
 // Upgrade.prototype.scalesBuildingCpsCost = function(scale) {
 // 	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + (1 - scale);
 // 	this.buildingCostScale = scale;
@@ -1342,27 +1430,6 @@ Upgrade.prototype.getValue = function(eval) {
 
 // Upgrade.prototype.increasesRandomDropChance = function(amount) {
 // 	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.0001 * amount;
-// 	return this;
-// }
-
-// Upgrade.prototype.scalesTotalClicking = function(scale) {
-// 	this.totalClickScale = scale;
-// 	return this;
-// }
-
-// Upgrade.prototype.boostsSantaPower = function(amount) {
-// 	this.santaPowerBoost = amount;
-// 	return this;
-// }
-
-// Upgrade.prototype.increasesSantasLevel = function() {
-// 	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.005;
-// 	this.increasesSantaLevel = true;
-// 	return this;
-// }
-
-// Upgrade.prototype.scalesMilk = function(scale) {
-// 	this.milkScale = scale;
 // 	return this;
 // }
 
@@ -1729,22 +1796,31 @@ upgrade("Heavenly key"			).unlocksPrestige(0.25);
 // upgrade("Spider cookies"	).scalesProduction(20).forSeason(Constants.HALLOWEEN);
 
 // Christmas season
-upgrade("Santa Level"				);	// Incomplete definition, temporary bug workaround
-// upgrade("A festive hat"				).unlocksSantaLevels().forSeason(Constants.CHRISTMAS);
-// upgrade("Santa Level"				).increasesSantasLevel().forSeason(Constants.CHRISTMAS);
+upgrade("A festive hat"				).requires("christmas");
+upgrade("Naughty list"				).requires("christmas").isRandomSantaReward().scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
+upgrade("A lump of coal"			).requires("christmas").isRandomSantaReward().scalesProduction(1.01);
+upgrade("An itchy sweater"			).requires("christmas").isRandomSantaReward().scalesProduction(1.01);
+upgrade("Improved jolliness"		).requires("christmas").isRandomSantaReward().scalesProduction(1.15);
+upgrade("Increased merriness"		).requires("christmas").isRandomSantaReward().scalesProduction(1.15);
+upgrade("Toy workshop"				).requires("christmas").isRandomSantaReward().scalesUpgradeCost(0.95);
+upgrade("Santa's helpers"			).requires("christmas").isRandomSantaReward().scalesClicking(1.1);
+upgrade("Santa's milk and cookies"	).requires("christmas").isRandomSantaReward().scalesMilk(1.05);
+upgrade("Santa's legacy"			).requires("christmas").isRandomSantaReward().boostsSantaPower(0.03);
+upgrade("Season savings"			).requires("christmas").isRandomSantaReward().scalesBuildingCost(0.99);
+upgrade("Santa's dominion"			).requires("christmas").scalesProduction(1.20).scalesBuildingCost(0.99).scalesUpgradeCost(0.98);
+
+new SantaLevel().requires("A festive hat");
+
+
+//upgrade("Reindeer baking grounds"	).requires("christmas").isRandomSantaReward();
+
 // upgrade("Weighted sleighs"			).slowsReindeer(2).forSeason(Constants.CHRISTMAS);
 // upgrade("Reindeer baking grounds"	).scalesReindeerFrequency(2).forSeason(Constants.CHRISTMAS);
 // upgrade("Ho ho ho-flavored frosting").scalesReindeer(2).forSeason(Constants.CHRISTMAS);
-// upgrade("Season savings"			).scalesBuildingCpsCost(0.99).forSeason(Constants.CHRISTMAS);
-// upgrade("Toy workshop"				).scalesUpgradeCost(0.95).forSeason(Constants.CHRISTMAS);
 // upgrade("Santa's bottomless bag"	).increasesRandomDropChance(10).forSeason(Constants.CHRISTMAS);
-// upgrade("Santa's helpers"			).scalesTotalClicking(1.1).forSeason(Constants.CHRISTMAS);
 // upgrade("Santa's legacy"			).boostsSantaPower(10).forSeason(Constants.CHRISTMAS);
-// upgrade("Santa's milk and cookies"	).scalesMilk(1.05).forSeason(Constants.CHRISTMAS);
-// upgrade("A lump of coal"			).scalesProduction(1).forSeason(Constants.CHRISTMAS);
-// upgrade("An itchy sweater"			).scalesProduction(1).forSeason(Constants.CHRISTMAS);
-// upgrade("Improved jolliness"		).scalesProduction(15).forSeason(Constants.CHRISTMAS);
-// upgrade("Increased merriness"		).scalesProduction(15).forSeason(Constants.CHRISTMAS);
+
+// Biscuits from clicking reindeer
 upgrade("Christmas tree biscuits"	).scalesProduction(1.02).requires("christmas");
 upgrade("Snowflake biscuits"		).scalesProduction(1.02).requires("christmas");
 upgrade("Snowman biscuits"			).scalesProduction(1.02).requires("christmas");
@@ -1753,7 +1829,6 @@ upgrade("Candy cane biscuits"		).scalesProduction(1.02).requires("christmas");
 upgrade("Bell biscuits"				).scalesProduction(1.02).requires("christmas");
 upgrade("Present biscuits"			).scalesProduction(1.02).requires("christmas");
 // upgrade("Santa's dominion"			).scalesProduction(50).scalesBuildingCpsCost(0.99).scalesUpgradeCost(0.98).forSeason(Constants.CHRISTMAS);
-// upgrade("Naughty list"				).scalesBuildingCps(Constants.GRANDMA_INDEX, 2).forSeason(Constants.CHRISTMAS);
 
 // Easter season
 // upgrade("Ant larva"					).boostsGlobalProduction(1).forSeason(Constants.EASTER);
