@@ -60,45 +60,45 @@ Constants.DISPLEASED = 2;
 Constants.ANGERED = 3;
 
 // Season names
-Constants.NO_SEASON = "";
-Constants.BUSINESS_DAY = "fools";
-Constants.CHRISTMAS = "christmas";
-Constants.EASTER = "easter";
-Constants.HALLOWEEN = "halloween";
-Constants.VALENTINES_DAY = "valentines";
-Constants.MAX_SANTA_LEVEL = 14;
+// Constants.NO_SEASON = "";
+// Constants.BUSINESS_DAY = "fools";
+// Constants.CHRISTMAS = "christmas";
+// Constants.EASTER = "easter";
+// Constants.HALLOWEEN = "halloween";
+// Constants.VALENTINES_DAY = "valentines";
+// Constants.MAX_SANTA_LEVEL = 14;
 
-var seasons = {};
-seasons[Constants.NO_SEASON] = {
-	name: Constants.NO_SEASON,
-	numUpgrades: 0,
-	wrinklersDropUpgrades: false,
-};
-seasons[Constants.BUSINESS_DAY] = {
-	name: Constants.BUSINESS_DAY,
-	numUpgrades: 0,
-	wrinklersDropUpgrades: false,
-};
-seasons[Constants.CHRISTMAS] = {
-	name: Constants.CHRISTMAS,
-	numUpgrades: 23,
-	wrinklersDropUpgrades: false,
-};
-seasons[Constants.EASTER] = {
-	name: Constants.EASTER,
-	numUpgrades: 20,
-	wrinklersDropUpgrades: true,
-};
-seasons[Constants.HALLOWEEN] = {
-	name: Constants.HALLOWEEN,
-	numUpgrades: 7,
-	wrinklersDropUpgrades: true,
-};
-seasons[Constants.VALENTINES_DAY] = {
-	name: Constants.VALENTINES_DAY,
-	numUpgrades: 6,
-	wrinklersDropUpgrades: false,
-};
+// var seasons = {};
+// seasons[Constants.NO_SEASON] = {
+// 	name: Constants.NO_SEASON,
+// 	numUpgrades: 0,
+// 	wrinklersDropUpgrades: false,
+// };
+// seasons[Constants.BUSINESS_DAY] = {
+// 	name: Constants.BUSINESS_DAY,
+// 	numUpgrades: 0,
+// 	wrinklersDropUpgrades: false,
+// };
+// seasons[Constants.CHRISTMAS] = {
+// 	name: Constants.CHRISTMAS,
+// 	numUpgrades: 23,
+// 	wrinklersDropUpgrades: false,
+// };
+// seasons[Constants.EASTER] = {
+// 	name: Constants.EASTER,
+// 	numUpgrades: 20,
+// 	wrinklersDropUpgrades: true,
+// };
+// seasons[Constants.HALLOWEEN] = {
+// 	name: Constants.HALLOWEEN,
+// 	numUpgrades: 7,
+// 	wrinklersDropUpgrades: true,
+// };
+// seasons[Constants.VALENTINES_DAY] = {
+// 	name: Constants.VALENTINES_DAY,
+// 	numUpgrades: 6,
+// 	wrinklersDropUpgrades: false,
+// };
 
 //
 // Periodical
@@ -234,7 +234,7 @@ UltimateCookie.prototype.sortTest = function() {
 
 UltimateCookie.prototype.comparePurchases = function(eval, a, b) {
 	// If autoPledge is active, Elder Pledge trumps all
-	if (Config.autoPledge && Game.elderWrath > 0 && (!seasons[eval.season].wrinklersDropUpgrades || eval.lockedSeasonUpgrades[eval.season] == 0)) {
+	if (Config.autoPledge && Game.elderWrath > 0/* && (!seasons[eval.season].wrinklersDropUpgrades || eval.lockedSeasonUpgrades[eval.season] == 0)*/) {
 		if (a.beginsElderPledge && !b.beginsElderPledge) {
 			return -1;
 		} else if (b.beginsElderPledge && !a.beginsElderPledge) {
@@ -323,14 +323,14 @@ UltimateCookie.prototype.buy = function() {
 	if (Game.recalculateGains == 1 || this.currentGame.matchesGame()) {
 		var time = new Date().getTime();
 
-		// If all upgrades for current season are bought, unlock season switching
-		if (time < this.lockSeasonsTimer) {
-			this.lockSeasons = true;
-		} else if (this.currentGame.season == Constants.CHRISTMAS) {
-			this.lockSeasons = (this.currentGame.santaLevel != Constants.MAX_SANTA_LEVEL);
-		} else {
-			this.lockSeasons = (this.currentGame.lockedSeasonUpgrades[this.currentGame.season] > 0 && this.currentGame.santaLevel > 0);
-		}
+		// // If all upgrades for current season are bought, unlock season switching
+		// if (time < this.lockSeasonsTimer) {
+		// 	this.lockSeasons = true;
+		// } else if (this.currentGame.season == Constants.CHRISTMAS) {
+		// 	this.lockSeasons = (this.currentGame.santaLevel != Constants.MAX_SANTA_LEVEL);
+		// } else {
+		// 	this.lockSeasons = (this.currentGame.lockedSeasonUpgrades[this.currentGame.season] > 0 && this.currentGame.santaLevel > 0);
+		// }
 
 		var nextPurchase = this.determineNextPurchase(this.currentGame);
 		// Shutdown if out of sync
@@ -352,7 +352,7 @@ UltimateCookie.prototype.buy = function() {
 			}
 		}
 
-		if (Config.autoPopWrinklers && seasons[this.currentGame.season].wrinklersDropUpgrades && this.currentGame.lockedSeasonUpgrades[this.currentGame.season] != 0) {
+		if (Config.autoPopWrinklers /* && seasons[this.currentGame.season].wrinklersDropUpgrades && this.currentGame.lockedSeasonUpgrades[this.currentGame.season] != 0 */) {
 			for (var w in Game.wrinklers) {
 				if (Game.wrinklers[w].sucked > 0) {
 					Game.wrinklers[w].hp = 0;
@@ -552,13 +552,89 @@ EvaluatorBuilding.prototype.getCost = function() {
 // Cost Evaluator, used to determine upgrade paths
 //
 
-function Evaluator() {
-	this.initialize();
-}
+class Evaluator {
+	constructor(uc) {
+		this.initialize();
+	}
 
-Evaluator.prototype.resetLockedUpgrades = function() {
-	for (var i in seasons) {
-		this.lockedSeasonUpgrades[seasons[i].name] = seasons[i].numUpgrades;
+	initialize() {
+		// Buildings
+		this.buildings = [];
+		this.buildings.push(new EvaluatorBuilding(this, 'Cursor',			   	         	  15,           0.1));
+		this.buildings.push(new EvaluatorBuilding(this, 'Grandma',			 	        	 100,           1.0));
+		this.buildings.push(new EvaluatorBuilding(this, 'Farm',				   		   	    1100,           8.0));
+		this.buildings.push(new EvaluatorBuilding(this, 'Mine',					      	   12000,          47.0));
+		this.buildings.push(new EvaluatorBuilding(this, 'Factory',			    	 	  130000,         260.0));
+		this.buildings.push(new EvaluatorBuilding(this, 'Bank',				   			 1400000,        1400.0));
+		this.buildings.push(new EvaluatorBuilding(this, 'Temple',				   	    20000000,        7800.0));
+		this.buildings.push(new EvaluatorBuilding(this, 'Wizard tower',			  	   330000000,       44000.0));
+		this.buildings.push(new EvaluatorBuilding(this, 'Shipment',				 	  5100000000,      260000.0));
+		this.buildings.push(new EvaluatorBuilding(this, 'Alchemy lab',				 75000000000,     1600000.0));
+		this.buildings.push(new EvaluatorBuilding(this, 'Portal',			  	   1000000000000,    10000000.0));
+		this.buildings.push(new EvaluatorBuilding(this, 'Time machine',	  	  	  14000000000000,    65000000.0));
+		this.buildings.push(new EvaluatorBuilding(this, 'Antimatter condenser',	 170000000000000,   430000000.0));
+		this.buildings.push(new EvaluatorBuilding(this, 'Prism',				2100000000000000,  2900000000.0));
+		this.buildings.push(new EvaluatorBuilding(this, 'Chancemaker',		   26000000000000000, 21000000000.0));
+		
+		// When the session started
+		this.sessionStartTime = new Date().getTime();
+		this.currentTime = new Date().getTime();
+
+		// Mouse click information
+		this.clickRate = 0;
+		this.cpcBase = 1;
+		this.cpcMultiplier = 1;
+		this.cpcBaseMultiplier = 1;
+		this.cpcCpsMultiplier = 0;
+		this.perBuildingFlatCpcBoostCounter = new BuildingCounter();
+
+		// Production multiplier
+		this.baseCps = 0;
+		this.productionScale = 1;
+		this.globalProductionMultiplier = 0;
+		this.centuryProductionMultiplier = 0;
+
+		// Heavenly chips
+		this.heavenlyChips = 0;
+
+		// Prestige
+		this.prestige = 0;
+		this.prestigeUnlocked = 0;
+
+		// Milk scaling
+		this.milkAmount = 0;
+		this.milkMultiplier = 1;
+		this.milkUnlocks = [];
+
+		// Game status indicators
+		this.clickFrenzyMultiplier = 1;
+
+		// Golden cookie and reindeer information
+		this.frenzyDuration = 77;
+		this.goldenCookieTime = 300;
+		this.reindeerTime = 180;
+		this.reindeerMultiplier = 1;
+
+		// Elder covenant and Grandmatriarch stuff
+		this.grandmatriarchStatus = Constants.APPEASED;
+		this.elderCovenant = false;	// 5% reduction in CpS
+		this.wrinklerMultiplier = 1;
+
+		// Santa level
+		this.santaLevel = 0;
+		this.santaPower = 0;
+
+		// Building cost reduction
+		this.buildingCostScale = 1;
+
+		// Current season
+		this.seasonStack = [""];	// Needs to be a stack so that adding seasons is reversible, only element 0 is active
+
+		this.matchError = "";
+	}
+
+	get season() {
+		return this.seasonStack[0];
 	}
 }
 
@@ -796,84 +872,6 @@ Evaluator.prototype.getCookieBankSize = function(timeSinceLastGoldenCookie) {
 	return Math.max(bank, 0);
 }
 
-Evaluator.prototype.initialize = function(uc) {
-	// Buildings
-	this.buildings = [];
-	this.buildings.push(new EvaluatorBuilding(this, 'Cursor',			   	         	  15,           0.1));
-	this.buildings.push(new EvaluatorBuilding(this, 'Grandma',			 	        	 100,           1.0));
-	this.buildings.push(new EvaluatorBuilding(this, 'Farm',				   		   	    1100,           8.0));
-	this.buildings.push(new EvaluatorBuilding(this, 'Mine',					      	   12000,          47.0));
-	this.buildings.push(new EvaluatorBuilding(this, 'Factory',			    	 	  130000,         260.0));
-	this.buildings.push(new EvaluatorBuilding(this, 'Bank',				   			 1400000,        1400.0));
-	this.buildings.push(new EvaluatorBuilding(this, 'Temple',				   	    20000000,        7800.0));
-	this.buildings.push(new EvaluatorBuilding(this, 'Wizard tower',			  	   330000000,       44000.0));
-	this.buildings.push(new EvaluatorBuilding(this, 'Shipment',				 	  5100000000,      260000.0));
-	this.buildings.push(new EvaluatorBuilding(this, 'Alchemy lab',				 75000000000,     1600000.0));
-	this.buildings.push(new EvaluatorBuilding(this, 'Portal',			  	   1000000000000,    10000000.0));
-	this.buildings.push(new EvaluatorBuilding(this, 'Time machine',	  	  	  14000000000000,    65000000.0));
-	this.buildings.push(new EvaluatorBuilding(this, 'Antimatter condenser',	 170000000000000,   430000000.0));
-	this.buildings.push(new EvaluatorBuilding(this, 'Prism',				2100000000000000,  2900000000.0));
-	this.buildings.push(new EvaluatorBuilding(this, 'Chancemaker',		   26000000000000000, 21000000000.0));
-	
-	// When the session started
-	this.sessionStartTime = new Date().getTime();
-	this.currentTime = new Date().getTime();
-
-	// Mouse click information
-	this.clickRate = 0;
-	this.cpcBase = 1;
-	this.cpcMultiplier = 1;
-	this.cpcBaseMultiplier = 1;
-	this.cpcCpsMultiplier = 0;
-	this.perBuildingFlatCpcBoostCounter = new BuildingCounter();
-
-	// Production multiplier
-	this.baseCps = 0;
-	this.productionScale = 1;
-	this.globalProductionMultiplier = 0;
-	this.centuryProductionMultiplier = 0;
-
-	// Heavenly chips
-	this.heavenlyChips = 0;
-
-	// Prestige
-	this.prestige = 0;
-	this.prestigeUnlocked = 0;
-
-	// Milk scaling
-	this.milkAmount = 0;
-	this.milkMultiplier = 1;
-	this.milkUnlocks = [];
-
-	// Game status indicators
-	this.clickFrenzyMultiplier = 1;
-
-	// Golden cookie and reindeer information
-	this.frenzyDuration = 77;
-	this.goldenCookieTime = 300;
-	this.reindeerTime = 180;
-	this.reindeerMultiplier = 1;
-
-	// Elder covenant and Grandmatriarch stuff
-	this.grandmatriarchStatus = Constants.APPEASED;
-	this.elderCovenant = false;	// 5% reduction in CpS
-	this.wrinklerMultiplier = 1;
-
-	// Santa level
-	this.santaLevel = 0;
-	this.santaPower = 0;
-
-	// Building cost reduction
-	this.buildingCostScale = 1;
-
-	// Current season
-	this.season = Constants.NO_SEASON;
-	this.lockedSeasonUpgrades = {};
-	this.resetLockedUpgrades();
-
-	this.matchError = "";
-}
-
 // Sync an evaluator with the current in game store
 Evaluator.prototype.syncToGame = function() {
 	this.initialize();
@@ -908,7 +906,7 @@ Evaluator.prototype.syncToGame = function() {
 		this.clickFrenzyMultiplier *= Constants.CLICK_FRENZY_MULTIPLIER;
 	
 	this.santaLevel = Game.santaLevel;
-	this.season = Game.season;
+	this.seasons = [Game.season];
 	this.sessionStartTime = Game.startDate;
 	this.currentTime = new Date().getTime();
 }
@@ -928,12 +926,14 @@ var upgradeBuildingsSupported = 0;
 // The modifier is a base class for anything that modifies a Simulation. Any
 // modifier can be applied to or revoked from a Simulation.
 //
+var allModifiers = {};
 
 class Modifier {
 	constructor(name) {
 		this.name = name;
 		this.appliers = [];
 		this.revokers = [];
+		allModifiers[name] = this;
 	}
 
 	applyTo(sim) {
@@ -955,7 +955,33 @@ class Modifier {
 	addRevoker(func) {
 		this.revokers.push(func);
 	}
+
+	requires(modifier) {
+		var required = allModifiers[modifier];
+		if (required.locks == undefined) 
+			required.locks = [];
+		required.locks.push(this);
+	}
 }
+
+//
+// Seasons
+//
+// Seasons are a class of modifier that make pretty big changes to the game, often enabling
+// new shimmers, new buffs and a bunch of lockable items to unlock. 
+
+var allSeasons = {};
+
+class Season extends Modifier {
+	constructor(name) {
+		super(name);
+		allSeasons[name] = this;
+		this.addApplier(function(sim) { sim.seasonStack.unshift(name); });
+		this.addRevoker(function(sim) { sim.seasonStack.shift(); });
+	}
+}
+
+new Season("christmas");
 
 //
 // Upgrades. 
@@ -979,12 +1005,16 @@ class Modifier {
 // Scale - A scale is multiplied with another scaling factor to increase that
 //         scaling.
 // 
+
+var allUpgrades = {};
+
 class Upgrade extends Modifier {
 	constructor(name, supported) {
 		super(name);
 		if (supported) {
 			upgradesSupported += 1;
 		}
+		allUpgrades[name] = this;
 	}
 
 	get variableName() {
@@ -1075,8 +1105,7 @@ class Upgrade extends Modifier {
 		return this;
 	}
 
-	givesPerBuildingFlatCpcBoost(excludes, amount)
-	{
+	givesPerBuildingFlatCpcBoost(excludes, amount) {
 		this.addApplier(function(sim) { sim.perBuildingFlatCpcBoostCounter.addCountMost(excludes, amount); });
 		this.addRevoker(function(sim) { sim.perBuildingFlatCpcBoostCounter.subtractCountMost(excludes, amount); });
 		return this;
@@ -1096,15 +1125,15 @@ class Upgrade extends Modifier {
 }
 
 Upgrade.prototype.getCost = function() {
-	if (this.setsSeason == Constants.VALENTINES_DAY) {
-		return Math.max(upgradeFunctions.pureHeartBiscuits.getCost(), this.getGameObject().getPrice());
-	}
-	if (!Config.skipHalloween && this.setsSeason == Constants.HALLOWEEN) {
-		return Math.max(upgradeFunctions.skullCookies.getCost(), this.getGameObject().getPrice());
-	}
-	if (this == upgradeFunctions.santaLevel) {
-		return Math.pow(Game.santaLevel + 1, Game.santaLevel + 1)
-	}
+	// if (this.setsSeason == Constants.VALENTINES_DAY) {
+	// 	return Math.max(upgradeFunctions.pureHeartBiscuits.getCost(), this.getGameObject().getPrice());
+	// }
+	// if (!Config.skipHalloween && this.setsSeason == Constants.HALLOWEEN) {
+	// 	return Math.max(upgradeFunctions.skullCookies.getCost(), this.getGameObject().getPrice());
+	// }
+	// if (this == upgradeFunctions.santaLevel) {
+	// 	return Math.pow(Game.santaLevel + 1, Game.santaLevel + 1)
+	// }
 	return this.getGameObject().getPrice();
 }
 
@@ -1155,19 +1184,19 @@ Upgrade.prototype.getValue = function(eval) {
 	var val = this.getEffectiveCps(eval);
 	if (this.valueFromTotalCps)
 		val += eval.getEffectiveCps() * this.valueFromTotalCps;
-	if (this.setsSeason == Constants.VALENTINES_DAY && eval.lockedSeasonUpgrades[Constants.VALENTINES_DAY] > 0) {
-		val = upgradeFunctions.pureHeartBiscuits.getValue(eval);
-	}
-	if (this.setsSeason == Constants.EASTER && eval.lockedSeasonUpgrades[Constants.EASTER] > 0) {
-		if (eval.grandmatriarchStatus >= Constants.AWOKEN) {
-			val = upgradeFunctions.chickenEgg.getValue(eval);
-		}
-	}
-	if (this.setsSeason == Constants.HALLOWEEN && eval.lockedSeasonUpgrades[Constants.HALLOWEEN] > 0) {
-		if (eval.grandmatriarchStatus >= Constants.AWOKEN && !Config.skipHalloween) {
-			val = upgradeFunctions.skullCookies.getValue(eval);
-		}
-	}
+	// if (this.setsSeason == Constants.VALENTINES_DAY && eval.lockedSeasonUpgrades[Constants.VALENTINES_DAY] > 0) {
+	// 	val = upgradeFunctions.pureHeartBiscuits.getValue(eval);
+	// }
+	// if (this.setsSeason == Constants.EASTER && eval.lockedSeasonUpgrades[Constants.EASTER] > 0) {
+	// 	if (eval.grandmatriarchStatus >= Constants.AWOKEN) {
+	// 		val = upgradeFunctions.chickenEgg.getValue(eval);
+	// 	}
+	// }
+	// if (this.setsSeason == Constants.HALLOWEEN && eval.lockedSeasonUpgrades[Constants.HALLOWEEN] > 0) {
+	// 	if (eval.grandmatriarchStatus >= Constants.AWOKEN && !Config.skipHalloween) {
+	// 		val = upgradeFunctions.skullCookies.getValue(eval);
+	// 	}
+	// }
 	return val;
 }
 
@@ -1416,8 +1445,6 @@ upgrade("Portal"				).builds(Constants.PORTAL_INDEX, 1);
 upgrade("Time machine"			).builds(Constants.TIME_MACHINE_INDEX, 1);
 upgrade("Antimatter condenser"	).builds(Constants.ANTIMATTER_CONDENSER_INDEX, 1);
 upgrade("Prism"					).builds(Constants.PRISM_INDEX, 1);
-upgrade("Chancemaker"			).builds(Constants.CHANCEMAKER_INDEX, 1);
-
 upgrade("Chancemaker"			).builds(Constants.CHANCEMAKER_INDEX, 1);
 
 // Upgrades that double the productivity of a type of building
@@ -1718,13 +1745,13 @@ upgrade("Santa Level"				);	// Incomplete definition, temporary bug workaround
 // upgrade("An itchy sweater"			).scalesProduction(1).forSeason(Constants.CHRISTMAS);
 // upgrade("Improved jolliness"		).scalesProduction(15).forSeason(Constants.CHRISTMAS);
 // upgrade("Increased merriness"		).scalesProduction(15).forSeason(Constants.CHRISTMAS);
-upgrade("Christmas tree biscuits"	).scalesProduction(1.02);//.forSeason(Constants.CHRISTMAS);
-upgrade("Snowflake biscuits"		).scalesProduction(1.02);//.forSeason(Constants.CHRISTMAS);
-upgrade("Snowman biscuits"			).scalesProduction(1.02);//.forSeason(Constants.CHRISTMAS);
-upgrade("Holly biscuits"			).scalesProduction(1.02);//.forSeason(Constants.CHRISTMAS);
-upgrade("Candy cane biscuits"		).scalesProduction(1.02);//.forSeason(Constants.CHRISTMAS);
-upgrade("Bell biscuits"				).scalesProduction(1.02);//.forSeason(Constants.CHRISTMAS);
-upgrade("Present biscuits"			).scalesProduction(1.02);//.forSeason(Constants.CHRISTMAS);
+upgrade("Christmas tree biscuits"	).scalesProduction(1.02).requires("christmas");
+upgrade("Snowflake biscuits"		).scalesProduction(1.02).requires("christmas");
+upgrade("Snowman biscuits"			).scalesProduction(1.02).requires("christmas");
+upgrade("Holly biscuits"			).scalesProduction(1.02).requires("christmas");
+upgrade("Candy cane biscuits"		).scalesProduction(1.02).requires("christmas");
+upgrade("Bell biscuits"				).scalesProduction(1.02).requires("christmas");
+upgrade("Present biscuits"			).scalesProduction(1.02).requires("christmas");
 // upgrade("Santa's dominion"			).scalesProduction(50).scalesBuildingCpsCost(0.99).scalesUpgradeCost(0.98).forSeason(Constants.CHRISTMAS);
 // upgrade("Naughty list"				).scalesBuildingCps(Constants.GRANDMA_INDEX, 2).forSeason(Constants.CHRISTMAS);
 
