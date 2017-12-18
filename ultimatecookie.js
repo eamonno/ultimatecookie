@@ -144,27 +144,29 @@ class Periodical {
 // UltimateCookie represents the app itself
 //
 
-function UltimateCookie() {
-	this.autoBuyInterval = Constants.AUTO_BUY_MIN_INTERVAL;
-	this.lastDeterminedPurchase = "";
-	this.lastPurchaseTime = new Date().getTime();
-	this.lastClickRateCheckTime = this.lastPurchaseTime;
-	this.lastClickCount = Game.cookieClicks;
-	this.clickRates = [100];
-	this.clickRate = 100;
-	this.lockSeasons = false;
-	this.lockSeasonsTimer = 0;
-	this.matchError = "";
-	this.currentGame = new Evaluator();
-	this.currentGame.syncToGame();
-	this.needsResync = false;
-	this.lastGameCps = Game.cookiesPs;
-	this.lastGameCpc = Game.mouseCps();
-	
-	// Start off the automatic things
-	this.autoClick(Constants.AUTO_CLICK_INTERVAL);
-	this.autoUpdate(Constants.AUTO_UPDATE_INTERVAL);
-	this.autoBuy(Constants.AUTO_BUY_MIN_INTERVAL);
+class UltimateCookie {
+	constructor() {
+		this.autoBuyInterval = Constants.AUTO_BUY_MIN_INTERVAL;
+		this.lastDeterminedPurchase = "";
+		this.lastPurchaseTime = new Date().getTime();
+		this.lastClickRateCheckTime = this.lastPurchaseTime;
+		this.lastClickCount = Game.cookieClicks;
+		this.clickRates = [100];
+		this.clickRate = 100;
+		this.lockSeasons = false;
+		this.lockSeasonsTimer = 0;
+		this.matchError = "";
+		this.sim = new Simulator();
+		this.sim.syncToGame();
+		this.needsResync = false;
+		this.lastGameCps = Game.cookiesPs;
+		this.lastGameCpc = Game.mouseCps();
+		
+		// Start off the automatic things
+		this.autoClick(Constants.AUTO_CLICK_INTERVAL);
+		this.autoUpdate(Constants.AUTO_UPDATE_INTERVAL);
+		this.autoBuy(Constants.AUTO_BUY_MIN_INTERVAL);
+	}
 }
 
 UltimateCookie.prototype.autoClick = function(interval) {
@@ -210,7 +212,7 @@ UltimateCookie.prototype.autoBuy = function(interval) {
 
 UltimateCookie.prototype.rankPurchases = function(eval) {
 	// Default to current game if no evaluator passed
-	eval = eval ? eval : this.currentGame;
+	eval = eval ? eval : this.sim;
 
 	var p1 = this.createPurchaseList();
 	p1.sort( function(a, b) { return UltimateCookie.prototype.comparePurchases(eval, a, b); } );
@@ -320,31 +322,22 @@ UltimateCookie.prototype.buy = function() {
 
 	// Get an Evaluator synced to the current game
 	if (this.needsResync && Game.recalculateGains == 0) {
-		this.currentGame.syncToGame();
+		this.sim.syncToGame();
 		this.needsResync = false;
 		this.lastGameCps = Game.cookiesPs;
 		this.lastGameCpc = Game.mouseCps();
 	} 
 
 	// If Game.recalculateGains is 1 that means we are out of sync until the next
-	// update which should be within a fraction of a second, just assume that currentGame
+	// update which should be within a fraction of a second, just assume that sim
 	// is correct until then. This allows for fast purchasing without stalling until the
 	// game does a full update
-	if (Game.recalculateGains == 1 || this.currentGame.matchesGame()) {
+	if (Game.recalculateGains == 1 || this.sim.matchesGame()) {
 		var time = new Date().getTime();
 
-		// // If all upgrades for current season are bought, unlock season switching
-		// if (time < this.lockSeasonsTimer) {
-		// 	this.lockSeasons = true;
-		// } else if (this.currentGame.season == Constants.CHRISTMAS) {
-		// 	this.lockSeasons = (this.currentGame.santaLevel != Constants.MAX_SANTA_LEVEL);
-		// } else {
-		// 	this.lockSeasons = (this.currentGame.lockedSeasonUpgrades[this.currentGame.season] > 0 && this.currentGame.santaLevel > 0);
-		// }
-
-		var nextPurchase = this.determineNextPurchase(this.currentGame);
+		var nextPurchase = this.determineNextPurchase(this.sim);
 		// Shutdown if out of sync
-		var cookieBank = this.currentGame.getCookieBankSize();
+		var cookieBank = this.sim.getCookieBankSize();
 		// Cap cookie bank at 5% of total cookies earned
 		cookieBank = Math.min(Game.cookiesEarned / 20, cookieBank);
 		if (Game.cookies - cookieBank > nextPurchase.getCost()) {
@@ -358,7 +351,7 @@ UltimateCookie.prototype.buy = function() {
 			}
 		}
 
-		if (Config.autoPopWrinklers /* && seasons[this.currentGame.season].wrinklersDropUpgrades && this.currentGame.lockedSeasonUpgrades[this.currentGame.season] != 0 */) {
+		if (Config.autoPopWrinklers /* && seasons[this.sim.season].wrinklersDropUpgrades && this.sim.lockedSeasonUpgrades[this.sim.season] != 0 */) {
 			for (var w in Game.wrinklers) {
 				if (Game.wrinklers[w].sucked > 0) {
 					Game.wrinklers[w].hp = 0;
@@ -367,7 +360,7 @@ UltimateCookie.prototype.buy = function() {
 		}
 	} else {
 		// Fail hard option, mostly used for debugging
-		console.log(this.currentGame.matchError);
+		console.log(this.sim.matchError);
 		if (Config.failHard) {
 			Config.autoClick = false;
 			Config.autoBuy = false;
@@ -375,7 +368,7 @@ UltimateCookie.prototype.buy = function() {
 			Config.autoClickReindeer = false;
 		} else {
 			// Resync, something has gone wrong
-			this.currentGame.syncToGame();
+			this.sim.syncToGame();
 		}
 	} 
 }
@@ -414,7 +407,7 @@ UltimateCookie.prototype.update = function() {
 		//console.log("Click rate - Last Second: " + Math.floor(newRate) +", Average: " + this.clickRate);
 		this.lastClickCount = Game.cookieClicks;
 		this.lastClickRateCheckTime = now;
-		this.currentGame.clickRate = Config.clickRateForCalculations ? Config.clickRateForCalculations : this.clickRate;
+		this.sim.clickRate = Config.clickRateForCalculations ? Config.clickRateForCalculations : this.clickRate;
 	}
 	if (Config.autoClickGoldenCookies) {
 		this.popShimmer("golden");
@@ -453,7 +446,7 @@ UltimateCookie.prototype.reset = function() {
 	console.log("Resetting game. HCs now: " + hcs + ", HCs after reset: " + resethcs + ", time: " + now);
 	this.lastPurchaseTime = now;
 	this.lastClickCount = 0;
-	this.currentGame.initialize();
+	this.sim.initialize();
 	this.autoBuy(Constants.RESET_PAUSE_TIME);
 	this.autoClick(Constants.RESET_PAUSE_TIME);
 	this.autoUpdate(Constants.RESET_PAUSE_TIME);
@@ -530,15 +523,20 @@ BuildingCounter.prototype.subtractCountMost = function(excludes, scale=1) {
 
 
 //
-// Class used to represent a particular building type for the cost Evaluator
+// Building.
 //
+// Represents one of the building types in the game.
 
-class EvaluatorBuilding {
-	constructor(evaluator, name, baseCost, baseCps) {
+class Building {
+	constructor(sim, name, baseCost, baseCps) {
 		this.name = name;
-		this.evaluator = evaluator;
+		this.sim = sim;
 		this.baseCost = baseCost;
 		this.baseCps = baseCps;
+		this.reset();
+	}
+
+	reset() {
 		this.quantity = 0;
 		this.free = 0;
 		this.multiplier = 1;
@@ -549,426 +547,36 @@ class EvaluatorBuilding {
 		this.scaleCounter = new BuildingCounter();
 	}
 
+	get cost() {
+		return Math.ceil(this.sim.buildingCostScale * this.baseCost * Math.pow(1.15, this.quantity - this.free));
+	}
+	
+	get cps() {
+		return this.quantity * this.individualCps;
+	}
+
+	get individualCps() {
+		return this.perBuildingFlatCpsBoostCounter.getCount(this.sim.buildings) + this.baseCps * (1 + this.scaleCounter.getCount(this.sim.buildings)) * this.synergyMultiplier * (1 + this.buildingScaler.getCount(this.sim.buildings)) * this.multiplier;
+	}
+
 	get synergyMultiplier() {
 		var scale = 1;
 		var i;
 		for (i = 0; i < this.synergies.scales.length; ++i) {
-			scale *= 1 + this.evaluator.buildings[i].quantity * this.synergies.scales[i];
+			scale *= 1 + this.sim.buildings[i].quantity * this.synergies.scales[i];
 		}
 		return scale;
 	}
-}
 
-EvaluatorBuilding.prototype.getCps = function() {
-	return this.quantity * this.getIndividualCps();
-}
+	// DELETE THESE AS SOON AS SORT WORKS WITHOUT THEM
 
-EvaluatorBuilding.prototype.getIndividualCps = function() {
-	if (typeof this.baseCps === 'function') {
-		return this.baseCps();
-	}
-	return this.perBuildingFlatCpsBoostCounter.getCount(this.evaluator.buildings) + this.baseCps * (1 + this.scaleCounter.getCount(this.evaluator.buildings)) * this.synergyMultiplier * (1 + this.buildingScaler.getCount(this.evaluator.buildings)) * this.multiplier;
-}
-
-EvaluatorBuilding.prototype.getCost = function() {
-	return Math.ceil(this.evaluator.buildingCostScale * this.baseCost * Math.pow(1.15, this.quantity - this.free));
-}
-
-//
-// Cost Evaluator, used to determine upgrade paths
-//
-
-class Evaluator {
-	constructor(uc) {
-		this.upgrades = {};
-		this.buffs = [];
-
-		this.initialize();
+	getCps() {
+		return this.cps;
 	}
 
-	initialize() {
-		// Buildings
-		this.buildings = [];
-		this.buildings.push(new EvaluatorBuilding(this, 'Cursor',			   	         	  15,           0.1));
-		this.buildings.push(new EvaluatorBuilding(this, 'Grandma',			 	        	 100,           1.0));
-		this.buildings.push(new EvaluatorBuilding(this, 'Farm',				   		   	    1100,           8.0));
-		this.buildings.push(new EvaluatorBuilding(this, 'Mine',					      	   12000,          47.0));
-		this.buildings.push(new EvaluatorBuilding(this, 'Factory',			    	 	  130000,         260.0));
-		this.buildings.push(new EvaluatorBuilding(this, 'Bank',				   			 1400000,        1400.0));
-		this.buildings.push(new EvaluatorBuilding(this, 'Temple',				   	    20000000,        7800.0));
-		this.buildings.push(new EvaluatorBuilding(this, 'Wizard tower',			  	   330000000,       44000.0));
-		this.buildings.push(new EvaluatorBuilding(this, 'Shipment',				 	  5100000000,      260000.0));
-		this.buildings.push(new EvaluatorBuilding(this, 'Alchemy lab',				 75000000000,     1600000.0));
-		this.buildings.push(new EvaluatorBuilding(this, 'Portal',			  	   1000000000000,    10000000.0));
-		this.buildings.push(new EvaluatorBuilding(this, 'Time machine',	  	  	  14000000000000,    65000000.0));
-		this.buildings.push(new EvaluatorBuilding(this, 'Antimatter condenser',	 170000000000000,   430000000.0));
-		this.buildings.push(new EvaluatorBuilding(this, 'Prism',				2100000000000000,  2900000000.0));
-		this.buildings.push(new EvaluatorBuilding(this, 'Chancemaker',		   26000000000000000, 21000000000.0));
-		
-		// When the session started
-		this.sessionStartTime = new Date().getTime();
-		this.currentTime = new Date().getTime();
-
-		// Mouse click information
-		this.clickRate = 0;
-		this.cpcMultiplier = 1;
-		this.cpcBaseMultiplier = 1;
-		this.cpcCpsMultiplier = 0;
-		this.perBuildingFlatCpcBoostCounter = new BuildingCounter();
-
-		// Production multiplier
-		this.baseCps = 0;
-		this.productionScale = 1;
-		this.globalProductionMultiplier = 0;
-		this.centuryProductionMultiplier = 0;
-
-		// Heavenly chips
-		this.heavenlyChips = 0;
-
-		// Prestige
-		this.prestige = 0;
-		this.prestigeUnlocked = 0;
-
-		// Milk scaling
-		this.milkAmount = 0;
-		this.milkMultiplier = 1;
-		this.milkUnlocks = [[],[]];
-
-		// Game status indicators
-		this.clickFrenzyMultiplier = 1;
-		this.cursedFinger = false;
-
-		// Golden cookie stuff information
-		this.frenzyDuration = 77;
-		this.goldenCookieTime = Constants.GOLDEN_COOKIE_AVG_INTERVAL;
-		this.goldenCookieDuration = Constants.GOLDEN_COOKIE_DURATION;
-		this.goldenCookieEffectDurationMultiplier = 1;
-
-		// Reindeer stuff
-		this.reindeerDuration = Constants.REINDEER_DURATION;
-		this.reindeerTime = 180;
-		this.reindeerMultiplier = 1;
-		this.reindeerBuffMultiplier = 1;
-
-		// Grandmatriarch stuff
-		this.grandmatriarchStatus = Constants.APPEASED;
-		this.wrinklerMultiplier = 1;
-
-		// Santa level
-		this.santaLevel = 0;
-		this.santaPower = 0;
-		this.randomSantaRewardsRemaining = allRandomSantaRewards.slice(0);
-
-		// Building cost reduction
-		this.buildingCostScale = 1;
-
-		// Reset upgrades, buffs etc. - just set them to false to avoid recreating the entire dictionary
-		for (var key in keys(this.upgrades))
-			this.upgrades[key] = false;
-		this.buffs = [];
-
-		// Current season
-		this.seasonStack = [""];	// Needs to be a stack so that adding seasons is reversible, only element 0 is active
-
-		this.matchError = "";
+	getCost() {
+		return this.cost;
 	}
-
-	get season() {
-		return this.seasonStack[0];
-	}
-
-	hasBuff(name) {
-		return !!this.buffs[name];
-	}
-
-	hasUpgrade(name) {
-		return !!this.upgrades[name];
-	}
-
-	//
-	// Effective CpS - boil down all the buffs and everything else to a single expected CpS value
-	//
-
-	effectiveCpsWithBuffs(buffs) {
-		var eCps = this.getCps() + this.getCpc() * this.clickRate;
-		return eCps;
-	}
-
-	effectiveCps() {
-		// Bit over simplistic for now, assumes golden cookies alternate between multiply cookies and frenzy
-
-		// Calculate baseline cps, passive + clicking
-		var totalTime = this.goldenCookieTime * 2;
-		var frenzyTime = this.frenzyDuration * this.goldenCookieEffectDurationMultiplier;
-		var normalTime = totalTime - frenzyTime;
-		var regularCps = (normalTime * this.effectiveCpsWithBuffs([]) + frenzyTime * this.effectiveCpsWithBuffs(['Frenzy']) ) / totalTime;
-		
-		// Calculate reindeer cps
-		var normalReindeerTime = normalTime - this.reindeerDuration;
-		var frenzyReindeerTime = frenzyTime + this.reindeerDuration;
-		var averageReindeer = (normalReindeerTime * this.cookiesPerReindeerWithBuffs([]) + frenzyReindeerTime * this.cookiesPerReindeerWithBuffs(['Frenzy'])) / totalTime;
-		var averageReindeerCps = averageReindeer / this.reindeerTime;
-
-		// Calculate golden cookie cps
-		var normalLuckyTime = normalTime - this.goldenCookieDuration;
-		var frenzyLuckyTime = frenzyTime + this.goldenCookieDuration;
-		var averageLucky = (normalLuckyTime * this.cookiesPerLuckyWithBuffs([]) + frenzyLuckyTime * this.cookiesPerLuckyWithBuffs(['Frenzy'])) / totalTime;
-		var averageLuckyCps = averageLucky / totalTime;
-
-		return regularCps + averageReindeerCps + averageLuckyCps;
-	}
-
-	//
-	// Reindeer stuff
-	//
-
-	cookiesPerReindeerWithBuffs(buffs) {
-		var cpr = this.cookiesPerReindeer();
-		return cpr;
-	}
-
-	cookiesPerReindeer() {
-		var cookies = this.getCps() * Constants.REINDEER_CPS_SECONDS * this.reindeerBuffMultiplier;
-		return Math.max(Constants.REINDEER_MIN_COOKIES, cookies) * this.reindeerMultiplier;
-	}
-
-	//
-	// Lucky cookies
-	//
-
-	cookiesPerLuckyWithBuffs(buffs) {
-		return this.cookiesPerLucky();
-	}
-
-	cookiesPerLucky() {
-		// If we dont click them, they don't work
-		if (!Config.autoClickGoldenCookies) {
-			return 0;
-		}
-
-		var cookies1 = this.getCps() * Constants.LUCKY_COOKIE_CPS_SECONDS;
-		var cookies2 = cookies1; // cookieBank * 0.15;
-
-		return Math.min(cookies1, cookies2) + Constants.LUCKY_COOKIE_FLAT_BONUS;
-	}
-}
-
-// Check that the values in the evaluator match those of the game, for debugging use
-Evaluator.prototype.matchesGame = function(equalityFunction=floatEqual) {
-	var errMsg = "";
-	// Check that Cps matches the game
-	var cps = this.getCps();
-	if (!equalityFunction(cps, Game.cookiesPs)) {
-		errMsg += "- CpS - Predicted: " + this.getCps() + ", Actual: " + Game.cookiesPs + "\n";
-	}
-	// Check the Cpc matches the game
-	var cpc = this.getCpc();
-	var gcpc = Game.mouseCps();
-	if (!equalityFunction(cpc, gcpc)) {
-		errMsg += "- CpC - Predicted: " + cpc + ", Actual: " + gcpc + "\n";
-	}
-	// Check the building costs match the game
-	var i;
-	for (i = 0; i < this.buildings.length; ++i) {
-		if (this.buildings[i].name != Game.ObjectsById[i].name) {
-			errMsg += "- Building Name " + this.buildings[i].name + " does not match " + Game.ObjectsById[i].name + "\n";			
-		}
-		if (!equalityFunction(this.buildings[i].getCost(), Game.ObjectsById[i].getPrice())) {
-			errMsg += "- Building Cost " + this.buildings[i].name + " - Predicted: " + this.buildings[i].getCost() + ", Actual: " + Game.ObjectsById[i].getPrice() + "\n";
-		}
-		if (!equalityFunction(this.buildings[i].getIndividualCps(), Game.ObjectsById[i].cps(Game.ObjectsById[i]))) {
-			errMsg += "- Building CpS " + this.buildings[i].name + " - Predicted: " + this.buildings[i].getIndividualCps() + ", Actual: " + Game.ObjectsById[i].cps(Game.ObjectsById[i]) + "\n";
-		}
-	}
-	// Check that all buildings are supported
-	if (this.buildings.length != Game.ObjectsById.length)
-		errMsg += "- Building getCount " + this.buildings.length + " does not match " + Game.ObjectsById.length + "\n";
-
-	// Check that all available upgrade costs match those of similar upgrade functions
-	for (i = 0; i < Game.UpgradesInStore.length; ++i) {
-		var u = Game.UpgradesInStore[i];
-		var uf = getUpgradeFunction(u.name);
-		if (uf.setsSeason == undefined && !equalityFunction(uf.getCost(), u.getPrice())) {
-			errMsg += "- Upgrade Cost " + u.name + " - Predicted: " + uf.getCost() + ", Actual: " + u.getPrice() + "\n";
-		}
-	}
-	if (errMsg != "") {
-		errMsg = "Evaluator Mismatch:\n" + errMsg;
-		for (var key in Game.buffs) {
-			errMsg += "- Buff Active: " + key + "\n";
-		}
-		errMsg += "- Game Save: " + Game.WriteSave(1) + "\n";
-	}
-
-	this.matchError = errMsg;
-	if (this.matchError) {
-		this.lastError = this.matchError;
-		if (Game.version != Constants.SUPPORTED_VERSION) {
-			this.lastError = this.lastError + Constants.VERSION_ERROR;
-		}
-	} else if (!this.lastError) {
-		if (Game.version != Constants.SUPPORTED_VERSION) {
-			this.lastError = Constants.VERSION_ERROR;
-		}
-	}
-	return this.matchError == "";
-}
-
-// Get the current cookies per click amount
-Evaluator.prototype.getCpc = function(ignoreCursedFinger = false) {
-	// Add the per building flat boost first
-	var cpc = this.perBuildingFlatCpcBoostCounter.getCount(this.buildings);
-	
-	// Add percentage of recular CpS
-	cpc += this.getCps(true) * this.cpcCpsMultiplier;
-
-	// Scale with normal CpC multipliers
-	cpc += 1 * this.cpcBaseMultiplier;			// Base cpc
-
-	// Scale with click multiplier
-	cpc *= this.cpcMultiplier;
-
-	// Scale with click frenzy
-	cpc *= this.clickFrenzyMultiplier;
-	
-	if (ignoreCursedFinger || !this.cursedFinger)
-		return cpc;
-	return this.getCps(true) * allBuffs['Cursed finger'].duration * this.goldenCookieEffectDurationMultiplier;
-}
-
-// Calculate the total Cps generated by the game in this state
-Evaluator.prototype.getCps = function(ignoreCursedFinger = false) {
-	var i;
-	var j;
-
-	var cps = this.baseCps;
-	// Get the cps from buildings - start at 1, cursors generate clicks
-	for (i = 0; i < this.buildings.length; ++i) {
-		cps += this.buildings[i].getCps();
-	}
-
-	// Scale it for production and heavely chip multipliers
-	var santaScale = 1 + (this.santaLevel + 1) * this.santaPower;
-	var prestigeScale = this.prestige * this.prestigeUnlocked * 0.01;
-
-	var scale = this.productionScale * santaScale * (1 + prestigeScale);
-
-	// Scale it for milk, two tiers to deal with ordering and minimise floating point errors
-	for (i = 0; i < this.milkUnlocks.length; ++i) {
-		for (j = 0; j < this.milkUnlocks[i].length; ++j) {
-			scale *= (1 + this.milkUnlocks[i][j] * this.milkAmount * this.milkMultiplier);
-		}
-	}
-
-	// Scale it for global production
-	var sessionDays = Math.min(Math.floor((this.currentTime - this.sessionStartTime) / 1000 / 10) * 10 / 60 / 60 / 24, 100);
-	var centuryMult = (1 - Math.pow(1 - sessionDays / 100, 3)) * this.centuryProductionMultiplier;
-
-	scale *= (1 + (this.globalProductionMultiplier + centuryMult) * 0.01);
-	scale *= this.frenzyMultiplier;
-
-	cps *= scale;
-
-	if (ignoreCursedFinger || !this.cursedFinger)
-		return cps;
-	return 0;
-}
-
-Evaluator.prototype.getCookieChainMax = function(frenzy) {
-	return this.getFrenziedCps(frenzy) * Constants.COOKIE_CHAIN_MULTIPLIER;
-}
-
-// Get the current required cookie bank size, accounts for time until the
-// next golden cookie appears
-Evaluator.prototype.getCookieBankSize = function(timeSinceLastGoldenCookie) {
-	// Don't need one if not clicking golden cookies
-	if (!Config.maintainCookieBank) {
-		return 0;
-	}
-
-	var bank;
-	var normalTimeRemaining;
-	var frenzyTimeRemaining;
-	var luckyBank;
-	var chainBank;
-
-	var timeToNextCookie = Math.max(this.goldenCookieTime - Game.shimmerTypes['golden'] ? Game.shimmerTypes['golden'].time / Game.fps : 0, 0);
-
-	// Bank size varies on whether you can get another golden cookie during frenzy
-	if (this.frenzyDuration * this.goldenCookieEffectDurationMultiplier < this.goldenCookieTime) {
-		luckyBank = this.getLuckyCookieMax(1) * Constants.LUCKY_COOKIE_BANK_SCALE;
-		chainBank = this.getCookieChainMax(1) * Constants.COOKIE_CHAIN_BANK_SCALE;
-
-		normalTimeRemaining = timeToNextCookie;
-		frenzyTimeRemaining = 0;
-	} else {
-		luckyBank = this.getLuckyCookieMax(Constants.FRENZY_MULTIPLIER) * Constants.LUCKY_COOKIE_BANK_SCALE;
-		chainBank = this.getCookieChainMax(Constants.FRENZY_MULTIPLIER) * Constants.COOKIE_CHAIN_BANK_SCALE;
-
-		if (this.frenzy) {
-			normalTimeRemaining = 0;
-			frenzyTimeRemaining = timeToNextCookie;
-		} else {
-			normalTimeRemaining = timeToNextCookie;
-			frenzyTimeRemaining = this.frenzyDuration * this.goldenCookieEffectDurationMultiplier;
-		}
-	}
-	var frenzyMult = Math.min(this.frenzyMultiplier, Constants.FRENZY_MULTIPLIER);	// stop elder frenzy messing up bank
-	bank = Math.max(luckyBank, chainBank);
-	bank -= normalTimeRemaining * (this.getFrenziedCps(1) + this.getFrenziedCpc(1) * this.clickRate);
-	bank -= frenzyTimeRemaining * (this.getFrenziedCps(frenzyMult) + this.getFrenziedCpc(frenzyMult) * this.clickRate);
-	
-	return Math.max(bank, 0);
-}
-
-// Sync an evaluator with the current in game store
-Evaluator.prototype.syncToGame = function() {
-	this.initialize();
-	var i;
-	for (i = 0; i < Game.ObjectsById.length && i < this.buildings.length; ++i) {
-		this.buildings[i].quantity = Game.ObjectsById[i].amount;
-		this.buildings[i].free = Game.ObjectsById[i].free;
-	}
-	for (i = 0; i < Game.UpgradesById.length; ++i) {
-		if (Game.UpgradesById[i].bought == 1) {
-			var uf = getUpgradeFunction(Game.UpgradesById[i].name);
-			uf.applyTo(this);
-			if (uf.season) {
-				this.lockedSeasonUpgrades[uf.season]--;
-			}
-		} else if (Game.UpgradesById[i].unlocked == 1) {
-			var uf = getUpgradeFunction(Game.UpgradesById[i].name);
-			if (this.randomSantaRewardsRemaining.indexOf(uf.name) != -1)
-			if (uf.season) {
-				this.lockedSeasonUpgrades[uf.season]--;
-			}
-		}
-		// Remove from random santa rewards if its bought or in store
-		if (Game.UpgradesById[i].bought == 1 || Game.UpgradesById[i].unlocked == 1) {
-			var uf = getUpgradeFunction(Game.UpgradesById[i].name);
-			if (this.randomSantaRewardsRemaining.indexOf(uf.name) != -1) {
-				this.randomSantaRewardsRemaining.splice(this.randomSantaRewardsRemaining.indexOf(uf.name), 1);				
-			}
-		}
-	}
-	this.heavenlyChips = Game.heavenlyChips;
-	this.prestige = Game.prestige;
-	this.milkAmount = Game.AchievementsOwned / 25;
-	this.frenzyMultiplier = 1;
-	this.clickFrenzyMultiplier = 1;
-	for (var key in Game.buffs) {
-		if (allBuffs[key]) {
-			allBuffs[key].applyTo(this);
-		} else {
-			console.log("Unknown buff: " + key);
-			new Buff(key);
-		}
-	}
-	
-	this.santaLevel = Game.santaLevel;
-	this.seasons = [Game.season];
-	this.sessionStartTime = Game.startDate;
-	this.currentTime = new Date().getTime();
 }
 
 //
@@ -1822,15 +1430,16 @@ upgrade("Nevercrack mouse"				).boostsClickCps(0.01);
 upgrade("Armythril mouse"				).boostsClickCps(0.01);
 
 // Milk increases
-upgrade("Kitten helpers"		).unlocksMilk(0.1);
-upgrade("Kitten workers"		).unlocksMilk(0.125);
-upgrade("Kitten engineers"		).unlocksMilk(0.15);
-upgrade("Kitten overseers"		).unlocksMilk(0.175);
-upgrade("Kitten managers"		).unlocksMilk(0.2);
-upgrade("Kitten accountants"	).unlocksMilk(0.2);
-upgrade("Kitten specialists"	).unlocksMilk(0.2);
-upgrade("Kitten experts"		).unlocksMilk(0.2);
-upgrade("Kitten consultants"	).unlocksMilk(0.2);
+upgrade("Kitten helpers"							).unlocksMilk(0.1);
+upgrade("Kitten workers"							).unlocksMilk(0.125);
+upgrade("Kitten engineers"							).unlocksMilk(0.15);
+upgrade("Kitten overseers"							).unlocksMilk(0.175);
+upgrade("Kitten managers"							).unlocksMilk(0.2);
+upgrade("Kitten accountants"						).unlocksMilk(0.2);
+upgrade("Kitten specialists"						).unlocksMilk(0.2);
+upgrade("Kitten experts"							).unlocksMilk(0.2);
+upgrade("Kitten consultants"						).unlocksMilk(0.2);
+upgrade("Kitten assistants to the regional manager"	).unlocksMilk(0.2);
 
 // Prestige power unlocks
 upgrade("Heavenly chip secret"	).unlocksPrestige(0.05);
@@ -2023,6 +1632,462 @@ getUpgradeFunction = function(name) {
 }
 
 //
+// Simulator
+//
+// Simulates the cookie clicker Game allowing for the calculations of the CpS values etc. of the
+// game. Simulation is not compete, this doesn't actually generate cookies or act over time but
+// it does accurately simulate the effects any upgrades, building purchases, buffs etc have and 
+// as such can be used to calculate the optimal purchase strategy
+//
+
+class Simulator {
+	constructor() {
+		this.buildings = [];
+		this.upgrades = {};
+		this.buffs = [];
+
+		var sim = this;
+
+		// Add a new Buff to the Simulation
+		function buff(name) {
+			var buff = new Buff(sim, name);
+			sim.modifiers[name] = buff;
+			sim.buffs[name] = buff;
+			return buff;
+		}
+
+		// Add a new Building upgrade to the Simulation
+		function building(name, cost, cps) {
+			var building = new Building(sim, name, cost, cps);
+			sim.buildings.push(building);
+			return building;
+		}
+
+		// Add a new Legacy upgrade to the Simulation
+		function legacy(name) {
+			var legacy = new Modifier(this, name);
+			this.modifiers[name] = legacy;
+			this.legacies[name] = legacy;
+			return legacy;
+		}
+
+		// Add a new Season to the Simulation
+		function season(name) {
+			var season = new Season(this, name);
+			this.modifiers[name] = season;
+			this.seasons[name] = season;
+			return season;
+		}
+
+		// Add a new Toggle to the Simulation
+		function toggle(name) {
+			var toggle = new Modifier(this, name);
+			this.modifiers[name] = toggle;
+			this.toggles[name] = toggle;
+			return toggle;
+		}
+
+		// Add a new Upgrade to the Simulation
+		function upgrade(name) {
+			var upgrade = new Modifier(this, name);
+			this.modifiers[name] = upgrade;
+			this.upgrades[name] = upgrade;
+			return upgrade;
+		}
+
+		// Create all the buildings - the order matters, dont shuffle these!
+		building('Cursor',			   	         	  15,           0.1);
+		building('Grandma',			 	        	 100,           1.0);
+		building('Farm',					   	    1100,           8.0);
+		building('Mine',				      	   12000,          47.0);
+		building('Factory',			    	 	  130000,         260.0);
+		building('Bank',						 1400000,        1400.0);
+		building('Temple',				   	    20000000,        7800.0);
+		building('Wizard tower',		  	   330000000,       44000.0);
+		building('Shipment',			 	  5100000000,      260000.0);
+		building('Alchemy lab',				 75000000000,     1600000.0);
+		building('Portal',			  	   1000000000000,    10000000.0);
+		building('Time machine',	  	  14000000000000,    65000000.0);
+		building('Antimatter condenser', 170000000000000,   430000000.0);
+		building('Prism',				2100000000000000,  2900000000.0);
+		building('Chancemaker',		   26000000000000000, 21000000000.0);
+
+		this.reset();
+	}
+
+	reset() {
+		var i = 0;
+		for (i = 0; i < this.buildings.length; ++i) {
+			this.buildings[i].reset();
+		}
+		
+		// When the session started
+		this.sessionStartTime = new Date().getTime();
+		this.currentTime = new Date().getTime();
+
+		// Mouse click information
+		this.clickRate = 0;
+		this.cpcMultiplier = 1;
+		this.cpcBaseMultiplier = 1;
+		this.cpcCpsMultiplier = 0;
+		this.perBuildingFlatCpcBoostCounter = new BuildingCounter();
+
+		// Production multiplier
+		this.baseCps = 0;
+		this.productionScale = 1;
+		this.globalProductionMultiplier = 0;
+		this.centuryProductionMultiplier = 0;
+
+		// Heavenly chips
+		this.heavenlyChips = 0;
+
+		// Prestige
+		this.prestige = 0;
+		this.prestigeUnlocked = 0;
+
+		// Milk scaling
+		this.milkAmount = 0;
+		this.milkMultiplier = 1;
+		this.milkUnlocks = [[],[]];
+
+		// Game status indicators
+		this.clickFrenzyMultiplier = 1;
+		this.cursedFinger = false;
+
+		// Golden cookie stuff information
+		this.frenzyDuration = 77;
+		this.goldenCookieTime = Constants.GOLDEN_COOKIE_AVG_INTERVAL;
+		this.goldenCookieDuration = Constants.GOLDEN_COOKIE_DURATION;
+		this.goldenCookieEffectDurationMultiplier = 1;
+
+		// Reindeer stuff
+		this.reindeerDuration = Constants.REINDEER_DURATION;
+		this.reindeerTime = 180;
+		this.reindeerMultiplier = 1;
+		this.reindeerBuffMultiplier = 1;
+
+		// Grandmatriarch stuff
+		this.grandmatriarchStatus = Constants.APPEASED;
+		this.wrinklerMultiplier = 1;
+
+		// Santa level
+		this.santaLevel = 0;
+		this.santaPower = 0;
+		this.randomSantaRewardsRemaining = allRandomSantaRewards.slice(0);
+
+		// Building cost reduction
+		this.buildingCostScale = 1;
+
+		// Reset upgrades, buffs etc. - just set them to false to avoid recreating the entire dictionary
+		for (var key in keys(this.upgrades))
+			this.upgrades[key] = false;
+		this.buffs = [];
+
+		// Current season
+		this.seasonStack = [""];	// Needs to be a stack so that adding seasons is reversible, only element 0 is active
+
+		this.matchError = "";
+	}
+
+	get season() {
+		return this.seasonStack[0];
+	}
+
+	hasBuff(name) {
+		return !!this.buffs[name];
+	}
+
+	hasUpgrade(name) {
+		return !!this.upgrades[name];
+	}
+
+	//
+	// Effective CpS - boil down all the buffs and everything else to a single expected CpS value
+	//
+
+	effectiveCpsWithBuffs(buffs) {
+		var eCps = this.getCps() + this.getCpc() * this.clickRate;
+		return eCps;
+	}
+
+	effectiveCps() {
+		// Bit over simplistic for now, assumes golden cookies alternate between multiply cookies and frenzy
+
+		// Calculate baseline cps, passive + clicking
+		var totalTime = this.goldenCookieTime * 2;
+		var frenzyTime = this.frenzyDuration * this.goldenCookieEffectDurationMultiplier;
+		var normalTime = totalTime - frenzyTime;
+		var regularCps = (normalTime * this.effectiveCpsWithBuffs([]) + frenzyTime * this.effectiveCpsWithBuffs(['Frenzy']) ) / totalTime;
+		
+		// Calculate reindeer cps
+		var normalReindeerTime = normalTime - this.reindeerDuration;
+		var frenzyReindeerTime = frenzyTime + this.reindeerDuration;
+		var averageReindeer = (normalReindeerTime * this.cookiesPerReindeerWithBuffs([]) + frenzyReindeerTime * this.cookiesPerReindeerWithBuffs(['Frenzy'])) / totalTime;
+		var averageReindeerCps = averageReindeer / this.reindeerTime;
+
+		// Calculate golden cookie cps
+		var normalLuckyTime = normalTime - this.goldenCookieDuration;
+		var frenzyLuckyTime = frenzyTime + this.goldenCookieDuration;
+		var averageLucky = (normalLuckyTime * this.cookiesPerLuckyWithBuffs([]) + frenzyLuckyTime * this.cookiesPerLuckyWithBuffs(['Frenzy'])) / totalTime;
+		var averageLuckyCps = averageLucky / totalTime;
+
+		return regularCps + averageReindeerCps + averageLuckyCps;
+	}
+
+	//
+	// Reindeer stuff
+	//
+
+	cookiesPerReindeerWithBuffs(buffs) {
+		var cpr = this.cookiesPerReindeer();
+		return cpr;
+	}
+
+	cookiesPerReindeer() {
+		var cookies = this.getCps() * Constants.REINDEER_CPS_SECONDS * this.reindeerBuffMultiplier;
+		return Math.max(Constants.REINDEER_MIN_COOKIES, cookies) * this.reindeerMultiplier;
+	}
+
+	//
+	// Lucky cookies
+	//
+
+	cookiesPerLuckyWithBuffs(buffs) {
+		return this.cookiesPerLucky();
+	}
+
+	cookiesPerLucky() {
+		// If we dont click them, they don't work
+		if (!Config.autoClickGoldenCookies) {
+			return 0;
+		}
+
+		var cookies1 = this.getCps() * Constants.LUCKY_COOKIE_CPS_SECONDS;
+		var cookies2 = cookies1; // cookieBank * 0.15;
+
+		return Math.min(cookies1, cookies2) + Constants.LUCKY_COOKIE_FLAT_BONUS;
+	}
+}
+
+// Check that the values in the evaluator match those of the game, for debugging use
+Simulator.prototype.matchesGame = function(equalityFunction=floatEqual) {
+	var errMsg = "";
+	// Check that Cps matches the game
+	var cps = this.getCps();
+	if (!equalityFunction(cps, Game.cookiesPs)) {
+		errMsg += "- CpS - Predicted: " + this.getCps() + ", Actual: " + Game.cookiesPs + "\n";
+	}
+	// Check the Cpc matches the game
+	var cpc = this.getCpc();
+	var gcpc = Game.mouseCps();
+	if (!equalityFunction(cpc, gcpc)) {
+		errMsg += "- CpC - Predicted: " + cpc + ", Actual: " + gcpc + "\n";
+	}
+	// Check the building costs match the game
+	var i;
+	for (i = 0; i < this.buildings.length; ++i) {
+		if (this.buildings[i].name != Game.ObjectsById[i].name) {
+			errMsg += "- Building Name " + this.buildings[i].name + " does not match " + Game.ObjectsById[i].name + "\n";			
+		}
+		if (!equalityFunction(this.buildings[i].getCost(), Game.ObjectsById[i].getPrice())) {
+			errMsg += "- Building Cost " + this.buildings[i].name + " - Predicted: " + this.buildings[i].cost + ", Actual: " + Game.ObjectsById[i].getPrice() + "\n";
+		}
+		if (!equalityFunction(this.buildings[i].individualCps, Game.ObjectsById[i].cps(Game.ObjectsById[i]))) {
+			errMsg += "- Building CpS " + this.buildings[i].name + " - Predicted: " + this.buildings[i].individualCps + ", Actual: " + Game.ObjectsById[i].cps(Game.ObjectsById[i]) + "\n";
+		}
+	}
+	// Check that all buildings are supported
+	if (this.buildings.length != Game.ObjectsById.length)
+		errMsg += "- Building getCount " + this.buildings.length + " does not match " + Game.ObjectsById.length + "\n";
+
+	// Check that all available upgrade costs match those of similar upgrade functions
+	for (i = 0; i < Game.UpgradesInStore.length; ++i) {
+		var u = Game.UpgradesInStore[i];
+		var uf = getUpgradeFunction(u.name);
+		if (uf.setsSeason == undefined && !equalityFunction(uf.getCost(), u.getPrice())) {
+			errMsg += "- Upgrade Cost " + u.name + " - Predicted: " + uf.getCost() + ", Actual: " + u.getPrice() + "\n";
+		}
+	}
+	if (errMsg != "") {
+		errMsg = "Evaluator Mismatch:\n" + errMsg;
+		for (var key in Game.buffs) {
+			errMsg += "- Buff Active: " + key + "\n";
+		}
+		errMsg += "- Game Save: " + Game.WriteSave(1) + "\n";
+	}
+
+	this.matchError = errMsg;
+	if (this.matchError) {
+		this.lastError = this.matchError;
+		if (Game.version != Constants.SUPPORTED_VERSION) {
+			this.lastError = this.lastError + Constants.VERSION_ERROR;
+		}
+	} else if (!this.lastError) {
+		if (Game.version != Constants.SUPPORTED_VERSION) {
+			this.lastError = Constants.VERSION_ERROR;
+		}
+	}
+	return this.matchError == "";
+}
+
+// Get the current cookies per click amount
+Simulator.prototype.getCpc = function(ignoreCursedFinger = false) {
+	// Add the per building flat boost first
+	var cpc = this.perBuildingFlatCpcBoostCounter.getCount(this.buildings);
+	
+	// Add percentage of recular CpS
+	cpc += this.getCps(true) * this.cpcCpsMultiplier;
+
+	// Scale with normal CpC multipliers
+	cpc += 1 * this.cpcBaseMultiplier;			// Base cpc
+
+	// Scale with click multiplier
+	cpc *= this.cpcMultiplier;
+
+	// Scale with click frenzy
+	cpc *= this.clickFrenzyMultiplier;
+	
+	if (ignoreCursedFinger || !this.cursedFinger)
+		return cpc;
+	return this.getCps(true) * allBuffs['Cursed finger'].duration * this.goldenCookieEffectDurationMultiplier;
+}
+
+// Calculate the total Cps generated by the game in this state
+Simulator.prototype.getCps = function(ignoreCursedFinger = false) {
+	var i;
+	var j;
+
+	var cps = this.baseCps;
+	// Get the cps from buildings - start at 1, cursors generate clicks
+	for (i = 0; i < this.buildings.length; ++i) {
+		cps += this.buildings[i].cps;
+	}
+
+	// Scale it for production and heavely chip multipliers
+	var santaScale = 1 + (this.santaLevel + 1) * this.santaPower;
+	var prestigeScale = this.prestige * this.prestigeUnlocked * 0.01;
+
+	var scale = this.productionScale * santaScale * (1 + prestigeScale);
+
+	// Scale it for milk, two tiers to deal with ordering and minimise floating point errors
+	for (i = 0; i < this.milkUnlocks.length; ++i) {
+		for (j = 0; j < this.milkUnlocks[i].length; ++j) {
+			scale *= (1 + this.milkUnlocks[i][j] * this.milkAmount * this.milkMultiplier);
+		}
+	}
+
+	// Scale it for global production
+	var sessionDays = Math.min(Math.floor((this.currentTime - this.sessionStartTime) / 1000 / 10) * 10 / 60 / 60 / 24, 100);
+	var centuryMult = (1 - Math.pow(1 - sessionDays / 100, 3)) * this.centuryProductionMultiplier;
+
+	scale *= (1 + (this.globalProductionMultiplier + centuryMult) * 0.01);
+	scale *= this.frenzyMultiplier;
+
+	cps *= scale;
+
+	if (ignoreCursedFinger || !this.cursedFinger)
+		return cps;
+	return 0;
+}
+
+Simulator.prototype.getCookieChainMax = function(frenzy) {
+	return this.getFrenziedCps(frenzy) * Constants.COOKIE_CHAIN_MULTIPLIER;
+}
+
+// Get the current required cookie bank size, accounts for time until the
+// next golden cookie appears
+Simulator.prototype.getCookieBankSize = function(timeSinceLastGoldenCookie) {
+	// Don't need one if not clicking golden cookies
+	if (!Config.maintainCookieBank) {
+		return 0;
+	}
+
+	var bank;
+	var normalTimeRemaining;
+	var frenzyTimeRemaining;
+	var luckyBank;
+	var chainBank;
+
+	var timeToNextCookie = Math.max(this.goldenCookieTime - Game.shimmerTypes['golden'] ? Game.shimmerTypes['golden'].time / Game.fps : 0, 0);
+
+	// Bank size varies on whether you can get another golden cookie during frenzy
+	if (this.frenzyDuration * this.goldenCookieEffectDurationMultiplier < this.goldenCookieTime) {
+		luckyBank = this.getLuckyCookieMax(1) * Constants.LUCKY_COOKIE_BANK_SCALE;
+		chainBank = this.getCookieChainMax(1) * Constants.COOKIE_CHAIN_BANK_SCALE;
+
+		normalTimeRemaining = timeToNextCookie;
+		frenzyTimeRemaining = 0;
+	} else {
+		luckyBank = this.getLuckyCookieMax(Constants.FRENZY_MULTIPLIER) * Constants.LUCKY_COOKIE_BANK_SCALE;
+		chainBank = this.getCookieChainMax(Constants.FRENZY_MULTIPLIER) * Constants.COOKIE_CHAIN_BANK_SCALE;
+
+		if (this.frenzy) {
+			normalTimeRemaining = 0;
+			frenzyTimeRemaining = timeToNextCookie;
+		} else {
+			normalTimeRemaining = timeToNextCookie;
+			frenzyTimeRemaining = this.frenzyDuration * this.goldenCookieEffectDurationMultiplier;
+		}
+	}
+	var frenzyMult = Math.min(this.frenzyMultiplier, Constants.FRENZY_MULTIPLIER);	// stop elder frenzy messing up bank
+	bank = Math.max(luckyBank, chainBank);
+	bank -= normalTimeRemaining * (this.getFrenziedCps(1) + this.getFrenziedCpc(1) * this.clickRate);
+	bank -= frenzyTimeRemaining * (this.getFrenziedCps(frenzyMult) + this.getFrenziedCpc(frenzyMult) * this.clickRate);
+	
+	return Math.max(bank, 0);
+}
+
+// Sync an evaluator with the current in game store
+Simulator.prototype.syncToGame = function() {
+	this.reset();
+	var i;
+	for (i = 0; i < Game.ObjectsById.length && i < this.buildings.length; ++i) {
+		this.buildings[i].quantity = Game.ObjectsById[i].amount;
+		this.buildings[i].free = Game.ObjectsById[i].free;
+	}
+	for (i = 0; i < Game.UpgradesById.length; ++i) {
+		if (Game.UpgradesById[i].bought == 1) {
+			var uf = getUpgradeFunction(Game.UpgradesById[i].name);
+			uf.applyTo(this);
+			if (uf.season) {
+				this.lockedSeasonUpgrades[uf.season]--;
+			}
+		} else if (Game.UpgradesById[i].unlocked == 1) {
+			var uf = getUpgradeFunction(Game.UpgradesById[i].name);
+			if (this.randomSantaRewardsRemaining.indexOf(uf.name) != -1)
+			if (uf.season) {
+				this.lockedSeasonUpgrades[uf.season]--;
+			}
+		}
+		// Remove from random santa rewards if its bought or in store
+		if (Game.UpgradesById[i].bought == 1 || Game.UpgradesById[i].unlocked == 1) {
+			var uf = getUpgradeFunction(Game.UpgradesById[i].name);
+			if (this.randomSantaRewardsRemaining.indexOf(uf.name) != -1) {
+				this.randomSantaRewardsRemaining.splice(this.randomSantaRewardsRemaining.indexOf(uf.name), 1);				
+			}
+		}
+	}
+	this.heavenlyChips = Game.heavenlyChips;
+	this.prestige = Game.prestige;
+	this.milkAmount = Game.AchievementsOwned / 25;
+	this.frenzyMultiplier = 1;
+	this.clickFrenzyMultiplier = 1;
+	for (var key in Game.buffs) {
+		if (allBuffs[key]) {
+			allBuffs[key].applyTo(this);
+		} else {
+			console.log("Unknown buff: " + key);
+			new Buff(key);
+		}
+	}
+	
+	this.santaLevel = Game.santaLevel;
+	this.seasons = [Game.season];
+	this.sessionStartTime = Game.startDate;
+	this.currentTime = new Date().getTime();
+}
+
+//
 // Utility stuff and starting the app off
 //
 
@@ -2035,4 +2100,4 @@ function floatEqual(a, b) {
 console.log("Ultimate Cookie starting at " + new Date() + " supporting " + upgradesSupported + " upgrades and " + upgradeBuildingsSupported + " buildings.");
 
 // Create the upgradeInfo and Ultimate Cookie instances
-var ultimateCookie = new UltimateCookie();
+var uc = new UltimateCookie();
