@@ -45,8 +45,8 @@ perspective.
 4. Performance tweaks. Tweak game settings for better performance, that sort of stuff.
 
 Then of course there are the ongoing changes.
-- Upgrade support: Currently 286 / 356 supported.
-- Prestige Upgrade support: Currently 1 / 65 supported.
+- Upgrade support: Currently 307 / 356 supported.
+- Prestige Upgrade support: Currently 37 / 65 (at least partially) supported.
 - Whatever other bugfixes and improvements I get sidetracked by in the meantime.
 
 Known issues:

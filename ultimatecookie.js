@@ -540,7 +540,7 @@ class Building {
 		this.quantity = 0;
 		this.free = 0;
 		this.multiplier = 1;
-		this.synergies = new BuildingCounter();
+		this.synergies = [];
 		this.perBuildingFlatCpcBoostCounter = new BuildingCounter();
 		this.perBuildingFlatCpsBoostCounter = new BuildingCounter();
 		this.buildingScaler = new BuildingCounter();
@@ -562,10 +562,24 @@ class Building {
 	get synergyMultiplier() {
 		var scale = 1;
 		var i;
-		for (i = 0; i < this.synergies.scales.length; ++i) {
-			scale *= 1 + this.sim.buildings[i].quantity * this.synergies.scales[i];
+		for (i = 0; i < this.synergies.length; ++i) {
+			scale *= 1 + this.sim.buildings[this.synergies[i][0]].quantity * this.synergies[i][1];
 		}
 		return scale;
+	}
+
+	addSynergy(index, scale) {
+		this.synergies.push([index, scale]);
+	}
+
+	removeSynergy(index, scale) {
+		var i;
+		for (i = this.synergies.length - 1; i >= 0; --i) {
+			if (this.synergies[i][0] == index && this.synergies[i][1] == scale) {
+				this.synergies.splice(i, 1);
+				return;
+			}
+		}
 	}
 
 	// DELETE THESE AS SOON AS SORT WORKS WITHOUT THEM
@@ -1044,11 +1058,11 @@ class Upgrade extends Purchase {
 	}
 
 	givesSynergy(receiver, from, amount, reverse=0) {
-		this.addApplier(function(sim) { sim.buildings[receiver].synergies.addCountOne(from, amount); });
-		this.addRevoker(function(sim) { sim.buildings[receiver].synergies.subtractCountOne(from, amount); });
+		this.addApplier(function(sim) { sim.buildings[receiver].addSynergy(from, amount); });
+		this.addRevoker(function(sim) { sim.buildings[receiver].removeSynergy(from, amount); });
 		if (reverse) {
-			this.addApplier(function(sim) { sim.buildings[from].synergies.addCountOne(receiver, reverse); });
-			this.addRevoker(function(sim) { sim.buildings[from].synergies.subtractCountOne(receiver, reverse); });				
+			this.addApplier(function(sim) { sim.buildings[from].addSynergy(receiver, reverse); });
+			this.addRevoker(function(sim) { sim.buildings[from].removeSynergy(receiver, reverse); });				
 		}
 		return this;		
 	}
@@ -1500,6 +1514,7 @@ class Simulator {
 		upgrade("Brane transplant"				).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
 		upgrade("Deity-sized portals"			).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
 		upgrade("End of times back-up plan"		).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
+		upgrade("Maddening chants"				).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
 		upgrade("Flux capacitors"				).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
 		upgrade("Time paradox resolver"			).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
 		upgrade("Quantum conundrum"				).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
@@ -1736,7 +1751,16 @@ class Simulator {
 		upgrade("Printing presses"				).requires("Synergies Vol. II").givesSynergy(Constants.FACTORY_INDEX, Constants.BANK_INDEX, 0.05, 0.001);
 		upgrade("Rain prayer"					).requires("Synergies Vol. II").givesSynergy(Constants.FARM_INDEX, Constants.TEMPLE_INDEX, 0.05, 0.001);
 		upgrade("Magical botany"				).requires("Synergies Vol. II").givesSynergy(Constants.FARM_INDEX, Constants.WIZARD_TOWER_INDEX, 0.05, 0.001);
-		//upgrade("Asteroid mining"				).requires("Synergies Vol. II").givesSynergy(Constants.MINE_INDEX, Constants.SHIPMENT_INDEX, 0.05, 0.001);
+		upgrade("Asteroid mining"				).requires("Synergies Vol. II").givesSynergy(Constants.MINE_INDEX, Constants.SHIPMENT_INDEX, 0.05, 0.001);
+		upgrade("Shipyards"						).requires("Synergies Vol. II").givesSynergy(Constants.FACTORY_INDEX, Constants.SHIPMENT_INDEX, 0.05, 0.001);
+		upgrade("Gold fund"						).requires("Synergies Vol. II").givesSynergy(Constants.BANK_INDEX, Constants.ALCHEMY_LAB_INDEX, 0.05, 0.001);
+		upgrade("Temporal overclocking"			).requires("Synergies Vol. II").givesSynergy(Constants.FACTORY_INDEX, Constants.TIME_MACHINE_INDEX, 0.05, 0.001);
+		upgrade("God particle"					).requires("Synergies Vol. II").givesSynergy(Constants.TEMPLE_INDEX, Constants.ANTIMATTER_CONDENSER_INDEX, 0.05, 0.001);
+		upgrade("Chemical proficiency"			).requires("Synergies Vol. II").givesSynergy(Constants.ALCHEMY_LAB_INDEX, Constants.ANTIMATTER_CONDENSER_INDEX, 0.05, 0.001);
+		upgrade("Mystical energies"				).requires("Synergies Vol. II").givesSynergy(Constants.TEMPLE_INDEX, Constants.PRISM_INDEX, 0.05, 0.001);
+		upgrade("Abysmal glimmer"				).requires("Synergies Vol. II").givesSynergy(Constants.PORTAL_INDEX, Constants.PRISM_INDEX, 0.05, 0.001);
+		upgrade("Primeval glow"					).requires("Synergies Vol. II").givesSynergy(Constants.TIME_MACHINE_INDEX, Constants.PRISM_INDEX, 0.05, 0.001);
+		upgrade("Charm quarks"					).requires("Synergies Vol. II").givesSynergy(Constants.ANTIMATTER_CONDENSER_INDEX, Constants.CHANCEMAKER_INDEX, 0.05, 0.001);
 		
 		this.reset();
 	}
