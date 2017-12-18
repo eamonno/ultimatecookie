@@ -600,21 +600,30 @@ class Modifier {
 	constructor(sim, name) {
 		this.sim = sim;
 		this.name = name;
+		this.applied = false;
 		this.appliers = [];
 		this.revokers = [];
 		allModifiers[name] = this;
 	}
 
+	// REFACTOR - ADD ERROR CHECK TO PREVENT DOUBLE REPLY
 	apply() {
 		var i;
 		for (i = 0; i < this.appliers.length; ++i)
 			this.appliers[i](this.sim);
+		this.applied = true;
 	}
 
+	reset() {
+		this.applied = false;
+	}
+
+	// REFACTOR - ADD ERROR CHECK TO PREVENT FAULTY REVOKE
 	revoke() {
 		var i;
 		for (i = this.revokers.length - 1; i >= 0; --i)
 			this.revokers[i](this.sim);
+		this.applied = false;
 	}
 
 	// REFACTOR - DELETE
@@ -622,6 +631,7 @@ class Modifier {
 		var i;
 		for (i = 0; i < this.appliers.length; ++i)
 			this.appliers[i](sim);
+		this.applied = true;
 	}
 
 	// REFACTOR - DELETE
@@ -629,6 +639,7 @@ class Modifier {
 		var i;
 		for (i = this.revokers.length - 1; i >= 0; --i)
 			this.revokers[i](sim);
+		this.applied = false;
 	}
 
 	addApplier(func) {
@@ -674,6 +685,7 @@ class Modifier {
 //
 // Seasons are a class of modifier that make pretty big changes to the game, often enabling
 // new shimmers, new buffs and a bunch of lockable items to unlock. 
+//
 
 class Season extends Modifier {
 	constructor(sim, name) {
@@ -688,16 +700,14 @@ class Season extends Modifier {
 //
 // Buffs are temporary modifications to the game, often giving very large increases in
 // throughput for a short duration.
+//
 
 var allBuffs = {};
 
 class Buff extends Modifier {
-	constructor(name, duration) {
-		super(null, name);
+	constructor(sim, name, duration) {
+		super(sim, name);
 		this.duration = duration;
-		allBuffs[name] = this;
-		this.addApplier(function(sim) { sim.buffs.push(name); });
-		this.addRevoker(function(sim) { sim.buffs.splice(sim.buffs.indexOf(name), 1); });
 	}
 
 	cursesFinger() {
@@ -731,26 +741,6 @@ class Buff extends Modifier {
 	}
 }
 
-new Buff('Clot'					).scalesFrenzyMultiplier(0.5);
-new Buff('Frenzy'				).scalesFrenzyMultiplier(7).scalesReindeerBuffMultiplier(0.75);
-new Buff('Elder frenzy'			).scalesFrenzyMultiplier(666).scalesReindeerBuffMultiplier(0.5);
-new Buff('Click frenzy'			).scalesClickFrenzyMultiplier(777);
-new Buff('High-five'			).scalesFrenzyMultiplierPerBuilding(Constants.CURSOR_INDEX);
-new Buff('Congregation'			).scalesFrenzyMultiplierPerBuilding(Constants.GRANDMA_INDEX);
-new Buff('Luxuriant harvest'	).scalesFrenzyMultiplierPerBuilding(Constants.FARM_INDEX);
-new Buff('Ore vein'				).scalesFrenzyMultiplierPerBuilding(Constants.MINE_INDEX);
-new Buff('Oiled-up'				).scalesFrenzyMultiplierPerBuilding(Constants.FACTORY_INDEX);
-new Buff('Juicy profits'		).scalesFrenzyMultiplierPerBuilding(Constants.BANK_INDEX);
-new Buff('Fervent adoration'	).scalesFrenzyMultiplierPerBuilding(Constants.TEMPLE_INDEX);
-new Buff('Manabloom'			).scalesFrenzyMultiplierPerBuilding(Constants.WIZARD_TOWER_INDEX);
-new Buff('Delicious lifeforms'	).scalesFrenzyMultiplierPerBuilding(Constants.SHIPMENT_INDEX);
-new Buff('Breakthrough'			).scalesFrenzyMultiplierPerBuilding(Constants.ALCHEMY_LAB_INDEX);
-new Buff('Righteous cataclysm'	).scalesFrenzyMultiplierPerBuilding(Constants.PORTAL_INDEX);
-new Buff('Golden ages'			).scalesFrenzyMultiplierPerBuilding(Constants.TIME_MACHINE_INDEX);
-new Buff('Extra cycles'			).scalesFrenzyMultiplierPerBuilding(Constants.ANTIMATTER_CONDENSER_INDEX);
-new Buff('Solar flare'			).scalesFrenzyMultiplierPerBuilding(Constants.PRISM_INDEX);
-new Buff('Winning streak'		).scalesFrenzyMultiplierPerBuilding(Constants.CHANCEMAKER_INDEX);
-new Buff('Cursed finger', 10	).cursesFinger();	
 //
 // Purchases.
 //
@@ -1679,13 +1669,13 @@ class Simulator {
 		this.modifiers = {};
 		this.upgrades = {};
 		this.seasons = {};
-		this.buffs = [];
+		this.buffs = {};
 
 		var sim = this;
 
 		// Add a new Buff to the Simulation
-		function buff(name) {
-			var buff = new Buff(sim, name);
+		function buff(name, duration) {
+			var buff = new Buff(sim, name, duration);
 			sim.modifiers[name] = buff;
 			sim.buffs[name] = buff;
 			return buff;
@@ -1748,7 +1738,27 @@ class Simulator {
 		building('Chancemaker',		   26000000000000000, 21000000000.0);
 
 		// Create all the buffs
-
+		buff('Clot'					).scalesFrenzyMultiplier(0.5);
+		buff('Frenzy'				).scalesFrenzyMultiplier(7).scalesReindeerBuffMultiplier(0.75);
+		buff('Elder frenzy'			).scalesFrenzyMultiplier(666).scalesReindeerBuffMultiplier(0.5);
+		buff('Click frenzy'			).scalesClickFrenzyMultiplier(777);
+		buff('High-five'			).scalesFrenzyMultiplierPerBuilding(Constants.CURSOR_INDEX);
+		buff('Congregation'			).scalesFrenzyMultiplierPerBuilding(Constants.GRANDMA_INDEX);
+		buff('Luxuriant harvest'	).scalesFrenzyMultiplierPerBuilding(Constants.FARM_INDEX);
+		buff('Ore vein'				).scalesFrenzyMultiplierPerBuilding(Constants.MINE_INDEX);
+		buff('Oiled-up'				).scalesFrenzyMultiplierPerBuilding(Constants.FACTORY_INDEX);
+		buff('Juicy profits'		).scalesFrenzyMultiplierPerBuilding(Constants.BANK_INDEX);
+		buff('Fervent adoration'	).scalesFrenzyMultiplierPerBuilding(Constants.TEMPLE_INDEX);
+		buff('Manabloom'			).scalesFrenzyMultiplierPerBuilding(Constants.WIZARD_TOWER_INDEX);
+		buff('Delicious lifeforms'	).scalesFrenzyMultiplierPerBuilding(Constants.SHIPMENT_INDEX);
+		buff('Breakthrough'			).scalesFrenzyMultiplierPerBuilding(Constants.ALCHEMY_LAB_INDEX);
+		buff('Righteous cataclysm'	).scalesFrenzyMultiplierPerBuilding(Constants.PORTAL_INDEX);
+		buff('Golden ages'			).scalesFrenzyMultiplierPerBuilding(Constants.TIME_MACHINE_INDEX);
+		buff('Extra cycles'			).scalesFrenzyMultiplierPerBuilding(Constants.ANTIMATTER_CONDENSER_INDEX);
+		buff('Solar flare'			).scalesFrenzyMultiplierPerBuilding(Constants.PRISM_INDEX);
+		buff('Winning streak'		).scalesFrenzyMultiplierPerBuilding(Constants.CHANCEMAKER_INDEX);
+		buff('Cursed finger', 10	).cursesFinger();	
+		
 
 		// Create all the seasons
 		season("christmas");
@@ -1759,10 +1769,12 @@ class Simulator {
 
 	reset() {
 		var i = 0;
-		for (i = 0; i < this.buildings.length; ++i) {
-			this.buildings[i].reset();
-		}
 		
+		for (i = 0; i < this.buildings.length; ++i)
+			this.buildings[i].reset();
+		for (var key in this.buffs)
+			this.buffs[key].reset();
+			
 		// When the session started
 		this.sessionStartTime = new Date().getTime();
 		this.currentTime = new Date().getTime();
@@ -1823,7 +1835,6 @@ class Simulator {
 		// Reset upgrades, buffs etc. - just set them to false to avoid recreating the entire dictionary
 		for (var key in keys(this.upgrades))
 			this.upgrades[key] = false;
-		this.buffs = [];
 
 		// Current season
 		this.seasonStack = [""];	// Needs to be a stack so that adding seasons is reversible, only element 0 is active
@@ -1833,10 +1844,6 @@ class Simulator {
 
 	get season() {
 		return this.seasonStack[0];
-	}
-
-	hasBuff(name) {
-		return !!this.buffs[name];
 	}
 
 	hasUpgrade(name) {
@@ -2115,11 +2122,10 @@ Simulator.prototype.syncToGame = function() {
 	this.frenzyMultiplier = 1;
 	this.clickFrenzyMultiplier = 1;
 	for (var key in Game.buffs) {
-		if (allBuffs[key]) {
-			allBuffs[key].applyTo(this);
+		if (this.buffs[key]) {
+			this.buffs[key].apply();
 		} else {
 			console.log("Unknown buff: " + key);
-			new Buff(key);
 		}
 	}
 	
