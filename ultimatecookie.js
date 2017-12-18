@@ -605,12 +605,26 @@ class Modifier {
 		allModifiers[name] = this;
 	}
 
+	apply() {
+		var i;
+		for (i = 0; i < this.appliers.length; ++i)
+			this.appliers[i](this.sim);
+	}
+
+	revoke() {
+		var i;
+		for (i = this.revokers.length - 1; i >= 0; --i)
+			this.revokers[i](this.sim);
+	}
+
+	// REFACTOR - DELETE
 	applyTo(sim) {
 		var i;
 		for (i = 0; i < this.appliers.length; ++i)
 			this.appliers[i](sim);
 	}
 
+	// REFACTOR - DELETE
 	revokeFrom(sim) {
 		var i;
 		for (i = this.revokers.length - 1; i >= 0; --i)
@@ -626,7 +640,18 @@ class Modifier {
 	}
 
 	requires(modifier) {
-		var required = allModifiers[modifier];
+		// REFACTOR - REMOVE allModifiers COMPLETELY
+		// REFACTOR - DONT JUST IGNORE BROKEN REQUIREMENTS
+		var required;
+		if (this.sim) {
+			required = this.sim.modifiers[modifier];
+		} else {
+			required = allModifiers[modifier];
+		}
+		if (!required) {
+			console.log("Missing requirement for " + this.name + ": " + modifier);
+			return this;
+		}
 		if (required.locks == undefined) 
 			required.locks = [];
 		required.locks.push(this);
@@ -634,6 +659,7 @@ class Modifier {
 	}
 
 	// Calculate the amount of effective CpS this modifier adds directly
+	// REFACTOR - TURN INTO A GETTER
 	getEffectiveCps(sim) {
 		var cps = sim.effectiveCps();
 		this.applyTo(sim);
@@ -649,18 +675,13 @@ class Modifier {
 // Seasons are a class of modifier that make pretty big changes to the game, often enabling
 // new shimmers, new buffs and a bunch of lockable items to unlock. 
 
-var allSeasons = {};
-
 class Season extends Modifier {
-	constructor(name) {
-		super(null, name);
-		allSeasons[name] = this;
+	constructor(sim, name) {
+		super(sim, name);
 		this.addApplier(function(sim) { sim.seasonStack.unshift(name); });
 		this.addRevoker(function(sim) { sim.seasonStack.shift(); });
 	}
 }
-
-new Season("christmas");
 
 //
 // Buffs.
@@ -1655,7 +1676,9 @@ getUpgradeFunction = function(name) {
 class Simulator {
 	constructor() {
 		this.buildings = [];
+		this.modifiers = {};
 		this.upgrades = {};
+		this.seasons = {};
 		this.buffs = [];
 
 		var sim = this;
@@ -1677,33 +1700,33 @@ class Simulator {
 
 		// Add a new Legacy upgrade to the Simulation
 		function legacy(name) {
-			var legacy = new Modifier(this, name);
-			this.modifiers[name] = legacy;
-			this.legacies[name] = legacy;
+			var legacy = new Modifier(sim, name);
+			sim.modifiers[name] = legacy;
+			sim.legacies[name] = legacy;
 			return legacy;
 		}
 
 		// Add a new Season to the Simulation
 		function season(name) {
-			var season = new Season(this, name);
-			this.modifiers[name] = season;
-			this.seasons[name] = season;
+			var season = new Season(sim, name);
+			sim.modifiers[name] = season;
+			sim.seasons[name] = season;
 			return season;
 		}
 
 		// Add a new Toggle to the Simulation
 		function toggle(name) {
-			var toggle = new Modifier(this, name);
-			this.modifiers[name] = toggle;
-			this.toggles[name] = toggle;
+			var toggle = new Modifier(sim, name);
+			sim.modifiers[name] = toggle;
+			sim.toggles[name] = toggle;
 			return toggle;
 		}
 
 		// Add a new Upgrade to the Simulation
 		function upgrade(name) {
-			var upgrade = new Modifier(this, name);
-			this.modifiers[name] = upgrade;
-			this.upgrades[name] = upgrade;
+			var upgrade = new Modifier(sim, name);
+			sim.modifiers[name] = upgrade;
+			sim.upgrades[name] = upgrade;
 			return upgrade;
 		}
 
@@ -1726,6 +1749,11 @@ class Simulator {
 
 		// Create all the buffs
 
+
+		// Create all the seasons
+		season("christmas");
+		
+		
 		this.reset();
 	}
 
@@ -2096,7 +2124,6 @@ Simulator.prototype.syncToGame = function() {
 	}
 	
 	this.santaLevel = Game.santaLevel;
-	this.seasons = [Game.season];
 	this.sessionStartTime = Game.startDate;
 	this.currentTime = new Date().getTime();
 }
