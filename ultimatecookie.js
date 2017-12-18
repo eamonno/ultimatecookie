@@ -597,7 +597,8 @@ var upgradeBuildingsSupported = 0;
 var allModifiers = {};
 
 class Modifier {
-	constructor(name) {
+	constructor(sim, name) {
+		this.sim = sim;
 		this.name = name;
 		this.appliers = [];
 		this.revokers = [];
@@ -652,7 +653,7 @@ var allSeasons = {};
 
 class Season extends Modifier {
 	constructor(name) {
-		super(name);
+		super(null, name);
 		allSeasons[name] = this;
 		this.addApplier(function(sim) { sim.seasonStack.unshift(name); });
 		this.addRevoker(function(sim) { sim.seasonStack.shift(); });
@@ -671,7 +672,7 @@ var allBuffs = {};
 
 class Buff extends Modifier {
 	constructor(name, duration) {
-		super(name);
+		super(null, name);
 		this.duration = duration;
 		allBuffs[name] = this;
 		this.addApplier(function(sim) { sim.buffs.push(name); });
@@ -739,7 +740,7 @@ allPurchases = {};
 
 class Purchase extends Modifier {
 	constructor(name) {
-		super(name);
+		super(null, name);
 		// Seperate set of Appliers and Revokers to use in valuation, same idea as before
 		// except these are applied to get a relative value rather than to get accurate CpS
 		this.valuationAppliers = [];
@@ -1561,14 +1562,19 @@ legacy("Belphegor"						).requires("Twin Gates of Transcendence");	// Doubles re
 legacy("Mammon"							).requires("Belphegor");					// Doubles retention time to 4 hours
 legacy("Abaddon"						).requires("Mammon");						// Doubles retention time to 8 hours
 legacy("Satan"							).requires("Abaddon");						// Doubles retention time to 16 hours
+legacy("Asmodeus"						).requires("Satan");						// Doubles retention time to 1 day 8 hours
+legacy("Beelzebub"						).requires("Asmodeus");						// Doubles retention time to 2 days 16 hours
 
 legacy("Angels"							).requires("Twin Gates of Transcendence");	// Retain an extra 10% total 15%
 legacy("Archangels"						).requires("Angels");						// Retain an extra 10% total 25%
 legacy("Virtues"						).requires("Archangels");					// Retain an extra 10% total 35%
 legacy("Dominions"						).requires("Virtues");						// Retain an extra 10% total 45%
+legacy("Cherubim"						).requires("Dominions");					// Retain an extra 10% total 55%
+legacy("Seraphim"						).requires("Cherubim");						// Retain an extra 10% total 65%
 
 legacy("Kitten angels"					).requires("Dominions").unlocksMilk(0.1, 1);
 legacy("Synergies Vol. I"				).requires("Satan").requires("Dominions");	// Unlocks first tier of synergy upgrades
+legacy("Synergies Vol. II"				).requires("Beelzebub").requires("Seraphim").requires("Synergies Vol. I");	// Unlocks second tier of synergy upgrades
 
 // Unlocks from "Tin of butter cookies"
 upgrade("Butter horseshoes"	).requires("Tin of butter cookies").scalesProduction(1.04);
@@ -1622,6 +1628,12 @@ upgrade("Quantum electronics"			).requires("Synergies Vol. I").givesSynergy(Cons
 upgrade("Extra physics funding"			).requires("Synergies Vol. I").givesSynergy(Constants.BANK_INDEX, Constants.ANTIMATTER_CONDENSER_INDEX, 0.05, 0.001);
 upgrade("Light magic"					).requires("Synergies Vol. I").givesSynergy(Constants.WIZARD_TOWER_INDEX, Constants.PRISM_INDEX, 0.05, 0.001);
 upgrade("Gemmed talismans"				).requires("Synergies Vol. I").givesSynergy(Constants.MINE_INDEX, Constants.CHANCEMAKER_INDEX, 0.05, 0.001);
+
+// Synergies Vol. II
+upgrade("Printing presses"				).requires("Synergies Vol. II").givesSynergy(Constants.FACTORY_INDEX, Constants.BANK_INDEX, 0.05, 0.001);
+upgrade("Rain prayer"					).requires("Synergies Vol. II").givesSynergy(Constants.FARM_INDEX, Constants.TEMPLE_INDEX, 0.05, 0.001);
+upgrade("Magical botany"				).requires("Synergies Vol. II").givesSynergy(Constants.FARM_INDEX, Constants.WIZARD_TOWER_INDEX, 0.05, 0.001);
+//upgrade("Asteroid mining"				).requires("Synergies Vol. II").givesSynergy(Constants.MINE_INDEX, Constants.SHIPMENT_INDEX, 0.05, 0.001);
 
 getUpgradeFunction = function(name) {
 	if (upgradeIndex[name] == undefined) {
@@ -1711,6 +1723,8 @@ class Simulator {
 		building('Antimatter condenser', 170000000000000,   430000000.0);
 		building('Prism',				2100000000000000,  2900000000.0);
 		building('Chancemaker',		   26000000000000000, 21000000000.0);
+
+		// Create all the buffs
 
 		this.reset();
 	}
