@@ -306,7 +306,7 @@ UltimateCookie.prototype.determineNextPurchase = function(eval) {
 
 	if (purchases[p].name != this.lastDeterminedPurchase) {
 		this.lastDeterminedPurchase = purchases[p].name;
-		console.log("Clickrate: " + this.clickRate + ", CpS margin: " + Math.round(eval.getCps() - Game.cookiesPs) + ", CpC margin: " + Math.round(eval.getCpc() - Game.computedMouseCps) + ", next: " + this.lastDeterminedPurchase);
+		console.log("CR: " + this.clickRate + ", \u0394CpS: " + Math.round(eval.getCps() - Game.cookiesPs) + ", \u0394CpC: " + Math.round(eval.getCpc() - Game.computedMouseCps) + ", P: " + this.lastDeterminedPurchase);
 	}
 	return purchases[p];
 }
@@ -1003,6 +1003,12 @@ class Upgrade extends Purchase {
 		return this;
 	}
 	
+	scalesPrestige(scale)	{
+		this.addApplier(function(sim) { sim.prestigeScale *= scale; });
+		this.addRevoker(function(sim) { sim.prestigeScale /= scale; });
+		return this;
+	}
+
 	scalesProduction(scale)	{
 		this.addApplier(function(sim) { sim.productionScale *= scale; });
 		this.addRevoker(function(sim) { sim.productionScale /= scale; });
@@ -1232,6 +1238,7 @@ class Simulator {
 		this.upgrades = {};
 		this.prestiges = {};
 		this.seasons = {};
+		this.toggles = {};
 		this.buffs = {};
 
 		var sim = this;
@@ -1269,7 +1276,7 @@ class Simulator {
 
 		// Add a new Toggle to the Simulation
 		function toggle(name) {
-			var toggle = new Modifier(sim, name);
+			var toggle = new Upgrade(sim, name);
 			sim.modifiers[name] = toggle;
 			sim.toggles[name] = toggle;
 			return toggle;
@@ -1345,7 +1352,8 @@ class Simulator {
 		prestige("Permanent upgrade slot I"		).requires("Legacy");
 		prestige("Permanent upgrade slot II"	).requires("Permanent upgrade slot I");
 		prestige("Permanent upgrade slot III"	).requires("Permanent upgrade slot II");
-
+		prestige("Permanent upgrade slot IV"	).requires("Permanent upgrade slot III");
+		
 		// Heavenly cookies branch
 		prestige("Heavenly cookies"				).requires("Legacy").scalesProduction(1.10);
 		prestige("Tin of butter cookies"		).requires("Heavenly cookies");
@@ -1353,16 +1361,22 @@ class Simulator {
 		prestige("Box of brand biscuits"		).requires("Heavenly cookies");
 		prestige("Box of macarons"				).requires("Heavenly cookies");
 		prestige("Starter kit"					).requires("Tin of butter cookies").requires("Tin of british tea biscuits").requires("Box of brand biscuits").requires("Box of macarons");	// You start with 10 cursors
-		prestige("Starter kitchen"				).requires("Starter kit");	// You start with 5 grandmas
 		prestige("Halo gloves"					).requires("Starter kit").scalesClicking(1.10);
-
+		prestige("Starter kitchen"				).requires("Starter kit");	// You start with 5 grandmas
+		prestige("Unholy bait"					).requires("Starter kitchen");	// Wrinklers appear 5 times as fast
+		prestige("Elder spice"					).requires("Unholy bait");	// You can have up to 2 more wrinklers
+		prestige("Sacrilegious corruption"		).requires("Unholy bait");	// Wrinklers regurgitate 5% more cookies
+		
+		
 		// Season switcher branch
 		prestige("Season switcher"				).requires("Legacy");
+		prestige("Starsnow"						).requires("Season switcher").scalesReindeerFrequency(1.05);//.increasesChristmasCookieDropChance(5%);
 
 		// Heavenly luck branch
 		prestige("Heavenly luck"				).requires("Legacy").scalesGoldenCookieFrequency(1.05);
 		prestige("Lasting fortune"				).requires("Heavenly luck").scalesGoldenCookieEffectDuration(1.10);
 		prestige("Golden switch"				).requires("Heavenly luck");	// Unlocks the golden switch which boosts passive cps 50% but stops golden cookies
+		prestige("Lucky digit"					).requires("Heavenly luck").scalesPrestige(1.01).scalesGoldenCookieDuration(1.01).scalesGoldenCookieEffectDuration(1.01);
 		prestige("Decisive fate"				).requires("Lasting fortune").scalesGoldenCookieDuration(1.05);
 		prestige("Divine discount"				).requires("Decisive fate").scalesBuildingCost(0.99);
 		prestige("Divine sales"					).requires("Decisive fate").scalesUpgradeCost(0.99);
@@ -1382,7 +1396,8 @@ class Simulator {
 		prestige("Dominions"					).requires("Virtues");						// Retain an extra 10% total 45%
 		prestige("Cherubim"						).requires("Dominions");					// Retain an extra 10% total 55%
 		prestige("Seraphim"						).requires("Cherubim");						// Retain an extra 10% total 65%
-
+		prestige("God"							).requires("Seraphim");						// Retain an extra 10% total 75%
+		
 		prestige("Kitten angels"				).requires("Dominions").unlocksMilk(0.1, 1);
 		prestige("Synergies Vol. I"				).requires("Satan").requires("Dominions");	// Unlocks first tier of synergy upgrades
 		prestige("Synergies Vol. II"			).requires("Beelzebub").requires("Seraphim").requires("Synergies Vol. I");	// Unlocks second tier of synergy upgrades
@@ -1499,6 +1514,7 @@ class Simulator {
 		upgrade("Generation ship"				).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
 		upgrade("Dyson sphere"					).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
 		upgrade("The final frontier"			).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
+		upgrade("Autopilot"						).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
 		upgrade("Antimony"						).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
 		upgrade("Essence of dough"				).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
 		upgrade("True chocolate"				).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
@@ -1507,6 +1523,7 @@ class Simulator {
 		upgrade("Origin crucible"				).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
 		upgrade("Theory of atomic fluidity"		).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
 		upgrade("Beige goo"						).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
+		upgrade("The advent of chemistry"		).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
 		upgrade("Ancient tablet"				).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
 		upgrade("Insane oatling workers"		).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
 		upgrade("Soul bond"						).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
@@ -1522,6 +1539,7 @@ class Simulator {
 		upgrade("Yestermorrow comparators"		).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
 		upgrade("Far future enactment"			).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
 		upgrade("Great loop hypothesis"			).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
+		upgrade("Cookietopian moments of maybe"	).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
 		upgrade("Sugar bosons"					).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 		upgrade("String theory"					).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 		upgrade("Large macaron collider"		).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
@@ -1529,6 +1547,7 @@ class Simulator {
 		upgrade("Reverse cyclotrons"			).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 		upgrade("Nanocosmics"					).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 		upgrade("The Pulse"						).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
+		upgrade("Some other super-tiny fundamental particle? Probably?"	).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 		upgrade("Gem polish"					).scalesBuildingCps(Constants.PRISM_INDEX, 2);
 		upgrade("9th color"						).scalesBuildingCps(Constants.PRISM_INDEX, 2);
 		upgrade("Chocolate light"				).scalesBuildingCps(Constants.PRISM_INDEX, 2);
@@ -1612,12 +1631,11 @@ class Simulator {
 		upgrade("Communal brainsweep"			).startsResearch().givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02).angersGrandmas();
 		upgrade("Arcane sugar"					).startsResearch().scalesProduction(1.05);
 		upgrade("Elder Pact"					).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.PORTAL_INDEX, 0.05).angersGrandmas();
-		// upgrade("Persistent memory"				).boostsResearch();
+		upgrade("Sacrificial rolling pins"		).doublesElderPledge();
 
 		// Elder pledge
-		upgrade("Elder Pledge", false			).calmsGrandmas();		// The false means this isn't one of the listed upgrades on the stats page
-		upgrade("Sacrificial rolling pins"		).doublesElderPledge();
-		upgrade("Elder Covenant", false			).calmsGrandmas().scalesProduction(0.95);
+		toggle("Elder Pledge"					).calmsGrandmas();
+		toggle("Elder Covenant"					).calmsGrandmas().scalesProduction(0.95);
 
 		// Assorted cursor / clicking upgrades
 		upgrade("Reinforced index finger"		).scalesBaseClicking(2).scalesBuildingCps(Constants.CURSOR_INDEX, 2);
@@ -1663,10 +1681,8 @@ class Simulator {
 		upgrade("Heavenly key"			).unlocksPrestige(0.25);
 
 		// Christmas season
-
-		santalevel();
-
 		upgrade("A festive hat"				).requires("christmas");
+		santalevel(							).requires("A festive hat");
 		upgrade("Naughty list"				).requires("christmas").isRandomSantaReward().scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
 		upgrade("A lump of coal"			).requires("christmas").isRandomSantaReward().scalesProduction(1.01);
 		upgrade("An itchy sweater"			).requires("christmas").isRandomSantaReward().scalesProduction(1.01);
@@ -1691,8 +1707,6 @@ class Simulator {
 		upgrade("Candy cane biscuits"		).requires("christmas").scalesProduction(1.02);
 		upgrade("Bell biscuits"				).requires("christmas").scalesProduction(1.02);
 		upgrade("Present biscuits"			).requires("christmas").scalesProduction(1.02);
-
-		this.upgrades["Santa Level"].requires("A festive hat");
 
 		// Unlocks from "Tin of butter cookies"
 		upgrade("Butter horseshoes"	).requires("Tin of butter cookies").scalesProduction(1.04);
@@ -1795,6 +1809,7 @@ class Simulator {
 
 		// Prestige
 		this.prestige = 0;
+		this.prestigeScale = 1;
 		this.prestigeUnlocked = 0;
 
 		// Milk scaling
@@ -2003,7 +2018,7 @@ Simulator.prototype.getCps = function(ignoreCursedFinger = false) {
 
 	// Scale it for production and heavely chip multipliers
 	var santaScale = 1 + (this.santaLevel + 1) * this.santaPower;
-	var prestigeScale = this.prestige * this.prestigeUnlocked * 0.01;
+	var prestigeScale = this.prestige * this.prestigeScale * this.prestigeUnlocked * 0.01;
 
 	var scale = this.productionScale * santaScale * (1 + prestigeScale);
 
