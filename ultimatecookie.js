@@ -1851,7 +1851,7 @@ class Simulator {
 		upgrade("Charm quarks"					).requires("Synergies Vol. II").givesSynergy(Constants.ANTIMATTER_CONDENSER_INDEX, Constants.CHANCEMAKER_INDEX, 0.05, 0.001);
 		
 		// Just query all upgrades, gives a dump of those not supported
-		var ukeys = keys(Game.Upgrades);
+		var ukeys = Object.keys(Game.Upgrades);
 		for (var key in ukeys) {
 			if (Game.Upgrades[ukeys[key]].pool != "debug")
 				this.getModifier(ukeys[key]);
