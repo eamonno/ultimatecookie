@@ -13,7 +13,7 @@ Config.autoPopWrinklers = true;
 Config.skipHalloween = false;
 Config.resetLimit = 1.1;
 Config.maintainCookieBank = false;
-Config.clickRateForCalculations = 0;	// 0 to disable
+Config.clickRateForCalculations = -1;	// -1 to disable
 
 // General purpose constants
 Constants.SUPPORTED_VERSION = "2.0042";
@@ -407,7 +407,7 @@ UltimateCookie.prototype.update = function() {
 		//console.log("Click rate - Last Second: " + Math.floor(newRate) +", Average: " + this.clickRate);
 		this.lastClickCount = Game.cookieClicks;
 		this.lastClickRateCheckTime = now;
-		this.sim.clickRate = Config.clickRateForCalculations ? Config.clickRateForCalculations : this.clickRate;
+		this.sim.clickRate = Config.clickRateForCalculations == -1 ? this.clickRate : Config.clickRateForCalculations;
 	}
 	if (Config.autoClickGoldenCookies) {
 		this.popShimmer("golden");
@@ -528,11 +528,12 @@ BuildingCounter.prototype.subtractCountMost = function(excludes, scale=1) {
 // Represents one of the building types in the game.
 
 class Building {
-	constructor(sim, name, baseCost, baseCps) {
+	constructor(sim, index, name, basePrice, baseCps) {
+		this.index = index;
 		this.name = name;
 		this.sim = sim;
-		this.baseCost = baseCost;
-		this.baseCps = baseCps;
+		this._basePrice = basePrice;
+		this._baseCps = baseCps;
 		this.reset();
 	}
 
@@ -547,8 +548,8 @@ class Building {
 		this.scaleCounter = new BuildingCounter();
 	}
 
-	get cost() {
-		return Math.ceil(this.sim.buildingCostScale * this.baseCost * Math.pow(1.15, this.quantity - this.free));
+	get price() {
+		return Math.ceil(this.sim.buildingCostScale * this._basePrice * Math.pow(1.15, Math.max(0, this.quantity - this.free)));
 	}
 	
 	get cps() {
@@ -556,7 +557,7 @@ class Building {
 	}
 
 	get individualCps() {
-		return this.perBuildingFlatCpsBoostCounter.getCount(this.sim.buildings) + this.baseCps * (1 + this.scaleCounter.getCount(this.sim.buildings)) * this.synergyMultiplier * (1 + this.buildingScaler.getCount(this.sim.buildings)) * this.multiplier;
+		return this.perBuildingFlatCpsBoostCounter.getCount(this.sim.buildings) + this._baseCps * (1 + this.scaleCounter.getCount(this.sim.buildings)) * this.synergyMultiplier * (1 + this.buildingScaler.getCount(this.sim.buildings)) * this.multiplier;
 	}
 
 	get synergyMultiplier() {
@@ -582,6 +583,22 @@ class Building {
 		}
 	}
 
+	matchesGame(equalityFunction) {
+		var error = "";
+
+		var gameObj = Game.ObjectsById[this.index];
+		if (gameObj) {
+			if (this.name != gameObj.name)
+				error += "Building Name " + this.name + " does not match " + gameObj.name + ".\n";			
+			if (!equalityFunction(this.price, gameObj.getPrice()))
+				error += "Building Cost " + this.name + " - Predicted: " + this.price + ", Actual: " + gameObj.getPrice() + ".\n";
+			if (!equalityFunction(this.individualCps, gameObj.cps(gameObj)))
+				error += "Building CpS " + this.name + " - Predicted: " + this.individualCps + ", Actual: " + gameObj.cps(gameObj) + ".\n";
+		} else {
+			error += "Building Index " + this.index + " doesn't match any building.\n";
+		}
+		return { match: error == "" ? true : false, error: error };
+	}
 	// DELETE THESE AS SOON AS SORT WORKS WITHOUT THEM
 
 	getCps() {
@@ -589,7 +606,7 @@ class Building {
 	}
 
 	getCost() {
-		return this.cost;
+		return this.price;
 	}
 }
 
@@ -752,8 +769,18 @@ class Purchase extends Modifier {
 		// except these are applied to get a relative value rather than to get accurate CpS
 		this.valuationAppliers = [];
 		this.valuationRevokers = [];
+		// Price reducers can break the sorting algorithm, treat them seperately
+		this.reducesPrices = false;
 	}
 
+	get benefit() {
+		return this.getEffectiveCps();
+	}
+
+	get pbr() {
+		return this.benefit / this.price;
+	}
+	
 	applyValue() {
 		var i;
 		for (i = 0; i < this.valuationAppliers.length; ++i)
@@ -834,31 +861,44 @@ class SantaLevel extends Purchase {
 		Game.UpgradeSanta();
 	}
 
+	priceForLevel(level) {
+		return Math.pow(level + 1, level + 1);
+	}
+
+	get price() {
+		return this.priceForLevel(this.sim.santaLevel);
+	}
+
 	getCost() {
-		return Math.pow(Game.santaLevel + 1, Game.santaLevel + 1);
+		return this.price;
 	}
 
 	getValue() {
 		// The value is the average value of whatever remains in the random pool
-		var cost = this.getCost();
+		var cost = this.price;
 		var value = this.getEffectiveCps(this.sim);
-		var randomValue = 0;
-		var i;
+
 		var p;
+		var i;
 		for (i = 0; i < this.randomRewards.length; ++i) {
 			p = this.randomRewards[i];
 			if (!p.applied) {
 				// Cost triples each level, so account for that here, the upgrade will
 				// be three times as expensive as you think
-				randomValue += (p.getValue() / (p.getCost() * 3)) * cost;
+				cost += p.price * 3;
+				value += p.getValue();
 			}
 		}
+
+		value = (value / cost) * this.price;
+
 		// Factor in Santa's dominion too
-		i++;
+
 		p = this.sim.upgrades["Santa's dominion"];
-		randomValue += (p.getValue() / (p.getCost() + Math.pow(Constants.MAX_SANTA_LEVEL, Constants.MAX_SANTA_LEVEL))) * cost;
-		
-		return value + randomValue / i;
+		var value2 = (p.getValue() / (p.price + + this.price + this.priceForLevel(13))) * cost;
+		if (value2 > value)
+			return value2;
+		return value;
 	}
 }
 
@@ -888,6 +928,32 @@ class SantaLevel extends Purchase {
 class Upgrade extends Purchase {
 	constructor(sim, name, supported) {
 		super(sim, name);
+
+		var gameUpgrade = Game.Upgrades[name];
+		if (gameUpgrade) {
+			this._basePrice = gameUpgrade.basePrice;
+		} else {
+			console.log("Upgrade not found: " + name);
+		}
+	}
+
+	get price() {
+		if (this.isSantaReward)
+			return Math.pow(3, Game.santaLevel) * 2525;
+		return this._basePrice;
+	}
+
+	getCost() {
+		return this.price;
+	}
+
+	matchesGame(equalityFunction) {
+		var gameObj = Game.Upgrades[this.name];
+		if (!gameObj)
+			return { match: false, error: "Upgrade Name " + this.name + " has no corresponding match in store.\n" };
+		//if (!equalityFunction(this.price, gameObj.getPrice()))
+		//	return { match: false, error: "Upgrade Cost " + this.name + " - Predicted: " + this.price + ", Actual: " + gameObj.getPrice() + ".\n" };
+		return { match: true, error: "" };
 	}
 
 	//
@@ -945,6 +1011,7 @@ class Upgrade extends Purchase {
 	}
 
 	isRandomSantaReward() {
+		this.isSantaReward = true;
 		this.sim.modifiers["Santa Level"].randomRewards.push(this);
 		return this;
 	}
@@ -960,6 +1027,7 @@ class Upgrade extends Purchase {
 	}
 
 	scalesBuildingCost(scale) {
+		this.reducesPrices = true;
 		this.addApplier(function(sim) { sim.buildingCostScale *= scale; });
 		this.addRevoker(function(sim) { sim.buildingCostScale /= scale; });
 		this.addValueApplier(function(sim) { sim.productionScale /= scale; });
@@ -1052,6 +1120,7 @@ class Upgrade extends Purchase {
 	}
 	
 	scalesUpgradeCost(scale)	{
+		this.reducesPrices = true;
 		this.addValueApplier(function(sim) { sim.productionScale /= scale; });
 		this.addValueRevoker(function(sim) { sim.productionScale *= scale; });
 		return this;
@@ -1252,8 +1321,8 @@ class Simulator {
 		}
 
 		// Add a new Building upgrade to the Simulation
-		function building(name, cost, cps) {
-			var building = new Building(sim, name, cost, cps);
+		function building(index, name, cost, cps) {
+			var building = new Building(sim, index, name, cost, cps);
 			sim.buildings.push(building);
 			return building;
 		}
@@ -1299,21 +1368,21 @@ class Simulator {
 		}
 
 		// Create all the buildings - the order matters, dont shuffle these!
-		building('Cursor',			   	         	  15,           0.1);
-		building('Grandma',			 	        	 100,           1.0);
-		building('Farm',					   	    1100,           8.0);
-		building('Mine',				      	   12000,          47.0);
-		building('Factory',			    	 	  130000,         260.0);
-		building('Bank',						 1400000,        1400.0);
-		building('Temple',				   	    20000000,        7800.0);
-		building('Wizard tower',		  	   330000000,       44000.0);
-		building('Shipment',			 	  5100000000,      260000.0);
-		building('Alchemy lab',				 75000000000,     1600000.0);
-		building('Portal',			  	   1000000000000,    10000000.0);
-		building('Time machine',	  	  14000000000000,    65000000.0);
-		building('Antimatter condenser', 170000000000000,   430000000.0);
-		building('Prism',				2100000000000000,  2900000000.0);
-		building('Chancemaker',		   26000000000000000, 21000000000.0);
+		building( 0, 'Cursor',			   	         	  15,           0.1);
+		building( 1, 'Grandma',			 	        	 100,           1.0);
+		building( 2, 'Farm',					   	    1100,           8.0);
+		building( 3, 'Mine',				      	   12000,          47.0);
+		building( 4, 'Factory',			    	 	  130000,         260.0);
+		building( 5, 'Bank',						 1400000,        1400.0);
+		building( 6, 'Temple',				   	    20000000,        7800.0);
+		building( 7, 'Wizard tower',		  	   330000000,       44000.0);
+		building( 8, 'Shipment',			 	  5100000000,      260000.0);
+		building( 9, 'Alchemy lab',				 75000000000,     1600000.0);
+		building(10, 'Portal',			  	   1000000000000,    10000000.0);
+		building(11, 'Time machine',	  	  14000000000000,    65000000.0);
+		building(12, 'Antimatter condenser', 170000000000000,   430000000.0);
+		building(13, 'Prism',				2100000000000000,  2900000000.0);
+		building(14, 'Chancemaker',		   26000000000000000, 21000000000.0);
 
 		//
 		// Create all the buffs
@@ -1532,6 +1601,7 @@ class Simulator {
 		upgrade("Deity-sized portals"			).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
 		upgrade("End of times back-up plan"		).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
 		upgrade("Maddening chants"				).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
+		upgrade("The real world"				).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
 		upgrade("Flux capacitors"				).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
 		upgrade("Time paradox resolver"			).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
 		upgrade("Quantum conundrum"				).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
@@ -1540,6 +1610,7 @@ class Simulator {
 		upgrade("Far future enactment"			).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
 		upgrade("Great loop hypothesis"			).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
 		upgrade("Cookietopian moments of maybe"	).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
+		upgrade("Second seconds"				).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
 		upgrade("Sugar bosons"					).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 		upgrade("String theory"					).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 		upgrade("Large macaron collider"		).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
@@ -1555,6 +1626,7 @@ class Simulator {
 		upgrade("Pure cosmic light"				).scalesBuildingCps(Constants.PRISM_INDEX, 2);
 		upgrade("Glow-in-the-dark"				).scalesBuildingCps(Constants.PRISM_INDEX, 2);
 		upgrade("Lux sanctorum"					).scalesBuildingCps(Constants.PRISM_INDEX, 2);
+		upgrade("Reverse shadows"				).scalesBuildingCps(Constants.PRISM_INDEX, 2);
 		upgrade("Your lucky cookie"				).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
 		upgrade('"All Bets Are Off" magic coin' ).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
 		upgrade("Winning lottery ticket" 		).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
@@ -1562,6 +1634,7 @@ class Simulator {
 		upgrade("A recipe book about books"		).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
 		upgrade("Leprechaun village"			).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
 		upgrade("Improbability drive"			).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
+		upgrade("Antisuperstistronics"			).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
 		
 		// Upgrades that increase cookie production
 		upgrade("Plain cookies"											).scalesProduction(1.01);
@@ -1613,6 +1686,7 @@ class Simulator {
 		upgrade("Ice cream sandwiches"									).scalesProduction(1.04);
 		upgrade("Dark chocolate butter biscuit"							).scalesProduction(1.10);
 		upgrade("White chocolate butter biscuit"						).scalesProduction(1.10);
+		upgrade("Ruby chocolate butter biscuit"							).scalesProduction(1.10);
 		upgrade("Birthday cookie"										).scalesProductionByAge(0.01);
 
 		// Golden cookie upgrade functions
@@ -1776,6 +1850,13 @@ class Simulator {
 		upgrade("Primeval glow"					).requires("Synergies Vol. II").givesSynergy(Constants.TIME_MACHINE_INDEX, Constants.PRISM_INDEX, 0.05, 0.001);
 		upgrade("Charm quarks"					).requires("Synergies Vol. II").givesSynergy(Constants.ANTIMATTER_CONDENSER_INDEX, Constants.CHANCEMAKER_INDEX, 0.05, 0.001);
 		
+		// Just query all upgrades, gives a dump of those not supported
+		var ukeys = keys(Game.Upgrades);
+		for (var key in ukeys) {
+			if (Game.Upgrades[ukeys[key]].pool != "debug")
+				this.getModifier(ukeys[key]);
+		}
+
 		this.reset();
 	}
 
@@ -1939,28 +2020,22 @@ Simulator.prototype.matchesGame = function(equalityFunction=floatEqual) {
 	// Check the building costs match the game
 	var i;
 	for (i = 0; i < this.buildings.length; ++i) {
-		if (this.buildings[i].name != Game.ObjectsById[i].name) {
-			errMsg += "- Building Name " + this.buildings[i].name + " does not match " + Game.ObjectsById[i].name + "\n";			
-		}
-		if (!equalityFunction(this.buildings[i].getCost(), Game.ObjectsById[i].getPrice())) {
-			errMsg += "- Building Cost " + this.buildings[i].name + " - Predicted: " + this.buildings[i].cost + ", Actual: " + Game.ObjectsById[i].getPrice() + "\n";
-		}
-		if (!equalityFunction(this.buildings[i].individualCps, Game.ObjectsById[i].cps(Game.ObjectsById[i]))) {
-			errMsg += "- Building CpS " + this.buildings[i].name + " - Predicted: " + this.buildings[i].individualCps + ", Actual: " + Game.ObjectsById[i].cps(Game.ObjectsById[i]) + "\n";
-		}
+		let { match, error } = this.buildings[i].matchesGame(equalityFunction);
+		if (match == false) 
+			errMsg += error;
 	}
+
 	// Check that all buildings are supported
 	if (this.buildings.length != Game.ObjectsById.length)
 		errMsg += "- Building getCount " + this.buildings.length + " does not match " + Game.ObjectsById.length + "\n";
 
 	// Check that all available upgrade costs match those of similar upgrade functions
 	for (i = 0; i < Game.UpgradesInStore.length; ++i) {
-		var u = Game.UpgradesInStore[i];
-		var uf = this.getModifier(u.name);
-		if (uf.setsSeason == undefined && !equalityFunction(uf.getCost(), u.getPrice())) {
-			errMsg += "- Upgrade Cost " + u.name + " - Predicted: " + uf.getCost() + ", Actual: " + u.getPrice() + "\n";
-		}
+		let { match, error } = this.modifiers[Game.UpgradesInStore[i].name].matchesGame(equalityFunction);
+		if (match == false)
+			errMsg += error;
 	}
+
 	if (errMsg != "") {
 		errMsg = "Evaluator Mismatch:\n" + errMsg;
 		for (var key in Game.buffs) {

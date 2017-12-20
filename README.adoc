@@ -26,8 +26,9 @@ in rough order of priority.
 6. Building levels and sugar. Decide how to spend sugar and when.
 7. Mini games. Play them passively and efficiently.
 8. GUI for addon. Allow for configuration and information without needing to use the javascript console.
-9. Legacy strategies. Determine when to legacy and automate the process.
-10. Release. 
+9. Strategies - let users choose play style, elder pledge on off, preferred season, spells etc.
+10. Legacy strategies. Determine when to legacy and automate the process.
+11. Release. 
 
 Release should mean working with every combination of upgrades, buildings etc, in the game. There are however a few other
 things that will be added on an ongoing basis. Missing these doesn't interfere with base functionality and for the most
@@ -45,8 +46,8 @@ perspective.
 4. Performance tweaks. Tweak game settings for better performance, that sort of stuff.
 
 Then of course there are the ongoing changes.
-- Upgrade support: Currently 307 / 356 supported.
-- Prestige Upgrade support: Currently 37 / 65 (at least partially) supported.
+- Upgrade support: Currently 316 / 356 supported.
+- Prestige Upgrade support: Currently 41 / 65 (at least partially) supported.
 - Whatever other bugfixes and improvements I get sidetracked by in the meantime.
 
 Known issues:
