@@ -1422,6 +1422,7 @@ class Simulator {
 		prestige("Permanent upgrade slot II"	).requires("Permanent upgrade slot I");
 		prestige("Permanent upgrade slot III"	).requires("Permanent upgrade slot II");
 		prestige("Permanent upgrade slot IV"	).requires("Permanent upgrade slot III");
+		prestige("Permanent upgrade slot V"		).requires("Permanent upgrade slot IV");
 		
 		// Heavenly cookies branch
 		prestige("Heavenly cookies"				).requires("Legacy").scalesProduction(1.10);
@@ -1435,7 +1436,7 @@ class Simulator {
 		prestige("Unholy bait"					).requires("Starter kitchen");	// Wrinklers appear 5 times as fast
 		prestige("Elder spice"					).requires("Unholy bait");	// You can have up to 2 more wrinklers
 		prestige("Sacrilegious corruption"		).requires("Unholy bait");	// Wrinklers regurgitate 5% more cookies
-		
+		prestige("Wrinkly cookies"				).requires("Elder spice").requires("Sacrilegious corruption").scalesProduction(1.10);
 		
 		// Season switcher branch
 		prestige("Season switcher"				).requires("Legacy");
@@ -1455,10 +1456,12 @@ class Simulator {
 		prestige("Belphegor"					).requires("Twin Gates of Transcendence");	// Doubles retention time to 2 hours
 		prestige("Mammon"						).requires("Belphegor");					// Doubles retention time to 4 hours
 		prestige("Abaddon"						).requires("Mammon");						// Doubles retention time to 8 hours
+		prestige("Five-finger discount"			).requires("Abaddon").requires("Halo gloves");	// All upgrades are 1% cheaper per 100 cursors
 		prestige("Satan"						).requires("Abaddon");						// Doubles retention time to 16 hours
 		prestige("Asmodeus"						).requires("Satan");						// Doubles retention time to 1 day 8 hours
 		prestige("Beelzebub"					).requires("Asmodeus");						// Doubles retention time to 2 days 16 hours
-
+		prestige("Lucifer"						).requires("Beelzebub");					// Doubles retention time to 5 days 8 hours
+		
 		prestige("Angels"						).requires("Twin Gates of Transcendence");	// Retain an extra 10% total 15%
 		prestige("Archangels"					).requires("Angels");						// Retain an extra 10% total 25%
 		prestige("Virtues"						).requires("Archangels");					// Retain an extra 10% total 35%
@@ -1471,6 +1474,11 @@ class Simulator {
 		prestige("Synergies Vol. I"				).requires("Satan").requires("Dominions");	// Unlocks first tier of synergy upgrades
 		prestige("Synergies Vol. II"			).requires("Beelzebub").requires("Seraphim").requires("Synergies Vol. I");	// Unlocks second tier of synergy upgrades
 
+		// Classic Dairy Selection branch, these are all just cosmetic so they do nothing
+		prestige("Classic dairy selection"		).requires("Legacy");
+		prestige("Basic wallpaper assortment"	).requires("Classic dairy selection");
+		prestige("Fanciful dairy selection"		).requires("Classic dairy selection");
+		
 		//
 		// Create all the seasons
 		//
