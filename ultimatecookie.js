@@ -276,14 +276,11 @@ UltimateCookie.prototype.comparePurchases = function(eval, a, b) {
 }
 
 UltimateCookie.prototype.createPurchaseList = function() {
-	var purchases = [];
+	// Add the buildings	
+	var purchases = this.sim.buildings.slice(0);
 
-	// Add the buildings
-	var i;
-	for (i = 0; i < Game.ObjectsById.length; ++i) {
-		purchases.push(this.sim.getModifier(Game.ObjectsById[i].name));
-	}
 	// Add the upgrades
+	var i;
 	for (i = 0; i < Game.UpgradesInStore.length; ++i) {
 		purchases.push(this.sim.getModifier(Game.UpgradesInStore[i].name));
 	}
@@ -523,94 +520,6 @@ BuildingCounter.prototype.subtractCountMost = function(excludes, scale=1) {
 
 
 //
-// Building.
-//
-// Represents one of the building types in the game.
-
-class Building {
-	constructor(sim, index, name, basePrice, baseCps) {
-		this.index = index;
-		this.name = name;
-		this.sim = sim;
-		this._basePrice = basePrice;
-		this._baseCps = baseCps;
-		this.reset();
-	}
-
-	reset() {
-		this.quantity = 0;
-		this.free = 0;
-		this.multiplier = 1;
-		this.synergies = [];
-		this.perBuildingFlatCpcBoostCounter = new BuildingCounter();
-		this.perBuildingFlatCpsBoostCounter = new BuildingCounter();
-		this.buildingScaler = new BuildingCounter();
-		this.scaleCounter = new BuildingCounter();
-	}
-
-	get price() {
-		return Math.ceil(this.sim.buildingCostScale * this._basePrice * Math.pow(1.15, Math.max(0, this.quantity - this.free)));
-	}
-	
-	get cps() {
-		return this.quantity * this.individualCps;
-	}
-
-	get individualCps() {
-		return this.perBuildingFlatCpsBoostCounter.getCount(this.sim.buildings) + this._baseCps * (1 + this.scaleCounter.getCount(this.sim.buildings)) * this.synergyMultiplier * (1 + this.buildingScaler.getCount(this.sim.buildings)) * this.multiplier;
-	}
-
-	get synergyMultiplier() {
-		var scale = 1;
-		var i;
-		for (i = 0; i < this.synergies.length; ++i) {
-			scale *= 1 + this.sim.buildings[this.synergies[i][0]].quantity * this.synergies[i][1];
-		}
-		return scale;
-	}
-
-	addSynergy(index, scale) {
-		this.synergies.push([index, scale]);
-	}
-
-	removeSynergy(index, scale) {
-		var i;
-		for (i = this.synergies.length - 1; i >= 0; --i) {
-			if (this.synergies[i][0] == index && this.synergies[i][1] == scale) {
-				this.synergies.splice(i, 1);
-				return;
-			}
-		}
-	}
-
-	matchesGame(equalityFunction) {
-		var error = "";
-
-		var gameObj = Game.ObjectsById[this.index];
-		if (gameObj) {
-			if (this.name != gameObj.name)
-				error += "Building Name " + this.name + " does not match " + gameObj.name + ".\n";			
-			if (!equalityFunction(this.price, gameObj.getPrice()))
-				error += "Building Cost " + this.name + " - Predicted: " + this.price + ", Actual: " + gameObj.getPrice() + ".\n";
-			if (!equalityFunction(this.individualCps, gameObj.cps(gameObj)))
-				error += "Building CpS " + this.name + " - Predicted: " + this.individualCps + ", Actual: " + gameObj.cps(gameObj) + ".\n";
-		} else {
-			error += "Building Index " + this.index + " doesn't match any building.\n";
-		}
-		return { match: error == "" ? true : false, error: error };
-	}
-	// DELETE THESE AS SOON AS SORT WORKS WITHOUT THEM
-
-	getCps() {
-		return this.cps;
-	}
-
-	getCost() {
-		return this.price;
-	}
-}
-
-//
 // Some class variables and containers for holding upgrades
 //
 
@@ -665,22 +574,29 @@ class Modifier {
 		this.revokers.push(func);
 	}
 
+	addLock(modifier) {
+		if (this.locks == undefined)
+			this.locks = [];
+		this.locks.push(modifier);
+	}
+
 	requires(modifier) {
-		// REFACTOR - REMOVE allModifiers COMPLETELY
-		// REFACTOR - DONT JUST IGNORE BROKEN REQUIREMENTS
-		var required;
-		if (this.sim) {
-			required = this.sim.modifiers[modifier];
-		} else {
-			required = allModifiers[modifier];
-		}
+		var required = this.sim.modifiers[modifier];
 		if (!required) {
 			console.log("Missing requirement for " + this.name + ": " + modifier);
-			return this;
+		} else {
+			required.addLock(this);
 		}
-		if (required.locks == undefined) 
-			required.locks = [];
-		required.locks.push(this);
+		return this;
+	}
+
+	requiresSeason(name) {
+		var season = this.sim.seasons[name];
+		if (!season) {
+			console.log("Missing season for " + this.name + ": " + name);
+		} else {
+			season.addLock(this);
+		}
 		return this;
 	}
 
@@ -850,6 +766,99 @@ class Purchase extends Modifier {
 	}
 }
 
+//
+// Building.
+//
+// Represents one of the building types in the game.
+
+class Building extends Purchase {
+	constructor(sim, index, name, basePrice, baseCps) {
+		super(sim, name);
+		this.index = index;
+		this._basePrice = basePrice;
+		this._baseCps = baseCps;
+		this.addApplier(function(sim) { sim.buildings[index].quantity += 1; });
+		this.addRevoker(function(sim) { sim.buildings[index].quantity -= 1; });
+		this.reset();
+	}
+
+	purchase() {
+		Game.ObjectsById[this.index].buy(1);
+	}
+
+	reset() {
+		this.quantity = 0;
+		this.free = 0;
+		this.multiplier = 1;
+		this.synergies = [];
+		this.perBuildingFlatCpcBoostCounter = new BuildingCounter();
+		this.perBuildingFlatCpsBoostCounter = new BuildingCounter();
+		this.buildingScaler = new BuildingCounter();
+		this.scaleCounter = new BuildingCounter();
+	}
+
+	get price() {
+		return Math.ceil(this.sim.buildingCostScale * this._basePrice * Math.pow(1.15, Math.max(0, this.quantity - this.free)));
+	}
+	
+	get cps() {
+		return this.quantity * this.individualCps;
+	}
+
+	get individualCps() {
+		return this.perBuildingFlatCpsBoostCounter.getCount(this.sim.buildings) + this._baseCps * (1 + this.scaleCounter.getCount(this.sim.buildings)) * this.synergyMultiplier * (1 + this.buildingScaler.getCount(this.sim.buildings)) * this.multiplier;
+	}
+
+	get synergyMultiplier() {
+		var scale = 1;
+		var i;
+		for (i = 0; i < this.synergies.length; ++i) {
+			scale *= 1 + this.sim.buildings[this.synergies[i][0]].quantity * this.synergies[i][1];
+		}
+		return scale;
+	}
+
+	addSynergy(index, scale) {
+		this.synergies.push([index, scale]);
+	}
+
+	removeSynergy(index, scale) {
+		var i;
+		for (i = this.synergies.length - 1; i >= 0; --i) {
+			if (this.synergies[i][0] == index && this.synergies[i][1] == scale) {
+				this.synergies.splice(i, 1);
+				return;
+			}
+		}
+	}
+
+	matchesGame(equalityFunction) {
+		var error = "";
+
+		var gameObj = Game.ObjectsById[this.index];
+		if (gameObj) {
+			if (this.name != gameObj.name)
+				error += "Building Name " + this.name + " does not match " + gameObj.name + ".\n";			
+			if (!equalityFunction(this.price, gameObj.getPrice()))
+				error += "Building Cost " + this.name + " - Predicted: " + this.price + ", Actual: " + gameObj.getPrice() + ".\n";
+			if (!equalityFunction(this.individualCps, gameObj.cps(gameObj)))
+				error += "Building CpS " + this.name + " - Predicted: " + this.individualCps + ", Actual: " + gameObj.cps(gameObj) + ".\n";
+		} else {
+			error += "Building Index " + this.index + " doesn't match any building.\n";
+		}
+		return { match: error == "" ? true : false, error: error };
+	}
+	// DELETE THESE AS SOON AS SORT WORKS WITHOUT THEM
+
+	getCps() {
+		return this.cps;
+	}
+
+	getCost() {
+		return this.price;
+	}
+}
+
 class SantaLevel extends Purchase {
 	constructor(sim) {
 		super(sim, "Santa Level");
@@ -974,16 +983,6 @@ class Upgrade extends Purchase {
 		return this;
 	}
 
-	builds(index, quantity) {
-		upgradesSupported -= 1;
-		upgradeBuildingsSupported += 1;
-		this.addApplier(function(sim) { sim.buildings[index].quantity += quantity; });
-		this.addRevoker(function(sim) { sim.buildings[index].quantity -= quantity; });
-		this.purchase = function() { Game.ObjectsById[index].buy(quantity); };
-		this.getCost = function() { return Game.ObjectsById[index].getPrice(); };
-		return this;
-	}
-
 	boostsClickCps(amount) {
 		this.addApplier(function(sim) { sim.cpcCpsMultiplier += amount; });
 		this.addRevoker(function(sim) { sim.cpcCpsMultiplier -= amount; });
@@ -1018,6 +1017,12 @@ class Upgrade extends Purchase {
 
 	purchase() {
 		return Game.Upgrades[this.name].buy(1);
+	}
+
+	revokes(name) {
+		this.addApplier(function(sim) { sim.modifiers[name].revoke(); })
+		this.addRevoker(function(sim) { sim.modifiers[name].apply(); })
+		return this;
 	}
 
 	scalesBaseClicking(scale) {
@@ -1363,7 +1368,6 @@ class Simulator {
 		function santalevel() {
 			var santa = new SantaLevel(sim);
 			sim.modifiers[santa.name] = santa;
-			sim.upgrades[santa.name] = santa;
 			return santa;
 		}
 
@@ -1483,28 +1487,15 @@ class Simulator {
 		// Create all the seasons
 		//
 
-		season("christmas");
+		season("christmas"	);	// Christmas season
+		season("fools"		);	// Business Day
+		season("valentines"	);	// Valentines Day
+		season("easter"		);	// Easter
+		season("halloween"	);	// Halloween
 		
 		//
 		// Create all the regular upgrades
 		//
-		
-		// Upgrades for the basic building types
-		upgrade("Cursor"				).builds(Constants.CURSOR_INDEX, 1);
-		upgrade("Grandma"				).builds(Constants.GRANDMA_INDEX, 1);
-		upgrade("Farm"					).builds(Constants.FARM_INDEX, 1);
-		upgrade("Mine"					).builds(Constants.MINE_INDEX, 1);
-		upgrade("Factory"				).builds(Constants.FACTORY_INDEX, 1);
-		upgrade("Bank"					).builds(Constants.BANK_INDEX, 1);
-		upgrade("Temple"				).builds(Constants.TEMPLE_INDEX, 1);
-		upgrade("Wizard tower"			).builds(Constants.WIZARD_TOWER_INDEX, 1);
-		upgrade("Shipment"				).builds(Constants.SHIPMENT_INDEX, 1);
-		upgrade("Alchemy lab"			).builds(Constants.ALCHEMY_LAB_INDEX, 1);
-		upgrade("Portal"				).builds(Constants.PORTAL_INDEX, 1);
-		upgrade("Time machine"			).builds(Constants.TIME_MACHINE_INDEX, 1);
-		upgrade("Antimatter condenser"	).builds(Constants.ANTIMATTER_CONDENSER_INDEX, 1);
-		upgrade("Prism"					).builds(Constants.PRISM_INDEX, 1);
-		upgrade("Chancemaker"			).builds(Constants.CHANCEMAKER_INDEX, 1);
 
 		// Upgrades that double the productivity of a type of building
 		upgrade("Forwards from grandma"			).scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
@@ -1627,6 +1618,7 @@ class Simulator {
 		upgrade("Nanocosmics"					).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 		upgrade("The Pulse"						).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 		upgrade("Some other super-tiny fundamental particle? Probably?"	).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
+		upgrade("Quantum comb"					).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
 		upgrade("Gem polish"					).scalesBuildingCps(Constants.PRISM_INDEX, 2);
 		upgrade("9th color"						).scalesBuildingCps(Constants.PRISM_INDEX, 2);
 		upgrade("Chocolate light"				).scalesBuildingCps(Constants.PRISM_INDEX, 2);
@@ -1718,6 +1710,7 @@ class Simulator {
 		// Elder pledge
 		toggle("Elder Pledge"					).calmsGrandmas();
 		toggle("Elder Covenant"					).calmsGrandmas().scalesProduction(0.95);
+		toggle("Revoke Elder Covenant"			).revokes("Elder Covenant");
 
 		// Assorted cursor / clicking upgrades
 		upgrade("Reinforced index finger"		).scalesBaseClicking(2).scalesBuildingCps(Constants.CURSOR_INDEX, 2);
@@ -1763,32 +1756,32 @@ class Simulator {
 		upgrade("Heavenly key"			).unlocksPrestige(0.25);
 
 		// Christmas season
-		upgrade("A festive hat"				).requires("christmas");
-		santalevel(							).requires("A festive hat");
-		upgrade("Naughty list"				).requires("christmas").isRandomSantaReward().scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
-		upgrade("A lump of coal"			).requires("christmas").isRandomSantaReward().scalesProduction(1.01);
-		upgrade("An itchy sweater"			).requires("christmas").isRandomSantaReward().scalesProduction(1.01);
-		upgrade("Improved jolliness"		).requires("christmas").isRandomSantaReward().scalesProduction(1.15);
-		upgrade("Increased merriness"		).requires("christmas").isRandomSantaReward().scalesProduction(1.15);
-		upgrade("Toy workshop"				).requires("christmas").isRandomSantaReward().scalesUpgradeCost(0.95);
-		upgrade("Santa's helpers"			).requires("christmas").isRandomSantaReward().scalesClicking(1.1);
-		upgrade("Santa's milk and cookies"	).requires("christmas").isRandomSantaReward().scalesMilk(1.05);
-		upgrade("Santa's legacy"			).requires("christmas").isRandomSantaReward().boostsSantaPower(0.03);
-		upgrade("Season savings"			).requires("christmas").isRandomSantaReward().scalesBuildingCost(0.99);
-		upgrade("Ho ho ho-flavored frosting").requires("christmas").isRandomSantaReward().scalesReindeer(2);
-		upgrade("Weighted sleighs"			).requires("christmas").isRandomSantaReward().scalesReindeerDuration(2);
-		upgrade("Reindeer baking grounds"	).requires("christmas").isRandomSantaReward().scalesReindeerFrequency(2);
-		upgrade("Santa's bottomless bag"	).requires("christmas").isRandomSantaReward().scalesRandomDropFrequency(1.1).addValueScaling(1.0001);
-		upgrade("Santa's dominion"			).requires("christmas").scalesProduction(1.20).scalesBuildingCost(0.99).scalesUpgradeCost(0.98);
+		upgrade("A festive hat"				).requiresSeason("christmas");
+		santalevel(							).requiresSeason("christmas").requires("A festive hat");
+		upgrade("Naughty list"				).requiresSeason("christmas").isRandomSantaReward().scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
+		upgrade("A lump of coal"			).requiresSeason("christmas").isRandomSantaReward().scalesProduction(1.01);
+		upgrade("An itchy sweater"			).requiresSeason("christmas").isRandomSantaReward().scalesProduction(1.01);
+		upgrade("Improved jolliness"		).requiresSeason("christmas").isRandomSantaReward().scalesProduction(1.15);
+		upgrade("Increased merriness"		).requiresSeason("christmas").isRandomSantaReward().scalesProduction(1.15);
+		upgrade("Toy workshop"				).requiresSeason("christmas").isRandomSantaReward().scalesUpgradeCost(0.95);
+		upgrade("Santa's helpers"			).requiresSeason("christmas").isRandomSantaReward().scalesClicking(1.1);
+		upgrade("Santa's milk and cookies"	).requiresSeason("christmas").isRandomSantaReward().scalesMilk(1.05);
+		upgrade("Santa's legacy"			).requiresSeason("christmas").isRandomSantaReward().boostsSantaPower(0.03);
+		upgrade("Season savings"			).requiresSeason("christmas").isRandomSantaReward().scalesBuildingCost(0.99);
+		upgrade("Ho ho ho-flavored frosting").requiresSeason("christmas").isRandomSantaReward().scalesReindeer(2);
+		upgrade("Weighted sleighs"			).requiresSeason("christmas").isRandomSantaReward().scalesReindeerDuration(2);
+		upgrade("Reindeer baking grounds"	).requiresSeason("christmas").isRandomSantaReward().scalesReindeerFrequency(2);
+		upgrade("Santa's bottomless bag"	).requiresSeason("christmas").isRandomSantaReward().scalesRandomDropFrequency(1.1).addValueScaling(1.0001);
+		upgrade("Santa's dominion"			).requiresSeason("christmas").scalesProduction(1.20).scalesBuildingCost(0.99).scalesUpgradeCost(0.98);
 
 		// Biscuits from clicking reindeer
-		upgrade("Christmas tree biscuits"	).requires("christmas").scalesProduction(1.02);
-		upgrade("Snowflake biscuits"		).requires("christmas").scalesProduction(1.02);
-		upgrade("Snowman biscuits"			).requires("christmas").scalesProduction(1.02);
-		upgrade("Holly biscuits"			).requires("christmas").scalesProduction(1.02);
-		upgrade("Candy cane biscuits"		).requires("christmas").scalesProduction(1.02);
-		upgrade("Bell biscuits"				).requires("christmas").scalesProduction(1.02);
-		upgrade("Present biscuits"			).requires("christmas").scalesProduction(1.02);
+		upgrade("Christmas tree biscuits"	).requiresSeason("christmas").scalesProduction(1.02);
+		upgrade("Snowflake biscuits"		).requiresSeason("christmas").scalesProduction(1.02);
+		upgrade("Snowman biscuits"			).requiresSeason("christmas").scalesProduction(1.02);
+		upgrade("Holly biscuits"			).requiresSeason("christmas").scalesProduction(1.02);
+		upgrade("Candy cane biscuits"		).requiresSeason("christmas").scalesProduction(1.02);
+		upgrade("Bell biscuits"				).requiresSeason("christmas").scalesProduction(1.02);
+		upgrade("Present biscuits"			).requiresSeason("christmas").scalesProduction(1.02);
 
 		// Unlocks from "Tin of butter cookies"
 		upgrade("Butter horseshoes"	).requires("Tin of butter cookies").scalesProduction(1.04);
