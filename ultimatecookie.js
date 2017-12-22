@@ -76,38 +76,6 @@ Constants.CHRISTMAS = "christmas";
 // Constants.VALENTINES_DAY = "valentines";
 Constants.MAX_SANTA_LEVEL = 14;
 
-// var seasons = {};
-// seasons[Constants.NO_SEASON] = {
-// 	name: Constants.NO_SEASON,
-// 	numUpgrades: 0,
-// 	wrinklersDropUpgrades: false,
-// };
-// seasons[Constants.BUSINESS_DAY] = {
-// 	name: Constants.BUSINESS_DAY,
-// 	numUpgrades: 0,
-// 	wrinklersDropUpgrades: false,
-// };
-// seasons[Constants.CHRISTMAS] = {
-// 	name: Constants.CHRISTMAS,
-// 	numUpgrades: 23,
-// 	wrinklersDropUpgrades: false,
-// };
-// seasons[Constants.EASTER] = {
-// 	name: Constants.EASTER,
-// 	numUpgrades: 20,
-// 	wrinklersDropUpgrades: true,
-// };
-// seasons[Constants.HALLOWEEN] = {
-// 	name: Constants.HALLOWEEN,
-// 	numUpgrades: 7,
-// 	wrinklersDropUpgrades: true,
-// };
-// seasons[Constants.VALENTINES_DAY] = {
-// 	name: Constants.VALENTINES_DAY,
-// 	numUpgrades: 6,
-// 	wrinklersDropUpgrades: false,
-// };
-
 //
 // Periodical
 //
@@ -155,7 +123,8 @@ class UltimateCookie {
 		this.clickRate = 100;
 		this.lockSeasons = false;
 		this.lockSeasonsTimer = 0;
-		this.matchError = "";
+		this.errorMessage = "";
+		this.errors = {};
 		this.sim = new Simulator();
 		this.sim.syncToGame();
 		this.needsResync = false;
@@ -167,6 +136,38 @@ class UltimateCookie {
 		this.autoUpdate(Constants.AUTO_UPDATE_INTERVAL);
 		this.autoBuy(Constants.AUTO_BUY_MIN_INTERVAL);
 	}
+
+
+	createPurchaseList() {
+		var purchases = [];
+		var i;
+
+		// Add the buildings	
+		for (i = 0; i < this.sim.buildings.length; ++i) {
+			purchases.push(this.sim.buildings[i]);
+		}
+		// Add the upgrades
+		for (i = 0; i < Game.UpgradesInStore.length; ++i) {
+			var modifier = this.sim.getModifier(Game.UpgradesInStore[i].name);
+			if (this.sim.toggles[modifier.name] == undefined) {
+				// Dont consider toggles
+				purchases.push(this.sim.getModifier(Game.UpgradesInStore[i].name));
+			}
+		}
+		// Add Santa
+		if (Game.Has("A festive hat") && this.sim.santaLevel < Constants.MAX_SANTA_LEVEL) {
+			purchases.push(this.sim.modifiers["Santa Level"]);
+		}
+		
+		return purchases;
+	}
+
+	rankPurchases() {
+		// Default to current game if no Simulator passed
+		var purchases = this.createPurchaseList();
+		purchases.sort(function(a, b) { return b.pbr - a.pbr; });
+		return purchases;
+	}
 }
 
 UltimateCookie.prototype.autoClick = function(interval) {
@@ -174,6 +175,9 @@ UltimateCookie.prototype.autoClick = function(interval) {
 	if (interval == undefined) {
 		if (Config.autoClick) {
 			this.click();
+		}
+		if (Config.autoClickGoldenCookies) {
+			this.popShimmer("golden");
 		}
 		interval = Constants.AUTO_CLICK_INTERVAL;
 	}
@@ -210,102 +214,38 @@ UltimateCookie.prototype.autoBuy = function(interval) {
 	this.autoBuyer = setTimeout(function() { t.autoBuy(); }, interval);
 }
 
-UltimateCookie.prototype.rankPurchases = function(eval) {
-	// Default to current game if no evaluator passed
-	eval = eval ? eval : this.sim;
-
-	var p1 = this.createPurchaseList();
-	p1.sort( function(a, b) { return UltimateCookie.prototype.comparePurchases(eval, a, b); } );
-
-	// Research booster is always higher priority than research starter. This can't be handled
-	// in comparePurchases
-	var booster;
-	var i;
-	for (i = p1.length - 1; i >= 0; --i) {
-		if (booster && p1[i].isResearchStarter) {
-			var tmp = p1[booster];
-			p1.splice(booster, 1);	// remove booster
-			p1.splice(i, 0, tmp);	// reinsert before the research starter
-			booster = i;
-		} else if (p1[i].isResearchBooster) {
-			booster = i;
-		}
-	}
-	return p1;
-}
-
 UltimateCookie.prototype.sortTest = function() {
-	var e = new Evaluator();
-	e.syncToGame();
-	var p1 = this.rankPurchases(e);
-	for (var p = p1.length - 1; p >= 0; --p) {
-		console.log(p1[p].name + "(" + (p1[p].getValue(e) / p1[p].getCost()) + ")");
-	}
-	console.log("CpS diff: " + Math.round(e.getCps() - Game.cookiesPs) + ", next: " + this.lastDeterminedPurchase);
-}
-
-UltimateCookie.prototype.comparePurchases = function(eval, a, b) {
-	// If autoPledge is active, Elder Pledge trumps all
-	if (Config.autoPledge && Game.elderWrath > 0 && !(a.beginsElderPledge && b.beginsElderPledge)/* && (!seasons[eval.season].wrinklersDropUpgrades || eval.lockedSeasonUpgrades[eval.season] == 0)*/) {
-		if (a.beginsElderPledge && !b.beginsElderPledge) {
-			return -1;
-		} else if (b.beginsElderPledge && !a.beginsElderPledge) {
-			return 1;
-		}
-	}
-
-	var eCps = eval.effectiveCps();
-	var aCpsGain = a.getValue(eval);
-	var bCpsGain = b.getValue(eval);
-
-	// Get time to buy both starting with a
-	var ta = a.getCost() / eCps + b.getCost() / (eCps + aCpsGain);
-	var tb = b.getCost() / eCps + a.getCost() / (eCps + bCpsGain);
-
-	// If times are equal (can happen late game with many order of magnitude differences in numbers)
-	if (floatEqual(ta, tb)) {
-		// Prioritise the higher cpsGain, if there is none sort alphabetically on name
-		// so the results are consistent and repeatable and not dependant on order of a, b
-		if (aCpsGain != bCpsGain) {
-			return bCpsGain - aCpsGain;
-		} else {
-			return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0);
-		}
-	}
-	return ta - tb;
-}
-
-UltimateCookie.prototype.createPurchaseList = function() {
-	// Add the buildings	
-	var purchases = this.sim.buildings.slice(0);
-
-	// Add the upgrades
+	var purchases = this.rankPurchases(this.sim);
 	var i;
-	for (i = 0; i < Game.UpgradesInStore.length; ++i) {
-		purchases.push(this.sim.getModifier(Game.UpgradesInStore[i].name));
+	console.log("Single Purchase Look Ahead: ");
+	for (i = 0; i < purchases.length; ++i) {
+		console.log("" + (purchases[i].pbr).toFixed(20) + ": " + purchases[i].name);
 	}
-	// Add santa 
-	if (Game.season == Constants.CHRISTMAS && Game.santaLevel < Constants.MAX_SANTA_LEVEL && Game.Has("A festive hat")) {
-		purchases.push(this.sim.modifiers["Santa Level"]);
+	var combos = [];
+	var j;
+	for (i = 0; i < purchases.length; ++i) {
+		for (j = 0; j < purchases.length; ++j) {
+			if (i != j) {
+				combos.push(new PurchaseChain(this.sim, [purchases[i], purchases[j]]));
+			}
+		}
 	}
-	return purchases;
+	combos.sort((a, b) => b.price - a.price);
+	console.log("Double Purchase Look Ahead: ");
+	for (i = 0; i < combos.length; ++i) {
+		console.log("" + (combos[i].pbr).toFixed(20) + ": " + combos[i].name);
+	}
 }
 
 // Work out what the optimal next purchase is for a given evaluator
 UltimateCookie.prototype.determineNextPurchase = function(eval) {
 	var purchases = this.rankPurchases(eval);
-	var p = 0;
-	if (Config.autoSwitchSeasons == false || this.lockSeasons == true) {
-		while (purchases[p].setsSeason != undefined) {
-			++p;
-		}
-	}
 
-	if (purchases[p].name != this.lastDeterminedPurchase) {
-		this.lastDeterminedPurchase = purchases[p].name;
+	if (purchases[0].name != this.lastDeterminedPurchase) {
+		this.lastDeterminedPurchase = purchases[0].name;
 		console.log("CR: " + this.clickRate + ", \u0394CpS: " + Math.round(eval.getCps() - Game.cookiesPs) + ", \u0394CpC: " + Math.round(eval.getCpc() - Game.computedMouseCps) + ", P: " + this.lastDeterminedPurchase);
 	}
-	return purchases[p];
+	return purchases[0];
 }
 
 UltimateCookie.prototype.click = function() {
@@ -337,7 +277,7 @@ UltimateCookie.prototype.buy = function() {
 		var cookieBank = this.sim.getCookieBankSize();
 		// Cap cookie bank at 5% of total cookies earned
 		cookieBank = Math.min(Game.cookiesEarned / 20, cookieBank);
-		if (Game.cookies - cookieBank > nextPurchase.getCost()) {
+		if (Game.cookies - cookieBank > nextPurchase.price) {
 			this.lastPurchaseTime = time;
 			if (!nextPurchase.setsSeason || !this.lockSeasons) {
 				nextPurchase.purchase();
@@ -356,8 +296,11 @@ UltimateCookie.prototype.buy = function() {
 			}
 		}
 	} else {
-		// Fail hard option, mostly used for debugging
-		console.log(this.sim.matchError);
+		// Fail hard option, mostly used for 
+		if (this.sim.errorMessage != "" && this.errors[this.sim.errorMessage] == undefined) {
+			this.errors[this.sim.errorMessage] = Game.WriteSave(1);
+			console.log(this.sim.errorMessage);
+		}
 		if (Config.failHard) {
 			Config.autoClick = false;
 			Config.autoBuy = false;
@@ -386,7 +329,7 @@ UltimateCookie.prototype.update = function() {
 	if (now - this.lastClickRateCheckTime >= 1000) {
 		var newClicks = Game.cookieClicks - this.lastClickCount;
 		var newRate;
-		if (newClicks >= 0) {
+		if (newClicks >= 0 && newClicks < 1000) {
 			newRate = newClicks * 1000 / (now - this.lastClickRateCheckTime);
 		} else {
 			// If the user imports a save Game.cookieClicks can go down, in that case just use
@@ -405,10 +348,6 @@ UltimateCookie.prototype.update = function() {
 		this.lastClickCount = Game.cookieClicks;
 		this.lastClickRateCheckTime = now;
 		this.sim.clickRate = Config.clickRateForCalculations == -1 ? this.clickRate : Config.clickRateForCalculations;
-	}
-	if (Config.autoClickGoldenCookies) {
-		this.popShimmer("golden");
-		this.lastGoldenCookieTime = new Date().getTime();
 	}
 	if (Config.autoClickReindeer) {
 		this.popShimmer("reindeer");
@@ -431,12 +370,12 @@ UltimateCookie.prototype.update = function() {
 
 UltimateCookie.prototype.reset = function() {
 	var now = new Date().getTime();
-	if (upgradeFunctions.chocolateEgg.isAvailableToPurchase()) {
-		for (var o in Game.ObjectsById) {
-			Game.ObjectsById[o].sell(Game.ObjectsById[o].amount);
-		}
-		upgradeFunctions.chocolateEgg.purchase();
-	}
+	// if (upgradeFunctions.chocolateEgg.isAvailableToPurchase()) {
+	// 	for (var o in Game.ObjectsById) {
+	// 		Game.ObjectsById[o].sell(Game.ObjectsById[o].amount);
+	// 	}
+	// 	upgradeFunctions.chocolateEgg.purchase();
+	// }
 	var hcs = Game.HowMuchPrestige(Game.cookiesReset);
 	var resethcs = Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned);
 
@@ -520,21 +459,11 @@ BuildingCounter.prototype.subtractCountMost = function(excludes, scale=1) {
 
 
 //
-// Some class variables and containers for holding upgrades
-//
-
-var upgradeFunctions = {}
-var upgradeIndex = {}
-var upgradesSupported = 0;
-var upgradeBuildingsSupported = 0;
-
-//
 // Modifier.
 //
 // The modifier is a base class for anything that modifies a Simulation. Any
 // modifier can be applied to or revoked from a Simulation.
 //
-var allModifiers = {};
 
 class Modifier {
 	constructor(sim, name) {
@@ -543,7 +472,6 @@ class Modifier {
 		this.applied = false;
 		this.appliers = [];
 		this.revokers = [];
-		allModifiers[name] = this;
 	}
 
 	// REFACTOR - ADD ERROR CHECK TO PREVENT DOUBLE REPLY
@@ -580,6 +508,10 @@ class Modifier {
 		this.locks.push(modifier);
 	}
 
+	isUnsupported() {
+		this.unsupported = true;
+	}
+
 	requires(modifier) {
 		var required = this.sim.modifiers[modifier];
 		if (!required) {
@@ -612,28 +544,11 @@ class Modifier {
 }
 
 //
-// Seasons
-//
-// Seasons are a class of modifier that make pretty big changes to the game, often enabling
-// new shimmers, new buffs and a bunch of lockable items to unlock. 
-//
-
-class Season extends Modifier {
-	constructor(sim, name) {
-		super(sim, name);
-		this.addApplier(function(sim) { sim.seasonStack.unshift(name); });
-		this.addRevoker(function(sim) { sim.seasonStack.shift(); });
-	}
-}
-
-//
 // Buffs.
 //
 // Buffs are temporary modifications to the game, often giving very large increases in
 // throughput for a short duration.
 //
-
-var allBuffs = {};
 
 class Buff extends Modifier {
 	constructor(sim, name, duration) {
@@ -670,6 +585,13 @@ class Buff extends Modifier {
 		this.addRevoker(function(sim) { sim.reindeerBuffMultiplier /= scale; });
 		return this;
 	}
+
+	shrinksFrenzyMultiplierPerBuilding(index) {
+		this.addApplier(function(sim) { sim.frenzyMultiplier /= (1 + sim.buildings[index].quantity * 0.1); });
+		this.addRevoker(function(sim) { sim.frenzyMultiplier *= (1 + sim.buildings[index].quantity * 0.1); });
+		return this;
+	}
+
 }
 
 //
@@ -677,16 +599,17 @@ class Buff extends Modifier {
 //
 // Purchases are a subtype of modifier that can be bought in the game. They provide
 // information about costing that can be used to prioritise what to buy next.
+//
 
 class Purchase extends Modifier {
 	constructor(sim, name) {
 		super(sim, name);
-		// Seperate set of Appliers and Revokers to use in valuation, same idea as before
-		// except these are applied to get a relative value rather than to get accurate CpS
-		this.valuationAppliers = [];
-		this.valuationRevokers = [];
-		// Price reducers can break the sorting algorithm, treat them seperately
-		this.reducesPrices = false;
+		// Some upgrades can break standard sorting algorithm and need to be manually sorted
+		// into the list after the default sort. Generally things that change purchase pricing
+		// and so on fit in here. The normal comparePurchases function still takes account of
+		// this but its behaviour is no longer as consistent as it needs to be to produce 
+		// useful results.
+		this.customSort = false;
 	}
 
 	get benefit() {
@@ -695,74 +618,6 @@ class Purchase extends Modifier {
 
 	get pbr() {
 		return this.benefit / this.price;
-	}
-	
-	applyValue() {
-		var i;
-		for (i = 0; i < this.valuationAppliers.length; ++i)
-			this.valuationAppliers[i](this.sim);
-	}
-
-	revokeValue() {
-		var i;
-		for (i = this.valuationRevokers.length - 1; i >= 0; --i)
-			this.valuationRevokers[i](this.sim);
-	}
-	
-	addValueApplier(func) {
-		this.valuationAppliers.push(func);
-	}
-
-	addValueRevoker(func) {
-		this.valuationRevokers.push(func);
-	}
-
-	// Calculate the value of the Purchase. This may not relate directly to the actual CpS it adds
-	// but instead is a number used to estimate when the purchase should be bought. For example an
-	// upgrade that reduces building cost should return 0 from getEffectiveCps but a number proportional
-	// to the cost reduction from getValue.
-	getValue() {
-		var cps = this.sim.effectiveCps();
-		this.applyValue();
-		this.apply();
-		var value = this.sim.effectiveCps() - cps;
-		this.revoke();
-		this.revokeValue();
-
-		if (this.locks == undefined) {
-			return value;	// If this doesn't unlock anything, its CpS is all it has to offer
-		}
-		//if (this.valueFromTotalCps)
-		//	val += sim.getEffectiveCps() * this.valueFromTotalCps;
-		// if (this.setsSeason == Constants.VALENTINES_DAY && eval.lockedSeasonUpgrades[Constants.VALENTINES_DAY] > 0) {
-		// 	val = upgradeFunctions.pureHeartBiscuits.getValue(eval);
-		// }
-		// if (this.setsSeason == Constants.EASTER && eval.lockedSeasonUpgrades[Constants.EASTER] > 0) {
-		// 	if (eval.grandmatriarchStatus >= Constants.AWOKEN) {
-		// 		val = upgradeFunctions.chickenEgg.getValue(eval);
-		// 	}
-		// }
-		// if (this.setsSeason == Constants.HALLOWEEN && eval.lockedSeasonUpgrades[Constants.HALLOWEEN] > 0) {
-		// 	if (eval.grandmatriarchStatus >= Constants.AWOKEN && !Config.skipHalloween) {
-		// 		val = upgradeFunctions.skullCookies.getValue(eval);
-		// 	}
-		// }
-		
-		// The next step is to look ahead in the unlock chain and find the best value there. If this 
-		// Purchase unlocks something much more valuable then the effective value of this purchase needs to
-		// be adjusted to account for that. This involves recursively working down through all the unlocks
-		// that can be chained together and finding the one which offers the best value and adjusting this
-		// upgrades value proportionally depending on that
-		var cost = this.getCost();
-		var best = -1;
-		var bestValue = value / cost;
-		var i;
-		for (i = 0; i < this.locks.length; ++i) {
-			var v = this.locks[i].getValue() / this.locks[i].getCost();
-			if (v > bestValue)
-				bestValue = v;
-		}
-		return bestValue * cost;
 	}
 }
 
@@ -777,8 +632,14 @@ class Building extends Purchase {
 		this.index = index;
 		this._basePrice = basePrice;
 		this._baseCps = baseCps;
-		this.addApplier(function(sim) { sim.buildings[index].quantity += 1; });
-		this.addRevoker(function(sim) { sim.buildings[index].quantity -= 1; });
+		if (this.index == Constants.CURSOR_INDEX) {
+			this.addApplier(function(sim) { sim.buildings[index].quantity += 1; sim.recalculateUpgradePriceCursorScale(); });
+			this.addRevoker(function(sim) { sim.buildings[index].quantity -= 1; sim.recalculateUpgradePriceCursorScale(); });
+			this.customSort = true;
+		} else {
+			this.addApplier(function(sim) { sim.buildings[index].quantity += 1; });
+			this.addRevoker(function(sim) { sim.buildings[index].quantity -= 1; });				
+		}
 		this.reset();
 	}
 
@@ -798,7 +659,7 @@ class Building extends Purchase {
 	}
 
 	get price() {
-		return Math.ceil(this.sim.buildingCostScale * this._basePrice * Math.pow(1.15, Math.max(0, this.quantity - this.free)));
+		return Math.ceil(this.sim.buildingPriceScale * this._basePrice * Math.pow(1.15, Math.max(0, this.quantity - this.free)));
 	}
 	
 	get cps() {
@@ -853,10 +714,6 @@ class Building extends Purchase {
 	getCps() {
 		return this.cps;
 	}
-
-	getCost() {
-		return this.price;
-	}
 }
 
 class SantaLevel extends Purchase {
@@ -877,37 +734,44 @@ class SantaLevel extends Purchase {
 	get price() {
 		return this.priceForLevel(this.sim.santaLevel);
 	}
+}
 
-	getCost() {
-		return this.price;
+//
+// PurchaseChain
+//
+// Looking ahead multiple purchases can give better results. This class is designed to represent
+// those chains of purchases.
+//
+
+class PurchaseChain extends Purchase {
+	constructor(sim, purchases) {
+		super(sim, purchases.map(p => p.name).join(" -> "));
+		this.purchases = purchases;
 	}
 
-	getValue() {
-		// The value is the average value of whatever remains in the random pool
-		var cost = this.price;
-		var value = this.getEffectiveCps(this.sim);
-
-		var p;
+	apply() {
 		var i;
-		for (i = 0; i < this.randomRewards.length; ++i) {
-			p = this.randomRewards[i];
-			if (!p.applied) {
-				// Cost triples each level, so account for that here, the upgrade will
-				// be three times as expensive as you think
-				cost += p.price * 3;
-				value += p.getValue();
-			}
+		for (i = 0; i < this.purchases.length; ++i) {
+			this.purchases[i].apply();
 		}
+	}
 
-		value = (value / cost) * this.price;
+	revoke() {
+		var i;
+		for (i = this.purchases.length - 1; i >= 0; --i) {
+			this.purchases[i].revoke();
+		}
+	}
 
-		// Factor in Santa's dominion too
-
-		p = this.sim.upgrades["Santa's dominion"];
-		var value2 = (p.getValue() / (p.price + + this.price + this.priceForLevel(13))) * cost;
-		if (value2 > value)
-			return value2;
-		return value;
+	get price() {
+		var price = 0;
+		var i;
+		for (i = 0; i < this.purchases.length; ++i) {
+			price += this.purchases[i].price;
+			this.purchases[i].apply();
+		}
+		this.revoke();
+		return price;
 	}
 }
 
@@ -947,21 +811,32 @@ class Upgrade extends Purchase {
 	}
 
 	get price() {
-		if (this.isSantaReward)
-			return Math.pow(3, Game.santaLevel) * 2525;
-		return this._basePrice;
-	}
-
-	getCost() {
-		return this.price;
+		var p = this._basePrice;
+		if (this.name == "Elder Pledge")
+			p = Math.pow(8, Math.min(Game.pledges + 2, 14));
+		else if (this.isSantaReward)
+			p = Math.pow(3, Game.santaLevel) * 2525;
+		else if (this.isRareEgg)
+			p = Math.pow(3, this.sim.eggCount) * 999;
+		else if (this.isEgg)
+			p = Math.pow(2, this.sim.eggCount) * 999;
+		else if (this.isSeasonChanger)
+			p = this._basePrice * Math.pow(2, this.sim.seasonChanges);
+		if (this.isCookie)
+			p *= this.sim.cookieUpgradePriceMultiplier;
+		if (this.isSynergy)
+			p *= this.sim.synergyUpgradePriceMultiplier;
+		return Math.ceil(p * this.sim.upgradePriceScale * this.sim.upgradePriceCursorScale);
 	}
 
 	matchesGame(equalityFunction) {
-		var gameObj = Game.Upgrades[this.name];
-		if (!gameObj)
-			return { match: false, error: "Upgrade Name " + this.name + " has no corresponding match in store.\n" };
-		//if (!equalityFunction(this.price, gameObj.getPrice()))
-		//	return { match: false, error: "Upgrade Cost " + this.name + " - Predicted: " + this.price + ", Actual: " + gameObj.getPrice() + ".\n" };
+		if (!this.unsupported) {
+			var gameObj = Game.Upgrades[this.name];
+			if (!gameObj)
+				return { match: false, error: "Upgrade Name " + this.name + " has no corresponding match in store.\n" };
+			if (!equalityFunction(this.price, gameObj.getPrice()))
+				return { match: false, error: "Upgrade Cost " + this.name + " - Predicted: " + this.price + ", Actual: " + gameObj.getPrice() + ".\n" };
+		}
 		return { match: true, error: "" };
 	}
 
@@ -969,17 +844,21 @@ class Upgrade extends Purchase {
 	// Implementation of the various upgrades themselves
 	//
 
-	addValueScaling(scale) {
-		// Used to just add some value in a case where impact cant really be measured, basically
-		// a way to say "it's not worth much but buy it anyway"
-		this.addValueApplier(function(sim) { sim.productionScale *= scale; });
-		this.addValueRevoker(function(sim) { sim.productionScale /= scale; });
-		return this;
-	}
-
 	angersGrandmas() {
 		this.addApplier(function(sim) { sim.grandmatriarchStatus++; });
 		this.addRevoker(function(sim) { sim.grandmatriarchStatus--; });
+		return this;
+	}
+
+	boostsBaseCps(amount) {
+		this.addApplier(function(sim) { sim.baseCps += amount; });
+		this.addRevoker(function(sim) { sim.baseCps -= amount; });
+		return this;
+	}
+
+	scalesCenturyMultiplier(scale) {
+		this.addApplier(function(sim) { sim.centuryMultiplier *= scale; });
+		this.addRevoker(function(sim) { sim.centuryMultiplier /= scale; });
 		return this;
 	}
 
@@ -1001,12 +880,37 @@ class Upgrade extends Purchase {
 	}
 	
 	doublesElderPledge() {
-		this.getValue = function(sim) { return this.sim.modifiers['Elder Pledge'].getCost() / 3600; };
 		return this;
 	}
 
-	getCost() {
-		return Game.Upgrades[this.name].getPrice();
+	enablesUpgradePriceCursorScale() {
+		this.addApplier(function(sim) { sim.upgradePriceCursorScaleEnabled = true; sim.recalculateUpgradePriceCursorScale(); })
+		this.addRevoker(function(sim) { sim.upgradePriceCursorScaleEnabled = false; sim.recalculateUpgradePriceCursorScale(); })
+		return this;
+	}
+
+	isACookie() {
+		this.isCookie = true;
+		return this;
+	}
+
+	isAnEgg() {
+		this.isEgg = true;
+		this.addApplier(function(sim) { sim.eggCount++; });
+		this.addRevoker(function(sim) { sim.eggCount--; });
+		return this;
+	}
+
+	isARareEgg() {
+		this.isRareEgg = true;
+		this.addApplier(function(sim) { sim.eggCount++; });
+		this.addRevoker(function(sim) { sim.eggCount--; });
+		return this;		
+	}
+
+	isASynergy() {
+		this.isSynergy = true;
+		return this;
 	}
 
 	isRandomSantaReward() {
@@ -1031,24 +935,28 @@ class Upgrade extends Purchase {
 		return this;
 	}
 
-	scalesBuildingCost(scale) {
-		this.reducesPrices = true;
-		this.addApplier(function(sim) { sim.buildingCostScale *= scale; });
-		this.addRevoker(function(sim) { sim.buildingCostScale /= scale; });
-		this.addValueApplier(function(sim) { sim.productionScale /= scale; });
-		this.addValueRevoker(function(sim) { sim.productionScale *= scale; });
-		return this;
-	}
-
 	scalesBuildingCps(index, scale) {
 		this.addApplier(function(sim) { sim.buildings[index].multiplier *= scale; });
 		this.addRevoker(function(sim) { sim.buildings[index].multiplier /= scale; });
 		return this;
 	}
 
+	scalesBuildingPrice(scale) {
+		this.customSort = true;
+		this.addApplier(function(sim) { sim.buildingPriceScale *= scale; });
+		this.addRevoker(function(sim) { sim.buildingPriceScale /= scale; });
+		return this;
+	}
+
 	scalesClicking(scale) {
 		this.addApplier(function(sim) { sim.cpcMultiplier *= scale; });
 		this.addRevoker(function(sim) { sim.cpcMultiplier /= scale; });
+		return this;
+	}
+
+	scalesCookieUpgradePrice(scale) {
+		this.addApplier(function(sim) { sim.cookieUpgradePriceMultiplier *= scale; });
+		this.addRevoker(function(sim) { sim.cookieUpgradePriceMultiplier /= scale; });
 		return this;
 	}
 
@@ -1118,16 +1026,23 @@ class Upgrade extends Purchase {
 		return this;
 	}
 
-	startsResearch() {
-		// Used in sorting to make sure that research boosters are bought before research starters.
-		this.isResearchStarter = true;
+	scalesSynergyUpgradePrice(scale) {
+		this.addApplier(function(sim) { sim.synergyUpgradePriceMultiplier *= scale; });
+		this.addRevoker(function(sim) { sim.synergyUpgradePriceMultiplier /= scale; });
 		return this;
 	}
-	
-	scalesUpgradeCost(scale)	{
-		this.reducesPrices = true;
-		this.addValueApplier(function(sim) { sim.productionScale /= scale; });
-		this.addValueRevoker(function(sim) { sim.productionScale *= scale; });
+
+	scalesUpgradePrice(scale)	{
+		this.customSort = true;
+		this.addApplier(function(sim) { sim.upgradePriceScale *= scale; });
+		this.addRevoker(function(sim) { sim.upgradePriceScale /= scale; });
+		return this;
+	}
+
+	setsSeason(name) {
+		this.isSeasonChanger = true;
+		this.addApplier(function(sim) { sim.pushSeason(sim.seasons[name]); sim.seasons[name].apply(); });
+		this.addRevoker(function(sim) { sim.seasons[name].revoke(); sim.popSeason(); });
 		return this;
 	}
 
@@ -1180,121 +1095,29 @@ Upgrade.prototype.isAvailableToPurchase = function() {
 
 }
 
-// Upgrade.prototype.applyUpgrade = function(eval) {
-// 	if (this.clickBoost != undefined)
-// 		eval.cpcBase += this.clickBoost;
-// 	if (this.baseCpsBoost != undefined)
-// 		eval.baseCps += this.baseCpsBoost;
-// 	if (this.centuryProductionBoost != undefined)
-// 		eval.centuryProductionMultiplier += this.centuryProductionBoost;
-// 	if (this.wrinklerScale != undefined)
-// 		eval.wrinklerMultiplier *= this.wrinklerScale;
-// }
+//
+// Seasons
+//
+// Seasons are a class of modifier that make pretty big changes to the game, often enabling
+// new shimmers, new buffs and a bunch of lockable items to unlock. 
+//
 
-// Upgrade.prototype.revokeUpgrade = function(eval) {
-// 	if (this.clickBoost != undefined)
-// 		eval.cpcBase -= this.clickBoost;
-// 	if (this.baseCpsBoost != undefined)
-// 		eval.baseCps -= this.baseCpsBoost;
-// 	if (this.centuryProductionBoost != undefined)
-// 		eval.centuryProductionMultiplier -= this.centuryProductionBoost;
-// 	if (this.wrinklerScale != undefined)
-// 		eval.wrinklerMultiplier /= this.wrinklerScale;
-// }
+class Season extends Modifier {
+	constructor(sim, name, toggle) {
+		super(sim, name);
+		this.toggle = new Upgrade(sim, toggle);
+		this.toggle.setsSeason(name);
+	}
 
-// Upgrade.prototype.boostsResearch = function() {
-// 	this.isResearchBooster = true;
-// 	return this;
-// }
-
-// Upgrade.prototype.boostsClicking = function(amount) {
-// 	this.clickBoost = amount;
-// 	return this;
-// }
-
-// Upgrade.prototype.scalesBuildingCpsCost = function(scale) {
-// 	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + (1 - scale);
-// 	this.buildingCostScale = scale;
-// 	return this;
-// }
-
-// Upgrade.prototype.unlocksSeasonSwitching = function() {
-// 	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.05;
-// 	this.unlocksSeasons = true;
-// 	return this;
-// }
-
-// Upgrade.prototype.boostsBaseCps = function(amount) {
-// 	this.baseCpsBoost = amount;
-// 	return this;
-// }
-
-// Upgrade.prototype.boostsCenturyProduction = function(amount) {
-// 	this.centuryProductionBoost = amount;
-// 	return this;
-// }
-
-// Upgrade.prototype.scalesWrinklers = function(scale) {
-// 	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.05;
-// 	this.wrinklerScale = scale;
-// 	return this;
-// }
-
-// Upgrade.prototype.increasesEggDropChance = function(amount) {
-// 	this.valueFromTotalCps = (this.valueFromTotalCps ? this.valueFromTotalCps : 0) + 0.0001 * amount;
-// 	return this;
-// }
-
-// Upgrade.prototype.scalesCookieBank = function(scale) {
-// 	return this;
-// }
-
-// Season switcher and season changers
-// upgrade("Season switcher"	).unlocksSeasonSwitching();
-// upgrade("Lovesick biscuit"	).changesSeason(Constants.VALENTINES_DAY);
-// upgrade("Ghostly biscuit"	).changesSeason(Constants.HALLOWEEN);
-// upgrade("Festive biscuit"	).changesSeason(Constants.CHRISTMAS);
-// upgrade("Fool's biscuit"	).changesSeason(Constants.BUSINESS_DAY);
-// upgrade("Bunny biscuit"		).changesSeason(Constants.EASTER);
-
-// Valentines day season upgrades
-// upgrade("Pure heart biscuits"	).scalesProduction(25).forSeason(Constants.VALENTINES_DAY);
-// upgrade("Ardent heart biscuits"	).scalesProduction(25).forSeason(Constants.VALENTINES_DAY);
-// upgrade("Sour heart biscuits"	).scalesProduction(25).forSeason(Constants.VALENTINES_DAY);
-// upgrade("Weeping heart biscuits").scalesProduction(25).forSeason(Constants.VALENTINES_DAY);
-// upgrade("Golden heart biscuits"	).scalesProduction(25).forSeason(Constants.VALENTINES_DAY);
-// upgrade("Eternal heart biscuits").scalesProduction(25).forSeason(Constants.VALENTINES_DAY);
-
-// Halloween season upgrades
-// upgrade("Skull cookies"		).scalesProduction(20).forSeason(Constants.HALLOWEEN);
-// upgrade("Ghost cookies"		).scalesProduction(20).forSeason(Constants.HALLOWEEN);
-// upgrade("Bat cookies"		).scalesProduction(20).forSeason(Constants.HALLOWEEN);
-// upgrade("Slime cookies"		).scalesProduction(20).forSeason(Constants.HALLOWEEN);
-// upgrade("Pumpkin cookies"	).scalesProduction(20).forSeason(Constants.HALLOWEEN);
-// upgrade("Eyeball cookies"	).scalesProduction(20).forSeason(Constants.HALLOWEEN);
-// upgrade("Spider cookies"	).scalesProduction(20).forSeason(Constants.HALLOWEEN);
-
-// Easter season
-// upgrade("Ant larva"					).boostsGlobalProduction(1).forSeason(Constants.EASTER);
-// upgrade("Cassowary egg"				).boostsGlobalProduction(1).forSeason(Constants.EASTER);
-// upgrade("Chicken egg"				).boostsGlobalProduction(1).forSeason(Constants.EASTER);
-// upgrade("Duck egg"					).boostsGlobalProduction(1).forSeason(Constants.EASTER);
-// upgrade("Frogspawn"					).boostsGlobalProduction(1).forSeason(Constants.EASTER);
-// upgrade("Ostrich egg"				).boostsGlobalProduction(1).forSeason(Constants.EASTER);
-// upgrade("Quail egg"					).boostsGlobalProduction(1).forSeason(Constants.EASTER);
-// upgrade("Robin egg"					).boostsGlobalProduction(1).forSeason(Constants.EASTER);
-// upgrade("Salmon roe"				).boostsGlobalProduction(1).forSeason(Constants.EASTER);
-// upgrade("Shark egg"					).boostsGlobalProduction(1).forSeason(Constants.EASTER);
-// upgrade("Turkey egg"				).boostsGlobalProduction(1).forSeason(Constants.EASTER);
-// upgrade("Turtle egg"				).boostsGlobalProduction(1).forSeason(Constants.EASTER);
-// upgrade("Golden goose egg"			).scalesGoldenCookieDelay(0.95).forSeason(Constants.EASTER);
-// upgrade("\"egg\""					).boostsBaseCps(9).forSeason(Constants.EASTER);
-// upgrade("Cookie egg"				).scalesTotalClicking(1.1).forSeason(Constants.EASTER);
-// upgrade("Century egg"				).boostsCenturyProduction(10).forSeason(Constants.EASTER);
-// upgrade("Wrinklerspawn"				).scalesWrinklers(1.05).forSeason(Constants.EASTER);
-// upgrade("Omelette"					).increasesEggDropChance(10).forSeason(Constants.EASTER);
-// upgrade("Faberge egg"				).scalesUpgradeCost(0.99).scalesBuildingCpsCost(0.99).forSeason(Constants.EASTER);
-// upgrade("Chocolate egg"				).scalesCookieBank(1.05).forSeason(Constants.EASTER);
+	get lockedUpgrades() {
+		var applied = 0;
+		var i;
+		for (i = 0; i < this.locks.length; ++i)
+			if (this.locks[i].applied)
+				applied++
+		return this.locks.length - applied;
+	}
+}
 
 //
 // Simulator
@@ -1341,9 +1164,11 @@ class Simulator {
 		}
 
 		// Add a new Season to the Simulation
-		function season(name) {
-			var season = new Season(sim, name);
+		function season(name, toggle) {
+			var season = new Season(sim, name, toggle);
 			sim.modifiers[name] = season;
+			sim.modifiers[toggle] = season.toggle;
+			sim.toggles[toggle] = season.toggle;
 			sim.seasons[name] = season;
 			return season;
 		}
@@ -1362,6 +1187,14 @@ class Simulator {
 			sim.modifiers[name] = upgrade;
 			sim.upgrades[name] = upgrade;
 			return upgrade;
+		}
+
+		function cookie(name) {
+			return upgrade(name).isACookie();
+		}
+
+		function synergy(name) {
+			return upgrade(name).isASynergy();
 		}
 
 		// Add a new Upgrade to the Simulation
@@ -1396,22 +1229,38 @@ class Simulator {
 		buff('Frenzy'				).scalesFrenzyMultiplier(7).scalesReindeerBuffMultiplier(0.75);
 		buff('Elder frenzy'			).scalesFrenzyMultiplier(666).scalesReindeerBuffMultiplier(0.5);
 		buff('Click frenzy'			).scalesClickFrenzyMultiplier(777);
-		buff('High-five'			).scalesFrenzyMultiplierPerBuilding(Constants.CURSOR_INDEX);
-		buff('Congregation'			).scalesFrenzyMultiplierPerBuilding(Constants.GRANDMA_INDEX);
-		buff('Luxuriant harvest'	).scalesFrenzyMultiplierPerBuilding(Constants.FARM_INDEX);
-		buff('Ore vein'				).scalesFrenzyMultiplierPerBuilding(Constants.MINE_INDEX);
-		buff('Oiled-up'				).scalesFrenzyMultiplierPerBuilding(Constants.FACTORY_INDEX);
-		buff('Juicy profits'		).scalesFrenzyMultiplierPerBuilding(Constants.BANK_INDEX);
-		buff('Fervent adoration'	).scalesFrenzyMultiplierPerBuilding(Constants.TEMPLE_INDEX);
-		buff('Manabloom'			).scalesFrenzyMultiplierPerBuilding(Constants.WIZARD_TOWER_INDEX);
-		buff('Delicious lifeforms'	).scalesFrenzyMultiplierPerBuilding(Constants.SHIPMENT_INDEX);
-		buff('Breakthrough'			).scalesFrenzyMultiplierPerBuilding(Constants.ALCHEMY_LAB_INDEX);
-		buff('Righteous cataclysm'	).scalesFrenzyMultiplierPerBuilding(Constants.PORTAL_INDEX);
-		buff('Golden ages'			).scalesFrenzyMultiplierPerBuilding(Constants.TIME_MACHINE_INDEX);
-		buff('Extra cycles'			).scalesFrenzyMultiplierPerBuilding(Constants.ANTIMATTER_CONDENSER_INDEX);
-		buff('Solar flare'			).scalesFrenzyMultiplierPerBuilding(Constants.PRISM_INDEX);
-		buff('Winning streak'		).scalesFrenzyMultiplierPerBuilding(Constants.CHANCEMAKER_INDEX);
-		buff('Cursed finger', 10	).cursesFinger();	
+		buff('High-five',			30).scalesFrenzyMultiplierPerBuilding(Constants.CURSOR_INDEX);
+		buff('Congregation',		30).scalesFrenzyMultiplierPerBuilding(Constants.GRANDMA_INDEX);
+		buff('Luxuriant harvest',	30).scalesFrenzyMultiplierPerBuilding(Constants.FARM_INDEX);
+		buff('Ore vein',			30).scalesFrenzyMultiplierPerBuilding(Constants.MINE_INDEX);
+		buff('Oiled-up',			30).scalesFrenzyMultiplierPerBuilding(Constants.FACTORY_INDEX);
+		buff('Juicy profits',		30).scalesFrenzyMultiplierPerBuilding(Constants.BANK_INDEX);
+		buff('Fervent adoration',	30).scalesFrenzyMultiplierPerBuilding(Constants.TEMPLE_INDEX);
+		buff('Manabloom',			30).scalesFrenzyMultiplierPerBuilding(Constants.WIZARD_TOWER_INDEX);
+		buff('Delicious lifeforms',	30).scalesFrenzyMultiplierPerBuilding(Constants.SHIPMENT_INDEX);
+		buff('Breakthrough',		30).scalesFrenzyMultiplierPerBuilding(Constants.ALCHEMY_LAB_INDEX);
+		buff('Righteous cataclysm',	30).scalesFrenzyMultiplierPerBuilding(Constants.PORTAL_INDEX);
+		buff('Golden ages',			30).scalesFrenzyMultiplierPerBuilding(Constants.TIME_MACHINE_INDEX);
+		buff('Extra cycles',		30).scalesFrenzyMultiplierPerBuilding(Constants.ANTIMATTER_CONDENSER_INDEX);
+		buff('Solar flare',			30).scalesFrenzyMultiplierPerBuilding(Constants.PRISM_INDEX);
+		buff('Winning streak',		30).scalesFrenzyMultiplierPerBuilding(Constants.CHANCEMAKER_INDEX);
+		buff('Slap to the face',	30).shrinksFrenzyMultiplierPerBuilding(Constants.CURSOR_INDEX);
+		buff('Senility',			30).shrinksFrenzyMultiplierPerBuilding(Constants.GRANDMA_INDEX);
+		buff('Locusts',				30).shrinksFrenzyMultiplierPerBuilding(Constants.FARM_INDEX);
+		buff('Cave-in',				30).shrinksFrenzyMultiplierPerBuilding(Constants.MINE_INDEX);
+		buff('Jammed machinery',	30).shrinksFrenzyMultiplierPerBuilding(Constants.FACTORY_INDEX);
+		buff('Recession',			30).shrinksFrenzyMultiplierPerBuilding(Constants.BANK_INDEX);
+		buff('Crisis of faith',		30).shrinksFrenzyMultiplierPerBuilding(Constants.TEMPLE_INDEX);
+		buff('Magivores',			30).shrinksFrenzyMultiplierPerBuilding(Constants.WIZARD_TOWER_INDEX);
+		buff('Black holes',			30).shrinksFrenzyMultiplierPerBuilding(Constants.SHIPMENT_INDEX);
+		buff('Lab disaster',		30).shrinksFrenzyMultiplierPerBuilding(Constants.ALCHEMY_LAB_INDEX);
+		buff('Dimensional calamity',30).shrinksFrenzyMultiplierPerBuilding(Constants.PORTAL_INDEX);
+		buff('Time jam',			30).shrinksFrenzyMultiplierPerBuilding(Constants.TIME_MACHINE_INDEX);
+		buff('Predictable tragedy',	30).shrinksFrenzyMultiplierPerBuilding(Constants.ANTIMATTER_CONDENSER_INDEX);
+		buff('Eclipse',				30).shrinksFrenzyMultiplierPerBuilding(Constants.PRISM_INDEX);
+		buff('Dry spell',			30).shrinksFrenzyMultiplierPerBuilding(Constants.CHANCEMAKER_INDEX);
+		buff('Cursed finger', 		10).cursesFinger();	
+		buff('Cookie storm',		 7);		// Spawns a lot of golden cookies
 		
 		//
 		// Create all the prestige upgrades
@@ -1452,15 +1301,17 @@ class Simulator {
 		prestige("Golden switch"				).requires("Heavenly luck");	// Unlocks the golden switch which boosts passive cps 50% but stops golden cookies
 		prestige("Lucky digit"					).requires("Heavenly luck").scalesPrestige(1.01).scalesGoldenCookieDuration(1.01).scalesGoldenCookieEffectDuration(1.01);
 		prestige("Decisive fate"				).requires("Lasting fortune").scalesGoldenCookieDuration(1.05);
-		prestige("Divine discount"				).requires("Decisive fate").scalesBuildingCost(0.99);
-		prestige("Divine sales"					).requires("Decisive fate").scalesUpgradeCost(0.99);
-
+		prestige("Golden cookie alert sound"	).requires("Golden switch").requires("Decisive fate");	// Does nothing useful
+		prestige("Divine discount"				).requires("Decisive fate").scalesBuildingPrice(0.99);
+		prestige("Divine sales"					).requires("Decisive fate").scalesUpgradePrice(0.99);
+		prestige("Divine bakeries"				).requires("Divine discount").requires("Divine sales").scalesCookieUpgradePrice(0.2);
+		
 		// Twin Gates of Transcendence branch
 		prestige("Twin Gates of Transcendence"	).requires("Legacy");	// Retain 5% of regular CpS for 1 hour while closed, 90% reduction to 0.5% beyond that
 		prestige("Belphegor"					).requires("Twin Gates of Transcendence");	// Doubles retention time to 2 hours
 		prestige("Mammon"						).requires("Belphegor");					// Doubles retention time to 4 hours
 		prestige("Abaddon"						).requires("Mammon");						// Doubles retention time to 8 hours
-		prestige("Five-finger discount"			).requires("Abaddon").requires("Halo gloves");	// All upgrades are 1% cheaper per 100 cursors
+		prestige("Five-finger discount"			).requires("Abaddon").requires("Halo gloves").enablesUpgradePriceCursorScale();
 		prestige("Satan"						).requires("Abaddon");						// Doubles retention time to 16 hours
 		prestige("Asmodeus"						).requires("Satan");						// Doubles retention time to 1 day 8 hours
 		prestige("Beelzebub"					).requires("Asmodeus");						// Doubles retention time to 2 days 16 hours
@@ -1474,6 +1325,8 @@ class Simulator {
 		prestige("Seraphim"						).requires("Cherubim");						// Retain an extra 10% total 65%
 		prestige("God"							).requires("Seraphim");						// Retain an extra 10% total 75%
 		
+		prestige("Chimera"						).requires("Lucifer").requires("God").scalesSynergyUpgradePrice(0.98);		// also retain an extra 5% total 80%, redain for 2 more days
+
 		prestige("Kitten angels"				).requires("Dominions").unlocksMilk(0.1, 1);
 		prestige("Synergies Vol. I"				).requires("Satan").requires("Dominions");	// Unlocks first tier of synergy upgrades
 		prestige("Synergies Vol. II"			).requires("Beelzebub").requires("Seraphim").requires("Synergies Vol. I");	// Unlocks second tier of synergy upgrades
@@ -1487,11 +1340,11 @@ class Simulator {
 		// Create all the seasons
 		//
 
-		season("christmas"	);	// Christmas season
-		season("fools"		);	// Business Day
-		season("valentines"	);	// Valentines Day
-		season("easter"		);	// Easter
-		season("halloween"	);	// Halloween
+		season("christmas",	"Festive biscuit"	);	// Christmas season
+		season("fools",		"Fool's biscuit"	);	// Business Day
+		season("valentines","Lovesick biscuit"	);	// Valentines Day
+		season("easter",	"Bunny biscuit"		);	// Easter
+		season("halloween",	"Ghostly biscuit"	);	// Halloween
 		
 		//
 		// Create all the regular upgrades
@@ -1637,57 +1490,57 @@ class Simulator {
 		upgrade("Antisuperstistronics"			).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
 		
 		// Upgrades that increase cookie production
-		upgrade("Plain cookies"											).scalesProduction(1.01);
-		upgrade("Sugar cookies"											).scalesProduction(1.01);
-		upgrade("Oatmeal raisin cookies"								).scalesProduction(1.01);
-		upgrade("Peanut butter cookies"									).scalesProduction(1.01);
-		upgrade("Coconut cookies"										).scalesProduction(1.01);
-		upgrade("White chocolate cookies"								).scalesProduction(1.02);
-		upgrade("Macadamia nut cookies"									).scalesProduction(1.02);
-		upgrade("Double-chip cookies"									).scalesProduction(1.02);
-		upgrade("White chocolate macadamia nut cookies"					).scalesProduction(1.02);
-		upgrade("All-chocolate cookies"									).scalesProduction(1.02);
-		upgrade("Dark chocolate-coated cookies"							).scalesProduction(1.04);
-		upgrade("White chocolate-coated cookies"						).scalesProduction(1.04);
-		upgrade("Eclipse cookies"										).scalesProduction(1.02);
-		upgrade("Zebra cookies"											).scalesProduction(1.02);
-		upgrade("Snickerdoodles"										).scalesProduction(1.02);
-		upgrade("Stroopwafels"											).scalesProduction(1.02);
-		upgrade("Macaroons"												).scalesProduction(1.02);
-		upgrade("Empire biscuits"										).scalesProduction(1.02);
-		upgrade("Madeleines"											).scalesProduction(1.02);
-		upgrade("Palmiers"												).scalesProduction(1.02);
-		upgrade("Palets"												).scalesProduction(1.02);
-		upgrade("Sabl&eacute;s"											).scalesProduction(1.02);
-		upgrade("Gingerbread men"										).scalesProduction(1.02);
-		upgrade("Gingerbread trees"										).scalesProduction(1.02);
-		upgrade("Pure black chocolate cookies"							).scalesProduction(1.04);
-		upgrade("Pure white chocolate cookies"							).scalesProduction(1.04);
-		upgrade("Ladyfingers"											).scalesProduction(1.03);
-		upgrade("Tuiles"												).scalesProduction(1.03);
-		upgrade("Chocolate-stuffed biscuits"							).scalesProduction(1.03);
-		upgrade("Checker cookies"										).scalesProduction(1.03);
-		upgrade("Butter cookies"										).scalesProduction(1.03);
-		upgrade("Cream cookies"											).scalesProduction(1.03);
-		upgrade("Gingersnaps"											).scalesProduction(1.04);
-		upgrade("Cinnamon cookies"										).scalesProduction(1.04);
-		upgrade("Vanity cookies"										).scalesProduction(1.04);
-		upgrade("Cigars"												).scalesProduction(1.04);
-		upgrade("Pinwheel cookies"										).scalesProduction(1.04);
-		upgrade("Fudge squares"											).scalesProduction(1.04);
-		upgrade("Shortbread biscuits"									).scalesProduction(1.04);
-		upgrade("Millionaires' shortbreads"								).scalesProduction(1.04);
-		upgrade("Caramel cookies"										).scalesProduction(1.04);
-		upgrade("Pecan sandies"											).scalesProduction(1.04);
-		upgrade("Moravian spice cookies"								).scalesProduction(1.04);
-		upgrade("Milk chocolate butter biscuit"							).scalesProduction(1.10);
-		upgrade("Anzac biscuits"										).scalesProduction(1.04);
-		upgrade("Buttercakes"											).scalesProduction(1.04);
-		upgrade("Ice cream sandwiches"									).scalesProduction(1.04);
-		upgrade("Dark chocolate butter biscuit"							).scalesProduction(1.10);
-		upgrade("White chocolate butter biscuit"						).scalesProduction(1.10);
-		upgrade("Ruby chocolate butter biscuit"							).scalesProduction(1.10);
-		upgrade("Birthday cookie"										).scalesProductionByAge(0.01);
+		cookie("Plain cookies"							).scalesProduction(1.01);
+		cookie("Sugar cookies"							).scalesProduction(1.01);
+		cookie("Oatmeal raisin cookies"					).scalesProduction(1.01);
+		cookie("Peanut butter cookies"					).scalesProduction(1.01);
+		cookie("Coconut cookies"						).scalesProduction(1.01);
+		cookie("White chocolate cookies"				).scalesProduction(1.02);
+		cookie("Macadamia nut cookies"					).scalesProduction(1.02);
+		cookie("Double-chip cookies"					).scalesProduction(1.02);
+		cookie("White chocolate macadamia nut cookies"	).scalesProduction(1.02);
+		cookie("All-chocolate cookies"					).scalesProduction(1.02);
+		cookie("Dark chocolate-coated cookies"			).scalesProduction(1.04);
+		cookie("White chocolate-coated cookies"			).scalesProduction(1.04);
+		cookie("Eclipse cookies"						).scalesProduction(1.02);
+		cookie("Zebra cookies"							).scalesProduction(1.02);
+		cookie("Snickerdoodles"							).scalesProduction(1.02);
+		cookie("Stroopwafels"							).scalesProduction(1.02);
+		cookie("Macaroons"								).scalesProduction(1.02);
+		cookie("Empire biscuits"						).scalesProduction(1.02);
+		cookie("Madeleines"								).scalesProduction(1.02);
+		cookie("Palmiers"								).scalesProduction(1.02);
+		cookie("Palets"									).scalesProduction(1.02);
+		cookie("Sabl&eacute;s"							).scalesProduction(1.02);
+		cookie("Gingerbread men"						).scalesProduction(1.02);
+		cookie("Gingerbread trees"						).scalesProduction(1.02);
+		cookie("Pure black chocolate cookies"			).scalesProduction(1.04);
+		cookie("Pure white chocolate cookies"			).scalesProduction(1.04);
+		cookie("Ladyfingers"							).scalesProduction(1.03);
+		cookie("Tuiles"									).scalesProduction(1.03);
+		cookie("Chocolate-stuffed biscuits"				).scalesProduction(1.03);
+		cookie("Checker cookies"						).scalesProduction(1.03);
+		cookie("Butter cookies"							).scalesProduction(1.03);
+		cookie("Cream cookies"							).scalesProduction(1.03);
+		cookie("Gingersnaps"							).scalesProduction(1.04);
+		cookie("Cinnamon cookies"						).scalesProduction(1.04);
+		cookie("Vanity cookies"							).scalesProduction(1.04);
+		cookie("Cigars"									).scalesProduction(1.04);
+		cookie("Pinwheel cookies"						).scalesProduction(1.04);
+		cookie("Fudge squares"							).scalesProduction(1.04);
+		cookie("Shortbread biscuits"					).scalesProduction(1.04);
+		cookie("Millionaires' shortbreads"				).scalesProduction(1.04);
+		cookie("Caramel cookies"						).scalesProduction(1.04);
+		cookie("Pecan sandies"							).scalesProduction(1.04);
+		cookie("Moravian spice cookies"					).scalesProduction(1.04);
+		cookie("Milk chocolate butter biscuit"			).scalesProduction(1.10);
+		cookie("Anzac biscuits"							).scalesProduction(1.04);
+		cookie("Buttercakes"							).scalesProduction(1.04);
+		cookie("Ice cream sandwiches"					).scalesProduction(1.04);
+		cookie("Dark chocolate butter biscuit"			).scalesProduction(1.10);
+		cookie("White chocolate butter biscuit"			).scalesProduction(1.10);
+		cookie("Ruby chocolate butter biscuit"			).scalesProduction(1.10);
+		cookie("Birthday cookie"						).scalesProductionByAge(0.01);
 
 		// Golden cookie upgrade functions
 		upgrade("Lucky day"						).scalesGoldenCookieFrequency(2).scalesGoldenCookieDuration(2);
@@ -1695,22 +1548,17 @@ class Simulator {
 		upgrade("Get lucky"						).scalesGoldenCookieEffectDuration(2);
 
 		// Research centre related upgrades
-		upgrade("Bingo center/Research facility").startsResearch().scalesBuildingCps(Constants.GRANDMA_INDEX, 4);
-		upgrade("Specialized chocolate chips"	).startsResearch().scalesProduction(1.01);
-		upgrade("Designer cocoa beans"			).startsResearch().scalesProduction(1.02);
-		upgrade("Ritual rolling pins"			).startsResearch().scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
-		upgrade("Underworld ovens"				).startsResearch().scalesProduction(1.03);
-		upgrade("One mind"						).startsResearch().givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02).angersGrandmas();
-		upgrade("Exotic nuts"					).startsResearch().scalesProduction(1.04);
-		upgrade("Communal brainsweep"			).startsResearch().givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02).angersGrandmas();
-		upgrade("Arcane sugar"					).startsResearch().scalesProduction(1.05);
+		upgrade("Bingo center/Research facility").scalesBuildingCps(Constants.GRANDMA_INDEX, 4);
+		upgrade("Specialized chocolate chips"	).scalesProduction(1.01);
+		upgrade("Designer cocoa beans"			).scalesProduction(1.02);
+		upgrade("Ritual rolling pins"			).scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
+		upgrade("Underworld ovens"				).scalesProduction(1.03);
+		upgrade("One mind"						).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02).angersGrandmas();
+		upgrade("Exotic nuts"					).scalesProduction(1.04);
+		upgrade("Communal brainsweep"			).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02).angersGrandmas();
+		upgrade("Arcane sugar"					).scalesProduction(1.05);
 		upgrade("Elder Pact"					).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.PORTAL_INDEX, 0.05).angersGrandmas();
 		upgrade("Sacrificial rolling pins"		).doublesElderPledge();
-
-		// Elder pledge
-		toggle("Elder Pledge"					).calmsGrandmas();
-		toggle("Elder Covenant"					).calmsGrandmas().scalesProduction(0.95);
-		toggle("Revoke Elder Covenant"			).revokes("Elder Covenant");
 
 		// Assorted cursor / clicking upgrades
 		upgrade("Reinforced index finger"		).scalesBaseClicking(2).scalesBuildingCps(Constants.CURSOR_INDEX, 2);
@@ -1757,99 +1605,146 @@ class Simulator {
 
 		// Christmas season
 		upgrade("A festive hat"				).requiresSeason("christmas");
-		santalevel(							).requiresSeason("christmas").requires("A festive hat");
+		santalevel(							).requires("A festive hat");	// Doesn't require christmas, you can buy it outside
 		upgrade("Naughty list"				).requiresSeason("christmas").isRandomSantaReward().scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
 		upgrade("A lump of coal"			).requiresSeason("christmas").isRandomSantaReward().scalesProduction(1.01);
 		upgrade("An itchy sweater"			).requiresSeason("christmas").isRandomSantaReward().scalesProduction(1.01);
 		upgrade("Improved jolliness"		).requiresSeason("christmas").isRandomSantaReward().scalesProduction(1.15);
 		upgrade("Increased merriness"		).requiresSeason("christmas").isRandomSantaReward().scalesProduction(1.15);
-		upgrade("Toy workshop"				).requiresSeason("christmas").isRandomSantaReward().scalesUpgradeCost(0.95);
+		upgrade("Toy workshop"				).requiresSeason("christmas").isRandomSantaReward().scalesUpgradePrice(0.95);
 		upgrade("Santa's helpers"			).requiresSeason("christmas").isRandomSantaReward().scalesClicking(1.1);
 		upgrade("Santa's milk and cookies"	).requiresSeason("christmas").isRandomSantaReward().scalesMilk(1.05);
 		upgrade("Santa's legacy"			).requiresSeason("christmas").isRandomSantaReward().boostsSantaPower(0.03);
-		upgrade("Season savings"			).requiresSeason("christmas").isRandomSantaReward().scalesBuildingCost(0.99);
+		upgrade("Season savings"			).requiresSeason("christmas").isRandomSantaReward().scalesBuildingPrice(0.99);
 		upgrade("Ho ho ho-flavored frosting").requiresSeason("christmas").isRandomSantaReward().scalesReindeer(2);
 		upgrade("Weighted sleighs"			).requiresSeason("christmas").isRandomSantaReward().scalesReindeerDuration(2);
 		upgrade("Reindeer baking grounds"	).requiresSeason("christmas").isRandomSantaReward().scalesReindeerFrequency(2);
-		upgrade("Santa's bottomless bag"	).requiresSeason("christmas").isRandomSantaReward().scalesRandomDropFrequency(1.1).addValueScaling(1.0001);
-		upgrade("Santa's dominion"			).requiresSeason("christmas").scalesProduction(1.20).scalesBuildingCost(0.99).scalesUpgradeCost(0.98);
-
+		upgrade("Santa's bottomless bag"	).requiresSeason("christmas").isRandomSantaReward().scalesRandomDropFrequency(1.1);
+		upgrade("Santa's dominion"			).requiresSeason("christmas").scalesProduction(1.20).scalesBuildingPrice(0.99).scalesUpgradePrice(0.98);
+		
+		// Easter season
+		upgrade("Chicken egg"				).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
+		upgrade("Duck egg"					).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
+		upgrade("Turkey egg"				).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
+		upgrade("Robin egg"					).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
+		upgrade("Cassowary egg"				).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
+		upgrade("Ostrich egg"				).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
+		upgrade("Quail egg"					).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
+		upgrade("Salmon roe"				).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
+		upgrade("Frogspawn"					).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
+		upgrade("Shark egg"					).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
+		upgrade("Turtle egg"				).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
+		upgrade("Ant larva"					).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
+		upgrade("Golden goose egg"			).requiresSeason("easter").isARareEgg().scalesGoldenCookieFrequency(1.05);
+		upgrade("Cookie egg"				).requiresSeason("easter").isARareEgg().scalesClicking(1.1);
+		upgrade("Faberge egg"				).requiresSeason("easter").isARareEgg().scalesBuildingPrice(0.99);
+		upgrade("\"egg\""					).requiresSeason("easter").isARareEgg().boostsBaseCps(9);
+		upgrade("Century egg"				).requiresSeason("easter").isARareEgg().scalesCenturyMultiplier(1.1);
+		upgrade("Omelette"					).requiresSeason("easter").isARareEgg();	// Other eggs appear 10% more often
+		upgrade("Wrinklerspawn"				).requiresSeason("easter").isARareEgg();	// Wrinklers explode 5% more cookies
+		upgrade("Chocolate egg"				).requiresSeason("easter").isARareEgg();	// Spawns a lot of cookies
+		
+		// Halloween season
+		cookie("Bat cookies"				).requiresSeason("halloween").scalesProduction(1.02);
+		cookie("Eyeball cookies"			).requiresSeason("halloween").scalesProduction(1.02);
+		cookie("Ghost cookies"				).requiresSeason("halloween").scalesProduction(1.02);
+		cookie("Pumpkin cookies"			).requiresSeason("halloween").scalesProduction(1.02);
+		cookie("Skull cookies"				).requiresSeason("halloween").scalesProduction(1.02);
+		cookie("Slime cookies"				).requiresSeason("halloween").scalesProduction(1.02);
+		cookie("Spider cookies"				).requiresSeason("halloween").scalesProduction(1.02);
+		
+		// Valentines Day season
+		cookie("Pure heart biscuits"		).requiresSeason("valentines").scalesProduction(1.02);
+		cookie("Ardent heart biscuits"		).requiresSeason("valentines").scalesProduction(1.02);
+		cookie("Sour heart biscuits"		).requiresSeason("valentines").scalesProduction(1.02);
+		cookie("Weeping heart biscuits"		).requiresSeason("valentines").scalesProduction(1.02);
+		cookie("Golden heart biscuits"		).requiresSeason("valentines").scalesProduction(1.02);
+		cookie("Eternal heart biscuits"		).requiresSeason("valentines").scalesProduction(1.02);
+		
 		// Biscuits from clicking reindeer
-		upgrade("Christmas tree biscuits"	).requiresSeason("christmas").scalesProduction(1.02);
-		upgrade("Snowflake biscuits"		).requiresSeason("christmas").scalesProduction(1.02);
-		upgrade("Snowman biscuits"			).requiresSeason("christmas").scalesProduction(1.02);
-		upgrade("Holly biscuits"			).requiresSeason("christmas").scalesProduction(1.02);
-		upgrade("Candy cane biscuits"		).requiresSeason("christmas").scalesProduction(1.02);
-		upgrade("Bell biscuits"				).requiresSeason("christmas").scalesProduction(1.02);
-		upgrade("Present biscuits"			).requiresSeason("christmas").scalesProduction(1.02);
+		cookie("Christmas tree biscuits"	).requiresSeason("christmas").scalesProduction(1.02);
+		cookie("Snowflake biscuits"			).requiresSeason("christmas").scalesProduction(1.02);
+		cookie("Snowman biscuits"			).requiresSeason("christmas").scalesProduction(1.02);
+		cookie("Holly biscuits"				).requiresSeason("christmas").scalesProduction(1.02);
+		cookie("Candy cane biscuits"		).requiresSeason("christmas").scalesProduction(1.02);
+		cookie("Bell biscuits"				).requiresSeason("christmas").scalesProduction(1.02);
+		cookie("Present biscuits"			).requiresSeason("christmas").scalesProduction(1.02);
 
 		// Unlocks from "Tin of butter cookies"
-		upgrade("Butter horseshoes"	).requires("Tin of butter cookies").scalesProduction(1.04);
-		upgrade("Butter pucks"		).requires("Tin of butter cookies").scalesProduction(1.04);
-		upgrade("Butter knots"		).requires("Tin of butter cookies").scalesProduction(1.04);
-		upgrade("Butter slabs"		).requires("Tin of butter cookies").scalesProduction(1.04);
-		upgrade("Butter swirls"		).requires("Tin of butter cookies").scalesProduction(1.04);
+		cookie("Butter horseshoes"	).requires("Tin of butter cookies").scalesProduction(1.04);
+		cookie("Butter pucks"		).requires("Tin of butter cookies").scalesProduction(1.04);
+		cookie("Butter knots"		).requires("Tin of butter cookies").scalesProduction(1.04);
+		cookie("Butter slabs"		).requires("Tin of butter cookies").scalesProduction(1.04);
+		cookie("Butter swirls"		).requires("Tin of butter cookies").scalesProduction(1.04);
 
 		// Unlocks from "Tin of british tea biscuits"
-		upgrade("British tea biscuits"									).requires("Tin of british tea biscuits").scalesProduction(1.02);
-		upgrade("Chocolate british tea biscuits"						).requires("Tin of british tea biscuits").scalesProduction(1.02);
-		upgrade("Round british tea biscuits"							).requires("Tin of british tea biscuits").scalesProduction(1.02);
-		upgrade("Round chocolate british tea biscuits"					).requires("Tin of british tea biscuits").scalesProduction(1.02);
-		upgrade("Round british tea biscuits with heart motif"			).requires("Tin of british tea biscuits").scalesProduction(1.02);
-		upgrade("Round chocolate british tea biscuits with heart motif"	).requires("Tin of british tea biscuits").scalesProduction(1.02);
+		cookie("British tea biscuits"									).requires("Tin of british tea biscuits").scalesProduction(1.02);
+		cookie("Chocolate british tea biscuits"						).requires("Tin of british tea biscuits").scalesProduction(1.02);
+		cookie("Round british tea biscuits"							).requires("Tin of british tea biscuits").scalesProduction(1.02);
+		cookie("Round chocolate british tea biscuits"					).requires("Tin of british tea biscuits").scalesProduction(1.02);
+		cookie("Round british tea biscuits with heart motif"			).requires("Tin of british tea biscuits").scalesProduction(1.02);
+		cookie("Round chocolate british tea biscuits with heart motif"	).requires("Tin of british tea biscuits").scalesProduction(1.02);
 
 		// Unlocks from "Box of brand biscuits"
-		upgrade("Fig gluttons"			).requires("Box of brand biscuits").scalesProduction(1.02);
-		upgrade("Loreols"				).requires("Box of brand biscuits").scalesProduction(1.02);
-		upgrade("Grease's cups"			).requires("Box of brand biscuits").scalesProduction(1.02);
-		upgrade("Jaffa cakes"			).requires("Box of brand biscuits").scalesProduction(1.02);
-		upgrade("Digits"				).requires("Box of brand biscuits").scalesProduction(1.02);
-		upgrade("Caramoas"				).requires("Box of brand biscuits").scalesProduction(1.03);
-		upgrade("Sagalongs"				).requires("Box of brand biscuits").scalesProduction(1.03);
-		upgrade("Shortfoils"			).requires("Box of brand biscuits").scalesProduction(1.03);
-		upgrade("Win mints"				).requires("Box of brand biscuits").scalesProduction(1.03);
-		upgrade("Lombardia cookies"		).requires("Box of brand biscuits").scalesProduction(1.03);
-		upgrade("Bastenaken cookies"	).requires("Box of brand biscuits").scalesProduction(1.03);
+		cookie("Fig gluttons"			).requires("Box of brand biscuits").scalesProduction(1.02);
+		cookie("Loreols"				).requires("Box of brand biscuits").scalesProduction(1.02);
+		cookie("Grease's cups"			).requires("Box of brand biscuits").scalesProduction(1.02);
+		cookie("Jaffa cakes"			).requires("Box of brand biscuits").scalesProduction(1.02);
+		cookie("Digits"				).requires("Box of brand biscuits").scalesProduction(1.02);
+		cookie("Caramoas"				).requires("Box of brand biscuits").scalesProduction(1.03);
+		cookie("Sagalongs"				).requires("Box of brand biscuits").scalesProduction(1.03);
+		cookie("Shortfoils"			).requires("Box of brand biscuits").scalesProduction(1.03);
+		cookie("Win mints"				).requires("Box of brand biscuits").scalesProduction(1.03);
+		cookie("Lombardia cookies"		).requires("Box of brand biscuits").scalesProduction(1.03);
+		cookie("Bastenaken cookies"	).requires("Box of brand biscuits").scalesProduction(1.03);
 
 		// Unlocks from "Box of macarons"
-		upgrade("Rose macarons"		).requires("Box of macarons").scalesProduction(1.03);
-		upgrade("Lemon macarons"	).requires("Box of macarons").scalesProduction(1.03);
-		upgrade("Chocolate macarons").requires("Box of macarons").scalesProduction(1.03);
-		upgrade("Pistachio macarons").requires("Box of macarons").scalesProduction(1.03);
-		upgrade("Violet macarons"	).requires("Box of macarons").scalesProduction(1.03);
-		upgrade("Hazelnut macarons"	).requires("Box of macarons").scalesProduction(1.03);
-		upgrade("Caramel macarons"	).requires("Box of macarons").scalesProduction(1.03);
-		upgrade("Licorice macarons"	).requires("Box of macarons").scalesProduction(1.03);
+		cookie("Rose macarons"		).requires("Box of macarons").scalesProduction(1.03);
+		cookie("Lemon macarons"	).requires("Box of macarons").scalesProduction(1.03);
+		cookie("Chocolate macarons").requires("Box of macarons").scalesProduction(1.03);
+		cookie("Pistachio macarons").requires("Box of macarons").scalesProduction(1.03);
+		cookie("Violet macarons"	).requires("Box of macarons").scalesProduction(1.03);
+		cookie("Hazelnut macarons"	).requires("Box of macarons").scalesProduction(1.03);
+		cookie("Caramel macarons"	).requires("Box of macarons").scalesProduction(1.03);
+		cookie("Licorice macarons"	).requires("Box of macarons").scalesProduction(1.03);
 
 		// Synergies Vol. I
-		upgrade("Seismic magic"					).requires("Synergies Vol. I").givesSynergy(Constants.MINE_INDEX, Constants.WIZARD_TOWER_INDEX, 0.05, 0.001);
-		upgrade("Fossil fuels"					).requires("Synergies Vol. I").givesSynergy(Constants.MINE_INDEX, Constants.SHIPMENT_INDEX, 0.05, 0.001);
-		upgrade("Primordial ores"				).requires("Synergies Vol. I").givesSynergy(Constants.MINE_INDEX, Constants.ALCHEMY_LAB_INDEX, 0.05, 0.001);
-		upgrade("Arcane knowledge"				).requires("Synergies Vol. I").givesSynergy(Constants.WIZARD_TOWER_INDEX, Constants.ALCHEMY_LAB_INDEX, 0.05, 0.001);
-		upgrade("Infernal crops"				).requires("Synergies Vol. I").givesSynergy(Constants.FARM_INDEX, Constants.PORTAL_INDEX, 0.05, 0.001);
-		upgrade("Contracts from beyond"			).requires("Synergies Vol. I").givesSynergy(Constants.BANK_INDEX, Constants.PORTAL_INDEX, 0.05, 0.001);
-		upgrade("Paganism"						).requires("Synergies Vol. I").givesSynergy(Constants.TEMPLE_INDEX, Constants.PORTAL_INDEX, 0.05, 0.001);
-		upgrade("Future almanacs"				).requires("Synergies Vol. I").givesSynergy(Constants.FARM_INDEX, Constants.TIME_MACHINE_INDEX, 0.05, 0.001);
-		upgrade("Relativistic parsec-skipping"	).requires("Synergies Vol. I").givesSynergy(Constants.SHIPMENT_INDEX, Constants.TIME_MACHINE_INDEX, 0.05, 0.001);
-		upgrade("Quantum electronics"			).requires("Synergies Vol. I").givesSynergy(Constants.FACTORY_INDEX, Constants.ANTIMATTER_CONDENSER_INDEX, 0.05, 0.001);
-		upgrade("Extra physics funding"			).requires("Synergies Vol. I").givesSynergy(Constants.BANK_INDEX, Constants.ANTIMATTER_CONDENSER_INDEX, 0.05, 0.001);
-		upgrade("Light magic"					).requires("Synergies Vol. I").givesSynergy(Constants.WIZARD_TOWER_INDEX, Constants.PRISM_INDEX, 0.05, 0.001);
-		upgrade("Gemmed talismans"				).requires("Synergies Vol. I").givesSynergy(Constants.MINE_INDEX, Constants.CHANCEMAKER_INDEX, 0.05, 0.001);
+		synergy("Seismic magic"					).requires("Synergies Vol. I").givesSynergy(Constants.MINE_INDEX, Constants.WIZARD_TOWER_INDEX, 0.05, 0.001);
+		synergy("Fossil fuels"					).requires("Synergies Vol. I").givesSynergy(Constants.MINE_INDEX, Constants.SHIPMENT_INDEX, 0.05, 0.001);
+		synergy("Primordial ores"				).requires("Synergies Vol. I").givesSynergy(Constants.MINE_INDEX, Constants.ALCHEMY_LAB_INDEX, 0.05, 0.001);
+		synergy("Arcane knowledge"				).requires("Synergies Vol. I").givesSynergy(Constants.WIZARD_TOWER_INDEX, Constants.ALCHEMY_LAB_INDEX, 0.05, 0.001);
+		synergy("Infernal crops"				).requires("Synergies Vol. I").givesSynergy(Constants.FARM_INDEX, Constants.PORTAL_INDEX, 0.05, 0.001);
+		synergy("Contracts from beyond"			).requires("Synergies Vol. I").givesSynergy(Constants.BANK_INDEX, Constants.PORTAL_INDEX, 0.05, 0.001);
+		synergy("Paganism"						).requires("Synergies Vol. I").givesSynergy(Constants.TEMPLE_INDEX, Constants.PORTAL_INDEX, 0.05, 0.001);
+		synergy("Future almanacs"				).requires("Synergies Vol. I").givesSynergy(Constants.FARM_INDEX, Constants.TIME_MACHINE_INDEX, 0.05, 0.001);
+		synergy("Relativistic parsec-skipping"	).requires("Synergies Vol. I").givesSynergy(Constants.SHIPMENT_INDEX, Constants.TIME_MACHINE_INDEX, 0.05, 0.001);
+		synergy("Quantum electronics"			).requires("Synergies Vol. I").givesSynergy(Constants.FACTORY_INDEX, Constants.ANTIMATTER_CONDENSER_INDEX, 0.05, 0.001);
+		synergy("Extra physics funding"			).requires("Synergies Vol. I").givesSynergy(Constants.BANK_INDEX, Constants.ANTIMATTER_CONDENSER_INDEX, 0.05, 0.001);
+		synergy("Light magic"					).requires("Synergies Vol. I").givesSynergy(Constants.WIZARD_TOWER_INDEX, Constants.PRISM_INDEX, 0.05, 0.001);
+		synergy("Gemmed talismans"				).requires("Synergies Vol. I").givesSynergy(Constants.MINE_INDEX, Constants.CHANCEMAKER_INDEX, 0.05, 0.001);
 
 		// Synergies Vol. II
-		upgrade("Printing presses"				).requires("Synergies Vol. II").givesSynergy(Constants.FACTORY_INDEX, Constants.BANK_INDEX, 0.05, 0.001);
-		upgrade("Rain prayer"					).requires("Synergies Vol. II").givesSynergy(Constants.FARM_INDEX, Constants.TEMPLE_INDEX, 0.05, 0.001);
-		upgrade("Magical botany"				).requires("Synergies Vol. II").givesSynergy(Constants.FARM_INDEX, Constants.WIZARD_TOWER_INDEX, 0.05, 0.001);
-		upgrade("Asteroid mining"				).requires("Synergies Vol. II").givesSynergy(Constants.MINE_INDEX, Constants.SHIPMENT_INDEX, 0.05, 0.001);
-		upgrade("Shipyards"						).requires("Synergies Vol. II").givesSynergy(Constants.FACTORY_INDEX, Constants.SHIPMENT_INDEX, 0.05, 0.001);
-		upgrade("Gold fund"						).requires("Synergies Vol. II").givesSynergy(Constants.BANK_INDEX, Constants.ALCHEMY_LAB_INDEX, 0.05, 0.001);
-		upgrade("Temporal overclocking"			).requires("Synergies Vol. II").givesSynergy(Constants.FACTORY_INDEX, Constants.TIME_MACHINE_INDEX, 0.05, 0.001);
-		upgrade("God particle"					).requires("Synergies Vol. II").givesSynergy(Constants.TEMPLE_INDEX, Constants.ANTIMATTER_CONDENSER_INDEX, 0.05, 0.001);
-		upgrade("Chemical proficiency"			).requires("Synergies Vol. II").givesSynergy(Constants.ALCHEMY_LAB_INDEX, Constants.ANTIMATTER_CONDENSER_INDEX, 0.05, 0.001);
-		upgrade("Mystical energies"				).requires("Synergies Vol. II").givesSynergy(Constants.TEMPLE_INDEX, Constants.PRISM_INDEX, 0.05, 0.001);
-		upgrade("Abysmal glimmer"				).requires("Synergies Vol. II").givesSynergy(Constants.PORTAL_INDEX, Constants.PRISM_INDEX, 0.05, 0.001);
-		upgrade("Primeval glow"					).requires("Synergies Vol. II").givesSynergy(Constants.TIME_MACHINE_INDEX, Constants.PRISM_INDEX, 0.05, 0.001);
-		upgrade("Charm quarks"					).requires("Synergies Vol. II").givesSynergy(Constants.ANTIMATTER_CONDENSER_INDEX, Constants.CHANCEMAKER_INDEX, 0.05, 0.001);
+		synergy("Printing presses"				).requires("Synergies Vol. II").givesSynergy(Constants.FACTORY_INDEX, Constants.BANK_INDEX, 0.05, 0.001);
+		synergy("Rain prayer"					).requires("Synergies Vol. II").givesSynergy(Constants.FARM_INDEX, Constants.TEMPLE_INDEX, 0.05, 0.001);
+		synergy("Magical botany"				).requires("Synergies Vol. II").givesSynergy(Constants.FARM_INDEX, Constants.WIZARD_TOWER_INDEX, 0.05, 0.001);
+		synergy("Asteroid mining"				).requires("Synergies Vol. II").givesSynergy(Constants.MINE_INDEX, Constants.SHIPMENT_INDEX, 0.05, 0.001);
+		synergy("Shipyards"						).requires("Synergies Vol. II").givesSynergy(Constants.FACTORY_INDEX, Constants.SHIPMENT_INDEX, 0.05, 0.001);
+		synergy("Gold fund"						).requires("Synergies Vol. II").givesSynergy(Constants.BANK_INDEX, Constants.ALCHEMY_LAB_INDEX, 0.05, 0.001);
+		synergy("Temporal overclocking"			).requires("Synergies Vol. II").givesSynergy(Constants.FACTORY_INDEX, Constants.TIME_MACHINE_INDEX, 0.05, 0.001);
+		synergy("God particle"					).requires("Synergies Vol. II").givesSynergy(Constants.TEMPLE_INDEX, Constants.ANTIMATTER_CONDENSER_INDEX, 0.05, 0.001);
+		synergy("Chemical proficiency"			).requires("Synergies Vol. II").givesSynergy(Constants.ALCHEMY_LAB_INDEX, Constants.ANTIMATTER_CONDENSER_INDEX, 0.05, 0.001);
+		synergy("Mystical energies"				).requires("Synergies Vol. II").givesSynergy(Constants.TEMPLE_INDEX, Constants.PRISM_INDEX, 0.05, 0.001);
+		synergy("Abysmal glimmer"				).requires("Synergies Vol. II").givesSynergy(Constants.PORTAL_INDEX, Constants.PRISM_INDEX, 0.05, 0.001);
+		synergy("Primeval glow"					).requires("Synergies Vol. II").givesSynergy(Constants.TIME_MACHINE_INDEX, Constants.PRISM_INDEX, 0.05, 0.001);
+		synergy("Charm quarks"					).requires("Synergies Vol. II").givesSynergy(Constants.ANTIMATTER_CONDENSER_INDEX, Constants.CHANCEMAKER_INDEX, 0.05, 0.001);
+
+		// Elder pledge and other toggles
+		toggle("Elder Pledge"					).calmsGrandmas();
+		toggle("Elder Covenant"					).calmsGrandmas().scalesProduction(0.95);
+		toggle("Revoke Elder Covenant"			).revokes("Elder Covenant");
+		toggle("Background selector"			);	// Does nothing we care about
+		toggle("Milk selector"					);	// Also does nothing we care about
+		toggle("Golden cookie sound selector"	);
 		
 		// Just query all upgrades, gives a dump of those not supported
 		var ukeys = Object.keys(Game.Upgrades);
@@ -1859,6 +1754,14 @@ class Simulator {
 		}
 
 		this.reset();
+	}
+
+	pushSeason(season) {
+		this.seasonStack.push(season);
+	}
+
+	popSeason() {
+		this.seasonStack.pop();
 	}
 
 	reset() {
@@ -1883,8 +1786,7 @@ class Simulator {
 		// Production multiplier
 		this.baseCps = 0;
 		this.productionScale = 1;
-		this.globalProductionMultiplier = 0;
-		this.centuryProductionMultiplier = 0;
+		this.centuryMultiplier = 1;
 
 		// Heavenly chips
 		this.heavenlyChips = 0;
@@ -1923,13 +1825,29 @@ class Simulator {
 		this.santaLevel = 0;
 		this.santaPower = 0;
 
-		// Building cost reduction
-		this.buildingCostScale = 1;
+		// Easter eggs
+		this.eggCount = 0;
 
+		// Price reductions
+		this.buildingPriceScale = 1;
+		this.upgradePriceScale = 1;
+		this.upgradePriceCursorScale = 1;
+		this.cookieUpgradePriceMultiplier = 1;
+		this.synergyUpgradePriceMultiplier = 1;
+		this.upgradePriceCursorScaleEnabled = false;
 		// Current season
-		this.seasonStack = [""];	// Needs to be a stack so that adding seasons is reversible, only element 0 is active
+		this.seasonChanges = 0;
+		this.seasonStack = [];	// Needs to be a stack so that adding seasons is reversible, only element 0 is active
 
-		this.matchError = "";
+		this.errorMessage = "";
+	}
+
+	recalculateUpgradePriceCursorScale() {
+		if (this.upgradePriceCursorScaleEnabled) {
+			this.upgradePriceCursorScale = Math.pow(0.99, this.buildings[Constants.CURSOR_INDEX].quantity / 100);
+		} else {
+			this.upgradePriceCursorScale = 1;
+		}
 	}
 
 	get season() {
@@ -2042,21 +1960,10 @@ Simulator.prototype.matchesGame = function(equalityFunction=floatEqual) {
 		for (var key in Game.buffs) {
 			errMsg += "- Buff Active: " + key + "\n";
 		}
-		errMsg += "- Game Save: " + Game.WriteSave(1) + "\n";
 	}
+	this.errorMessage = errMsg;
 
-	this.matchError = errMsg;
-	if (this.matchError) {
-		this.lastError = this.matchError;
-		if (Game.version != Constants.SUPPORTED_VERSION) {
-			this.lastError = this.lastError + Constants.VERSION_ERROR;
-		}
-	} else if (!this.lastError) {
-		if (Game.version != Constants.SUPPORTED_VERSION) {
-			this.lastError = Constants.VERSION_ERROR;
-		}
-	}
-	return this.matchError == "";
+	return this.errorMessage == "";
 }
 
 // Get the current cookies per click amount
@@ -2078,7 +1985,7 @@ Simulator.prototype.getCpc = function(ignoreCursedFinger = false) {
 	
 	if (ignoreCursedFinger || !this.cursedFinger)
 		return cpc;
-	return this.getCps(true) * allBuffs['Cursed finger'].duration * this.goldenCookieEffectDurationMultiplier;
+	return this.getCps(true) * this.buffs['Cursed finger'].duration * this.goldenCookieEffectDurationMultiplier;
 }
 
 // Calculate the total Cps generated by the game in this state
@@ -2107,9 +2014,9 @@ Simulator.prototype.getCps = function(ignoreCursedFinger = false) {
 
 	// Scale it for global production
 	var sessionDays = Math.min(Math.floor((this.currentTime - this.sessionStartTime) / 1000 / 10) * 10 / 60 / 60 / 24, 100);
-	var centuryMult = (1 - Math.pow(1 - sessionDays / 100, 3)) * this.centuryProductionMultiplier;
+	var centuryMult = 1 + ((1 - Math.pow(1 - sessionDays / 100, 3)) * (this.centuryMultiplier - 1));
 
-	scale *= (1 + (this.globalProductionMultiplier + centuryMult) * 0.01);
+	scale *= centuryMult;
 	scale *= this.frenzyMultiplier;
 
 	cps *= scale;
@@ -2171,6 +2078,7 @@ Simulator.prototype.getModifier = function(name) {
 	if (!upgrade) {
 		console.log("Unsupported upgrade: " + name);
 		upgrade = new Upgrade(this, name); 
+		upgrade.isUnsupported();
 		this.modifiers[name] = upgrade;
 	}
 	return upgrade;
@@ -2200,6 +2108,7 @@ Simulator.prototype.syncToGame = function() {
 	this.milkAmount = Game.AchievementsOwned / 25;
 	this.frenzyMultiplier = 1;
 	this.clickFrenzyMultiplier = 1;
+	this.seasonChanges = Game.seasonUses;
 	for (var key in Game.buffs) {
 		if (this.buffs[key]) {
 			this.buffs[key].apply();
