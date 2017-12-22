@@ -8,7 +8,6 @@ Config.autoClickReindeer = true;
 Config.autoReset = false;
 Config.autoBuy = true;
 Config.autoSwitchSeasons = false;
-Config.autoPledge = true;
 Config.autoPopWrinklers = true;
 Config.skipHalloween = false;
 Config.resetLimit = 1.1;
@@ -109,6 +108,21 @@ class Periodical {
 // Periodical("Golden Cookie Auto-Clicker", 1, 1000, function() { return this.clickGoldenCookie(); });
 
 //
+// Strategies
+//
+// The strategy involves any details about how the game is played, should Elder Pledge be used, what
+// spells and toggles should be active etc, auto clicking, auto buying and so on are all part of a 
+// strategy.
+//
+
+class Strategy {
+	constructor(name) {
+		this.name = name;
+		this.autoPledge = true;
+	}
+}
+
+//
 // UltimateCookie represents the app itself
 //
 
@@ -130,7 +144,8 @@ class UltimateCookie {
 		this.needsResync = false;
 		this.lastGameCps = Game.cookiesPs;
 		this.lastGameCpc = Game.mouseCps();
-		
+		this.strategy = new Strategy("default");
+
 		// Start off the automatic things
 		this.autoClick(Constants.AUTO_CLICK_INTERVAL);
 		this.autoUpdate(Constants.AUTO_UPDATE_INTERVAL);
@@ -163,10 +178,41 @@ class UltimateCookie {
 	}
 
 	rankPurchases() {
-		// Default to current game if no Simulator passed
+		var i;
+		
+		// First pass, find the upgrade that offers the best price-benefit ratio
 		var purchases = this.createPurchaseList();
 		purchases.sort(function(a, b) { return b.pbr - a.pbr; });
+		
+		// Second pass, find the fastest path to buying that upgrade
+		for (i = 1; i < purchases.length; ++i) {
+			purchases[i] = new PurchaseChain(this.sim, [purchases[i], purchases[0]]);
+		}
+		purchases[0] = new PurchaseChain(this.sim, [purchases[0]]);
+		purchases.sort((a, b) => a.purchaseTime - b.purchaseTime);
+
+		// Now just take the first item from each chain leaving a full ranked list of purchases
+		purchases = purchases.map(p => p.purchases[0]);
+
+		// Move Elder Pledge to the front if the current strategy calls for it
+		if (this.strategy.autoPledge) {
+			var i;
+			for (i = 0; i < Game.UpgradesInStore.length; ++i) {
+				if (Game.UpgradesInStore[i].name == "Elder Pledge" && Game.UpgradesInStore[i].bought == 0) {
+					purchases.splice(0, 0, this.sim.modifiers["Elder Pledge"]);
+				}
+			}
+		}
 		return purchases;
+	}
+
+	sortTest() {
+		var purchases = this.rankPurchases(this.sim);
+		
+		var i;
+		for (i = 0; i < purchases.length; ++i) {
+			console.log("" + (purchases[i].pbr).toFixed(20) + ": " + purchases[i].name);
+		}	
 	}
 }
 
@@ -212,29 +258,6 @@ UltimateCookie.prototype.autoBuy = function(interval) {
 
 	var t = this;
 	this.autoBuyer = setTimeout(function() { t.autoBuy(); }, interval);
-}
-
-UltimateCookie.prototype.sortTest = function() {
-	var purchases = this.rankPurchases(this.sim);
-	var i;
-	console.log("Single Purchase Look Ahead: ");
-	for (i = 0; i < purchases.length; ++i) {
-		console.log("" + (purchases[i].pbr).toFixed(20) + ": " + purchases[i].name);
-	}
-	var combos = [];
-	var j;
-	for (i = 0; i < purchases.length; ++i) {
-		for (j = 0; j < purchases.length; ++j) {
-			if (i != j) {
-				combos.push(new PurchaseChain(this.sim, [purchases[i], purchases[j]]));
-			}
-		}
-	}
-	combos.sort((a, b) => b.price - a.price);
-	console.log("Double Purchase Look Ahead: ");
-	for (i = 0; i < combos.length; ++i) {
-		console.log("" + (combos[i].pbr).toFixed(20) + ": " + combos[i].name);
-	}
 }
 
 // Work out what the optimal next purchase is for a given evaluator
@@ -604,16 +627,14 @@ class Buff extends Modifier {
 class Purchase extends Modifier {
 	constructor(sim, name) {
 		super(sim, name);
-		// Some upgrades can break standard sorting algorithm and need to be manually sorted
-		// into the list after the default sort. Generally things that change purchase pricing
-		// and so on fit in here. The normal comparePurchases function still takes account of
-		// this but its behaviour is no longer as consistent as it needs to be to produce 
-		// useful results.
-		this.customSort = false;
 	}
 
 	get benefit() {
 		return this.getEffectiveCps();
+	}
+
+	get purchaseTime() {
+		return this.price / this.sim.effectiveCps();
 	}
 
 	get pbr() {
@@ -635,7 +656,6 @@ class Building extends Purchase {
 		if (this.index == Constants.CURSOR_INDEX) {
 			this.addApplier(function(sim) { sim.buildings[index].quantity += 1; sim.recalculateUpgradePriceCursorScale(); });
 			this.addRevoker(function(sim) { sim.buildings[index].quantity -= 1; sim.recalculateUpgradePriceCursorScale(); });
-			this.customSort = true;
 		} else {
 			this.addApplier(function(sim) { sim.buildings[index].quantity += 1; });
 			this.addRevoker(function(sim) { sim.buildings[index].quantity -= 1; });				
@@ -761,6 +781,17 @@ class PurchaseChain extends Purchase {
 		for (i = this.purchases.length - 1; i >= 0; --i) {
 			this.purchases[i].revoke();
 		}
+	}
+
+	get purchaseTime() {
+		var time = 0;
+		var i;
+		for (i = 0; i < this.purchases.length; ++i) {
+			time += this.purchases[i].purchaseTime;
+			this.purchases[i].apply();
+		}
+		this.revoke();
+		return time;
 	}
 
 	get price() {
@@ -942,7 +973,6 @@ class Upgrade extends Purchase {
 	}
 
 	scalesBuildingPrice(scale) {
-		this.customSort = true;
 		this.addApplier(function(sim) { sim.buildingPriceScale *= scale; });
 		this.addRevoker(function(sim) { sim.buildingPriceScale /= scale; });
 		return this;
@@ -1033,7 +1063,6 @@ class Upgrade extends Purchase {
 	}
 
 	scalesUpgradePrice(scale)	{
-		this.customSort = true;
 		this.addApplier(function(sim) { sim.upgradePriceScale *= scale; });
 		this.addRevoker(function(sim) { sim.upgradePriceScale /= scale; });
 		return this;
@@ -1637,7 +1666,7 @@ class Simulator {
 		upgrade("Ant larva"					).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
 		upgrade("Golden goose egg"			).requiresSeason("easter").isARareEgg().scalesGoldenCookieFrequency(1.05);
 		upgrade("Cookie egg"				).requiresSeason("easter").isARareEgg().scalesClicking(1.1);
-		upgrade("Faberge egg"				).requiresSeason("easter").isARareEgg().scalesBuildingPrice(0.99);
+		upgrade("Faberge egg"				).requiresSeason("easter").isARareEgg().scalesBuildingPrice(0.99).scalesUpgradePrice(0.99);
 		upgrade("\"egg\""					).requiresSeason("easter").isARareEgg().boostsBaseCps(9);
 		upgrade("Century egg"				).requiresSeason("easter").isARareEgg().scalesCenturyMultiplier(1.1);
 		upgrade("Omelette"					).requiresSeason("easter").isARareEgg();	// Other eggs appear 10% more often
