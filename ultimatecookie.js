@@ -1711,30 +1711,30 @@ class Simulator {
 
 		// Unlocks from "Tin of british tea biscuits"
 		cookie("British tea biscuits"									).requires("Tin of british tea biscuits").scalesProduction(1.02);
-		cookie("Chocolate british tea biscuits"						).requires("Tin of british tea biscuits").scalesProduction(1.02);
-		cookie("Round british tea biscuits"							).requires("Tin of british tea biscuits").scalesProduction(1.02);
+		cookie("Chocolate british tea biscuits"							).requires("Tin of british tea biscuits").scalesProduction(1.02);
+		cookie("Round british tea biscuits"								).requires("Tin of british tea biscuits").scalesProduction(1.02);
 		cookie("Round chocolate british tea biscuits"					).requires("Tin of british tea biscuits").scalesProduction(1.02);
 		cookie("Round british tea biscuits with heart motif"			).requires("Tin of british tea biscuits").scalesProduction(1.02);
 		cookie("Round chocolate british tea biscuits with heart motif"	).requires("Tin of british tea biscuits").scalesProduction(1.02);
 
 		// Unlocks from "Box of brand biscuits"
-		cookie("Fig gluttons"			).requires("Box of brand biscuits").scalesProduction(1.02);
-		cookie("Loreols"				).requires("Box of brand biscuits").scalesProduction(1.02);
-		cookie("Grease's cups"			).requires("Box of brand biscuits").scalesProduction(1.02);
-		cookie("Jaffa cakes"			).requires("Box of brand biscuits").scalesProduction(1.02);
+		cookie("Fig gluttons"		).requires("Box of brand biscuits").scalesProduction(1.02);
+		cookie("Loreols"			).requires("Box of brand biscuits").scalesProduction(1.02);
+		cookie("Grease's cups"		).requires("Box of brand biscuits").scalesProduction(1.02);
+		cookie("Jaffa cakes"		).requires("Box of brand biscuits").scalesProduction(1.02);
 		cookie("Digits"				).requires("Box of brand biscuits").scalesProduction(1.02);
-		cookie("Caramoas"				).requires("Box of brand biscuits").scalesProduction(1.03);
-		cookie("Sagalongs"				).requires("Box of brand biscuits").scalesProduction(1.03);
+		cookie("Caramoas"			).requires("Box of brand biscuits").scalesProduction(1.03);
+		cookie("Sagalongs"			).requires("Box of brand biscuits").scalesProduction(1.03);
 		cookie("Shortfoils"			).requires("Box of brand biscuits").scalesProduction(1.03);
-		cookie("Win mints"				).requires("Box of brand biscuits").scalesProduction(1.03);
-		cookie("Lombardia cookies"		).requires("Box of brand biscuits").scalesProduction(1.03);
+		cookie("Win mints"			).requires("Box of brand biscuits").scalesProduction(1.03);
+		cookie("Lombardia cookies"	).requires("Box of brand biscuits").scalesProduction(1.03);
 		cookie("Bastenaken cookies"	).requires("Box of brand biscuits").scalesProduction(1.03);
 
 		// Unlocks from "Box of macarons"
 		cookie("Rose macarons"		).requires("Box of macarons").scalesProduction(1.03);
-		cookie("Lemon macarons"	).requires("Box of macarons").scalesProduction(1.03);
-		cookie("Chocolate macarons").requires("Box of macarons").scalesProduction(1.03);
-		cookie("Pistachio macarons").requires("Box of macarons").scalesProduction(1.03);
+		cookie("Lemon macarons"		).requires("Box of macarons").scalesProduction(1.03);
+		cookie("Chocolate macarons"	).requires("Box of macarons").scalesProduction(1.03);
+		cookie("Pistachio macarons"	).requires("Box of macarons").scalesProduction(1.03);
 		cookie("Violet macarons"	).requires("Box of macarons").scalesProduction(1.03);
 		cookie("Hazelnut macarons"	).requires("Box of macarons").scalesProduction(1.03);
 		cookie("Caramel macarons"	).requires("Box of macarons").scalesProduction(1.03);
