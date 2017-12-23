@@ -196,10 +196,19 @@ class UltimateCookie {
 
 		// Move Elder Pledge to the front if the current strategy calls for it
 		if (this.strategy.autoPledge) {
+			var ep = this.sim.modifiers["Elder Pledge"];
+			var srp = this.sim.modifiers["Sacrificial rolling pins"];
 			var i;
 			for (i = 0; i < Game.UpgradesInStore.length; ++i) {
-				if (Game.UpgradesInStore[i].name == "Elder Pledge" && Game.UpgradesInStore[i].bought == 0) {
-					purchases.splice(0, 0, this.sim.modifiers["Elder Pledge"]);
+				if (Game.UpgradesInStore[i].name == ep.name && Game.UpgradesInStore[i].bought == 0) {
+					purchases.splice(0, 0, ep);
+					var j;
+					for (j = 0; j < Game.UpgradesInStore.length; ++j) {
+						if (Game.UpgradesInStore[j].name == srp.name && Game.UpgradesInStore[j].bought == 0) {
+							if (srp.price < ep.price)
+								purchases.splice(0, 0, srp);
+						}
+					}
 				}
 			}
 		}
@@ -952,12 +961,6 @@ class Upgrade extends Purchase {
 
 	purchase() {
 		return Game.Upgrades[this.name].buy(1);
-	}
-
-	revokes(name) {
-		this.addApplier(function(sim) { sim.modifiers[name].revoke(); })
-		this.addRevoker(function(sim) { sim.modifiers[name].apply(); })
-		return this;
 	}
 
 	scalesBaseClicking(scale) {
@@ -1770,7 +1773,7 @@ class Simulator {
 		// Elder pledge and other toggles
 		toggle("Elder Pledge"					).calmsGrandmas();
 		toggle("Elder Covenant"					).calmsGrandmas().scalesProduction(0.95);
-		toggle("Revoke Elder Covenant"			).revokes("Elder Covenant");
+		toggle("Revoke Elder Covenant"			);  // Revokes Elder Covenant, just do nothing
 		toggle("Background selector"			);	// Does nothing we care about
 		toggle("Milk selector"					);	// Also does nothing we care about
 		toggle("Golden cookie sound selector"	);
