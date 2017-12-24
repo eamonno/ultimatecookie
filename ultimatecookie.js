@@ -66,15 +66,6 @@ Constants.AWOKEN = 1;
 Constants.DISPLEASED = 2;
 Constants.ANGERED = 3;
 
-// Season names
-// Constants.NO_SEASON = "";
-// Constants.BUSINESS_DAY = "fools";
-Constants.CHRISTMAS = "christmas";
-// Constants.EASTER = "easter";
-// Constants.HALLOWEEN = "halloween";
-// Constants.VALENTINES_DAY = "valentines";
-Constants.MAX_SANTA_LEVEL = 14;
-
 //
 // Periodical
 //
@@ -170,8 +161,8 @@ class UltimateCookie {
 			}
 		}
 		// Add Santa
-		if (Game.Has("A festive hat") && this.sim.santaLevel < Constants.MAX_SANTA_LEVEL) {
-			purchases.push(this.sim.modifiers["Santa Level"]);
+		if (this.sim.santa.canBeLeveled) {
+			purchases.push(this.sim.santa.nextLevel);
 		}
 		
 		return purchases;
@@ -745,23 +736,84 @@ class Building extends Purchase {
 	}
 }
 
+//
+// SantaLevel
+//
+// Purchase representation of the one level for the in game Santa system. These should
+// only be created by a Santa object, they are not intended for use as a standalone
+// class.
+//
+
 class SantaLevel extends Purchase {
-	constructor(sim) {
-		super(sim, "Santa Level");
-		this.randomRewards = [];
+	constructor(santa, num, name) {
+		super(santa.sim, name);
+		this.santa = santa;
+		this.num = num;
+		this.addApplier(function(sim) { sim.santa.level++; });
+		this.addRevoker(function(sim) { sim.santa.level--; });
 	}
 
 	purchase() {
-		Game.specialTab = "santa";	// Game bugs out if you don't do this
+		Game.specialTab = "santa";
 		Game.UpgradeSanta();
 	}
 
-	priceForLevel(level) {
-		return Math.pow(level + 1, level + 1);
+	get price() {
+		return Math.pow(this.number + 1, this.number + 1);
+	}
+}
+
+//
+// Santa
+//
+// Santa incorporates everything to do with the in game santa system surprisingly enough.
+//
+
+class Santa {
+	constructor(sim) {
+		this.sim = sim;
+		this.levels = [];
+		this.randomRewards = [];
+
+		var santa = this;
+		function level(num, name) {
+			var level =  new SantaLevel(santa, num, name)
+			if (num > 0) {
+				level.requires(santa.levels[num - 1].name);
+			}
+			santa.levels[num] = level;
+			santa.sim.modifiers[level.name] = level;
+			return level;
+		}
+
+		level( 0, "Festive test tube"	);
+		level( 1, "Festive ornament"	);
+		level( 2, "Festive wreath"		);
+		level( 3, "Festive tree"		);
+		level( 4, "Festive present"		);
+		level( 5, "Festive elf fetus"	);
+		level( 6, "Elf toddler"			);
+		level( 7, "Elfling"				);
+		level( 8, "Young elf"			);
+		level( 9, "Bulky elf"			);
+		level(10, "Nick"				);
+		level(11, "Santa Claus"			);
+		level(12, "Elder Santa"			);
+		level(13, "True Santa"			);
+		level(14, "Final Claus"			);
 	}
 
-	get price() {
-		return this.priceForLevel(this.sim.santaLevel);
+	reset() {
+		this.level = 0;		
+		this.power = 0;
+	}
+
+	get canBeLeveled() {
+		return Game.Has("A festive hat") && this.level < 14;
+	}
+
+	get nextLevel() {
+		return this.levels[this.level + 1];
 	}
 }
 
@@ -855,7 +907,7 @@ class Upgrade extends Purchase {
 		if (this.name == "Elder Pledge")
 			p = Math.pow(8, Math.min(Game.pledges + 2, 14));
 		else if (this.isSantaReward)
-			p = Math.pow(3, Game.santaLevel) * 2525;
+			p = Math.pow(3, this.sim.santa.level) * 2525;
 		else if (this.isRareEgg)
 			p = Math.pow(3, this.sim.eggCount) * 999;
 		else if (this.isEgg)
@@ -909,8 +961,8 @@ class Upgrade extends Purchase {
 	}
 
 	boostsSantaPower(amount) {
-		this.addApplier(function(sim) { sim.santaPower += amount; });
-		this.addRevoker(function(sim) { sim.santaPower -= amount; });
+		this.addApplier(function(sim) { sim.santa.power += amount; });
+		this.addRevoker(function(sim) { sim.santa.power -= amount; });
 		return this;
 	}
 
@@ -955,7 +1007,7 @@ class Upgrade extends Purchase {
 
 	isRandomSantaReward() {
 		this.isSantaReward = true;
-		this.sim.modifiers["Santa Level"].randomRewards.push(this);
+		this.sim.santa.randomRewards.push(this);
 		return this;
 	}
 
@@ -1169,7 +1221,8 @@ class Simulator {
 		this.seasons = {};
 		this.toggles = {};
 		this.buffs = {};
-
+		this.santa = new Santa(this);
+	
 		var sim = this;
 
 		// Add a new Buff to the Simulation
@@ -1227,13 +1280,6 @@ class Simulator {
 
 		function synergy(name) {
 			return upgrade(name).isASynergy();
-		}
-
-		// Add a new Upgrade to the Simulation
-		function santalevel() {
-			var santa = new SantaLevel(sim);
-			sim.modifiers[santa.name] = santa;
-			return santa;
 		}
 
 		// Create all the buildings - the order matters, dont shuffle these!
@@ -1637,7 +1683,6 @@ class Simulator {
 
 		// Christmas season
 		upgrade("A festive hat"				).requiresSeason("christmas");
-		santalevel(							).requires("A festive hat");	// Doesn't require christmas, you can buy it outside
 		upgrade("Naughty list"				).requiresSeason("christmas").isRandomSantaReward().scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
 		upgrade("A lump of coal"			).requiresSeason("christmas").isRandomSantaReward().scalesProduction(1.01);
 		upgrade("An itchy sweater"			).requiresSeason("christmas").isRandomSantaReward().scalesProduction(1.01);
@@ -1652,8 +1697,9 @@ class Simulator {
 		upgrade("Weighted sleighs"			).requiresSeason("christmas").isRandomSantaReward().scalesReindeerDuration(2);
 		upgrade("Reindeer baking grounds"	).requiresSeason("christmas").isRandomSantaReward().scalesReindeerFrequency(2);
 		upgrade("Santa's bottomless bag"	).requiresSeason("christmas").isRandomSantaReward().scalesRandomDropFrequency(1.1);
-		upgrade("Santa's dominion"			).requiresSeason("christmas").scalesProduction(1.20).scalesBuildingPrice(0.99).scalesUpgradePrice(0.98);
-		
+		upgrade("Santa's dominion"			).requiresSeason("christmas").requires("Final Claus").scalesProduction(1.20).scalesBuildingPrice(0.99).scalesUpgradePrice(0.98);
+		this.santa.levels[0].requires("A festive hat");
+
 		// Easter season
 		upgrade("Chicken egg"				).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
 		upgrade("Duck egg"					).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
@@ -1798,11 +1844,13 @@ class Simulator {
 
 	reset() {
 		var i = 0;
-		
+
+		// Reset anything that needs resetting
 		for (i = 0; i < this.buildings.length; ++i)
 			this.buildings[i].reset();
 		for (var key in this.modifiers)
 			this.modifiers[key].reset();
+		this.santa.reset();
 			
 		// When the session started
 		this.sessionStartTime = new Date().getTime();
@@ -1852,10 +1900,6 @@ class Simulator {
 		// Grandmatriarch stuff
 		this.grandmatriarchStatus = Constants.APPEASED;
 		this.wrinklerMultiplier = 1;
-
-		// Santa level
-		this.santaLevel = 0;
-		this.santaPower = 0;
 
 		// Easter eggs
 		this.eggCount = 0;
@@ -2032,7 +2076,7 @@ Simulator.prototype.getCps = function(ignoreCursedFinger = false) {
 	}
 
 	// Scale it for production and heavely chip multipliers
-	var santaScale = 1 + (this.santaLevel + 1) * this.santaPower;
+	var santaScale = 1 + (this.santa.level + 1) * this.santa.power;
 	var prestigeScale = this.prestige * this.prestigeScale * this.prestigeUnlocked * 0.01;
 
 	var scale = this.productionScale * santaScale * (1 + prestigeScale);
@@ -2149,7 +2193,7 @@ Simulator.prototype.syncToGame = function() {
 		}
 	}
 	
-	this.santaLevel = Game.santaLevel;
+	this.santa.level = Game.santaLevel;
 	this.sessionStartTime = Game.startDate;
 	this.currentTime = new Date().getTime();
 }
