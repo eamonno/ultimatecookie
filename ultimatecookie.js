@@ -1558,6 +1558,7 @@ class Simulator {
 		upgrade("Glow-in-the-dark"				).scalesBuildingCps(Constants.PRISM_INDEX, 2);
 		upgrade("Lux sanctorum"					).scalesBuildingCps(Constants.PRISM_INDEX, 2);
 		upgrade("Reverse shadows"				).scalesBuildingCps(Constants.PRISM_INDEX, 2);
+		upgrade("Crystal mirrors"				).scalesBuildingCps(Constants.PRISM_INDEX, 2);
 		upgrade("Your lucky cookie"				).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
 		upgrade('"All Bets Are Off" magic coin' ).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
 		upgrade("Winning lottery ticket" 		).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
@@ -1566,6 +1567,7 @@ class Simulator {
 		upgrade("Leprechaun village"			).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
 		upgrade("Improbability drive"			).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
 		upgrade("Antisuperstistronics"			).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
+		upgrade("Bunnypedes"					).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
 		
 		// Upgrades that increase cookie production
 		cookie("Plain cookies"							).scalesProduction(1.01);
@@ -1615,9 +1617,11 @@ class Simulator {
 		cookie("Anzac biscuits"							).scalesProduction(1.04);
 		cookie("Buttercakes"							).scalesProduction(1.04);
 		cookie("Ice cream sandwiches"					).scalesProduction(1.04);
+		cookie("Dragon cookie"							).scalesProduction(1.05);
 		cookie("Dark chocolate butter biscuit"			).scalesProduction(1.10);
 		cookie("White chocolate butter biscuit"			).scalesProduction(1.10);
 		cookie("Ruby chocolate butter biscuit"			).scalesProduction(1.10);
+		cookie("Lavender chocolate butter biscuit"		).scalesProduction(1.10);
 		cookie("Birthday cookie"						).scalesProductionByAge(0.01);
 
 		// Golden cookie upgrade functions
