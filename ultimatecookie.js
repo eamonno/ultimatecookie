@@ -8,7 +8,7 @@ Config.autoClickReindeer = true;
 Config.autoReset = false;
 Config.autoBuy = true;
 Config.autoSwitchSeasons = false;
-Config.autoPopWrinklers = true;
+Config.autoPopWrinklers = false;
 Config.skipHalloween = false;
 Config.resetLimit = 1.1;
 Config.maintainCookieBank = false;
@@ -110,6 +110,8 @@ class Strategy {
 	constructor(name) {
 		this.name = name;
 		this.autoPledge = true;
+		this.unlockSeasonUpgrades = true;
+		this.preferredSeason = "christmas";
 	}
 }
 
@@ -184,6 +186,30 @@ class UltimateCookie {
 
 		// Now just take the first item from each chain leaving a full ranked list of purchases
 		purchases = purchases.map(p => p.purchases[0]);
+
+		// Accomodate season strategy		
+		if (this.sim.season.lockedUpgrades == 0) {
+			// Default to whatever the strategy prefers
+			var seasonPref = this.strategy.preferredSeason;
+			// Override for unlocking, unlock in the order valentines, christmas, halloween, easter
+			if (this.strategy.unlockSeasonUpgrades) {
+				if (this.sim.seasons["valentines"].lockedUpgrades > 0) {
+					seasonPref = "valentines";
+				} else if (this.sim.seasons["christmas"].lockedUpgrades > 0) {
+					seasonPref = "christmas";
+				} else if (this.sim.seasons["halloween"].lockedUpgrades > 0) {
+					seasonPref = "halloween";
+				} else if (this.sim.seasons["easter"].lockedUpgrades > 0) {
+					seasonPref = "easter";
+				}
+			}
+			// Now only change seasons if the season change costs less than the next purchase
+			if (this.sim.season.name != "" && this.sim.season.name != seasonPref) {
+				if (this.sim.season.toggle.price <= purchases[0].price) {
+					purchases.splice(0, 0, this.sim.season.toggle);
+				}
+			}
+		}
 
 		// Move Elder Pledge to the front if the current strategy calls for it
 		if (this.strategy.autoPledge) {
@@ -311,7 +337,7 @@ UltimateCookie.prototype.buy = function() {
 			}
 		}
 
-		if (Config.autoPopWrinklers /* && seasons[this.sim.season].wrinklersDropUpgrades && this.sim.lockedSeasonUpgrades[this.sim.season] != 0 */) {
+		if (Config.autoPopWrinklers || (this.sim.season.name == "halloween" && this.strategy.unlockSeasonUpgrades)) {
 			for (var w in Game.wrinklers) {
 				if (Game.wrinklers[w].sucked > 0) {
 					Game.wrinklers[w].hp = 0;
@@ -1230,17 +1256,22 @@ Upgrade.prototype.isAvailableToPurchase = function() {
 class Season extends Modifier {
 	constructor(sim, name, toggle) {
 		super(sim, name);
-		this.toggle = new Upgrade(sim, toggle);
-		this.toggle.setsSeason(name);
+		if (toggle) {
+			this.toggle = new Upgrade(sim, toggle);
+			this.toggle.setsSeason(name);
+		}
 	}
 
 	get lockedUpgrades() {
-		var applied = 0;
-		var i;
-		for (i = 0; i < this.locks.length; ++i)
-			if (this.locks[i].applied)
-				applied++
-		return this.locks.length - applied;
+		if (this.locks) {
+			var applied = 0;
+			var i;
+			for (i = 0; i < this.locks.length; ++i)
+				if (this.locks[i].applied)
+					applied++
+			return this.locks.length - applied;
+		}
+		return 0;
 	}
 }
 
@@ -1292,9 +1323,10 @@ class Simulator {
 		// Add a new Season to the Simulation
 		function season(name, toggle) {
 			var season = new Season(sim, name, toggle);
-			sim.modifiers[name] = season;
-			sim.modifiers[toggle] = season.toggle;
-			sim.toggles[toggle] = season.toggle;
+			if (season.toggle) {
+				sim.modifiers[toggle] = season.toggle;
+				sim.toggles[toggle] = season.toggle;
+			}
 			sim.seasons[name] = season;
 			return season;
 		}
@@ -1459,6 +1491,7 @@ class Simulator {
 		// Create all the seasons
 		//
 
+		season(""								);	// Default season								
 		season("christmas",	"Festive biscuit"	);	// Christmas season
 		season("fools",		"Fool's biscuit"	);	// Business Day
 		season("valentines","Lovesick biscuit"	);	// Valentines Day
@@ -1959,7 +1992,7 @@ class Simulator {
 		this.upgradePriceCursorScaleEnabled = false;
 		// Current season
 		this.seasonChanges = 0;
-		this.seasonStack = [];	// Needs to be a stack so that adding seasons is reversible, only element 0 is active
+		this.seasonStack = [this.seasons[""]];	// Default to no season
 
 		this.errorMessage = "";
 	}
@@ -2075,6 +2108,11 @@ Simulator.prototype.matchesGame = function(equalityFunction=floatEqual) {
 		let { match, error } = this.modifiers[Game.UpgradesInStore[i].name].matchesGame(equalityFunction);
 		if (match == false)
 			errMsg += error;
+	}
+
+	// Check that the season matches
+	if (this.season.name != Game.season) {
+		errMsg += "- Simulator season \"" + this.season.name + "\" does not match Game.season \"" + Game.season + "\"\n";
 	}
 
 	if (errMsg != "") {
@@ -2218,9 +2256,6 @@ Simulator.prototype.syncToGame = function() {
 		if (Game.UpgradesById[i].bought == 1) {
 			var uf = this.getModifier(Game.UpgradesById[i].name);
 			uf.apply();
-			if (uf.season) {
-				this.lockedSeasonUpgrades[uf.season]--;
-			}
 		} else if (Game.UpgradesById[i].unlocked == 1) {
 			this.getModifier(Game.UpgradesById[i].name);
 		}
@@ -2238,7 +2273,7 @@ Simulator.prototype.syncToGame = function() {
 			console.log("Unknown buff: " + key);
 		}
 	}
-	
+	this.seasonStack = [this.seasons[Game.season]];
 	this.santa.level = Game.santaLevel;
 	this.sessionStartTime = Game.startDate;
 	this.currentTime = new Date().getTime();
