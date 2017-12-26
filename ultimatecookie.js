@@ -173,7 +173,7 @@ class UltimateCookie {
 		
 		// First pass, find the upgrade that offers the best price-benefit ratio
 		var purchases = this.createPurchaseList();
-		purchases.sort(function(a, b) { return b.pbr - a.pbr; });
+		purchases.sort(function(a, b) { return b.pvr - a.pvr; });
 		
 		// Second pass, find the fastest path to buying that upgrade
 		for (i = 1; i < purchases.length; ++i) {
@@ -211,7 +211,7 @@ class UltimateCookie {
 		
 		var i;
 		for (i = 0; i < purchases.length; ++i) {
-			console.log("" + (purchases[i].pbr).toFixed(20) + ": " + purchases[i].name);
+			console.log("" + (purchases[i].pvr).toFixed(20) + ": " + purchases[i].name);
 		}	
 	}
 }
@@ -555,14 +555,25 @@ class Modifier {
 		return this;
 	}
 
-	// Calculate the amount of effective CpS this modifier adds directly
-	// REFACTOR - TURN INTO A GETTER
-	getEffectiveCps() {
+	// The benefit is the exact amount of effective CpS that will be gained from applying this
+	// modifier
+	get benefit() {
 		var cps = this.sim.effectiveCps();
 		this.apply();
 		cps = this.sim.effectiveCps() - cps;
 		this.revoke();
 		return cps;
+	}
+
+	// The value is a calculation to determine the value this purchase
+	// will add, this tries to take account of other upgrades that this purchase
+	// will unlock so that even if the purchase itself directly contributes nothing
+	// then the fact that it opens up new purchases is correctly valued.
+	// The value function should only account for things that are not going to be
+	// included in the default sorting. Things like price discounts etc. are already
+	// included in those calculations.
+	get value() {
+		return this.benefit;
 	}
 }
 
@@ -629,8 +640,16 @@ class Purchase extends Modifier {
 		super(sim, name);
 	}
 
-	get benefit() {
-		return this.getEffectiveCps();
+	get value() {
+		var pvr = this.pbr;
+		if (this.locks) {
+			var i;
+			for (i = 0; i < this.locks.length; ++i) {
+				var lockpvr = this.locks[i].value / (this.price + this.locks[i].price);
+				pvr = Math.max(pvr, lockpvr);
+			}
+		}
+		return pvr * this.price;
 	}
 
 	get purchaseTime() {
@@ -639,6 +658,10 @@ class Purchase extends Modifier {
 
 	get pbr() {
 		return this.benefit / this.price;
+	}
+
+	get pvr() {
+		return this.value / this.price;
 	}
 }
 
@@ -758,8 +781,22 @@ class SantaLevel extends Purchase {
 		Game.UpgradeSanta();
 	}
 
+	get value() {
+		var numRandoms = 0;
+		var totalValue = 0;
+		for (i = 0; i < this.santa.randomRewards.length; ++i) {
+			if (!this.santa.randomRewards[i].applied) {
+				numRandoms++;
+				totalValue += this.santa.randomRewards[i].value;
+			}
+		}
+		var ben = numRandoms == 0 ? 0 : ((totalValue / numRandoms) / (this.price + this.santa.randomRewardCost(this.santa.level + 1))) * this.price;
+		ben = Math.max(this.santa.sim.modifiers["Santa's dominion"].pbr * this.price, ben);
+		return ben;
+	}
+
 	get price() {
-		return Math.pow(this.number + 1, this.number + 1);
+		return Math.pow(this.num + 1, this.num + 1);
 	}
 }
 
@@ -801,6 +838,10 @@ class Santa {
 		level(12, "Elder Santa"			);
 		level(13, "True Santa"			);
 		level(14, "Final Claus"			);
+	}
+
+	randomRewardCost(level) {
+		return Math.pow(3, level) * 2525;
 	}
 
 	reset() {
@@ -907,7 +948,7 @@ class Upgrade extends Purchase {
 		if (this.name == "Elder Pledge")
 			p = Math.pow(8, Math.min(Game.pledges + 2, 14));
 		else if (this.isSantaReward)
-			p = Math.pow(3, this.sim.santa.level) * 2525;
+			p = this.sim.santa.randomRewardCost(this.sim.santa.level);
 		else if (this.isRareEgg)
 			p = Math.pow(3, this.sim.eggCount) * 999;
 		else if (this.isEgg)
@@ -1659,6 +1700,7 @@ class Simulator {
 		upgrade("Iron mouse"					).boostsClickCps(0.01);
 		upgrade("Titanium mouse"				).boostsClickCps(0.01);
 		upgrade("Adamantium mouse"				).boostsClickCps(0.01);
+		upgrade("Unobtainium mouse"				).boostsClickCps(0.01);
 		upgrade("Unobtainium mouse"				).boostsClickCps(0.01);
 		upgrade("Eludium mouse"					).boostsClickCps(0.01);
 		upgrade("Wishalloy mouse"				).boostsClickCps(0.01);
