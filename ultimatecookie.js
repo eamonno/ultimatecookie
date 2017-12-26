@@ -591,15 +591,19 @@ class Modifier {
 		return cps;
 	}
 
-	// The value is a calculation to determine the value this purchase
-	// will add, this tries to take account of other upgrades that this purchase
-	// will unlock so that even if the purchase itself directly contributes nothing
-	// then the fact that it opens up new purchases is correctly valued.
-	// The value function should only account for things that are not going to be
-	// included in the default sorting. Things like price discounts etc. are already
-	// included in those calculations.
+	// Value is slightly different to benefit. It lets items that might not provide any direct
+	// benefit still be included in the purchase rankings and also provides a slight boost to
+	// the purchase order of things like discounts etc. Basically if a measurable benefit is 
+	// available it is used, if not, just treat it as a lump of coal.
 	get value() {
-		return this.benefit;
+		var ben = this.benefit;
+		if (ben > 0) 
+			return ben;
+		var cps = this.sim.effectiveCps();
+		this.sim.productionScale *= 1.01;
+		cps = this.sim.effectiveCps() - cps;
+		this.sim.productionScale /= 1.01;
+		return cps;
 	}
 }
 
@@ -664,18 +668,6 @@ class Buff extends Modifier {
 class Purchase extends Modifier {
 	constructor(sim, name) {
 		super(sim, name);
-	}
-
-	get value() {
-		var pvr = this.pbr;
-		if (this.locks) {
-			var i;
-			for (i = 0; i < this.locks.length; ++i) {
-				var lockpvr = this.locks[i].value / (this.price + this.locks[i].price);
-				pvr = Math.max(pvr, lockpvr);
-			}
-		}
-		return pvr * this.price;
 	}
 
 	get purchaseTime() {
@@ -805,20 +797,6 @@ class SantaLevel extends Purchase {
 	purchase() {
 		Game.specialTab = "santa";
 		Game.UpgradeSanta();
-	}
-
-	get value() {
-		var numRandoms = 0;
-		var totalValue = 0;
-		for (i = 0; i < this.santa.randomRewards.length; ++i) {
-			if (!this.santa.randomRewards[i].applied) {
-				numRandoms++;
-				totalValue += this.santa.randomRewards[i].value;
-			}
-		}
-		var ben = numRandoms == 0 ? 0 : ((totalValue / numRandoms) / (this.price + this.santa.randomRewardCost(this.santa.level + 1))) * this.price;
-		ben = Math.max(this.santa.sim.modifiers["Santa's dominion"].pbr * this.price, ben);
-		return ben;
 	}
 
 	get price() {
