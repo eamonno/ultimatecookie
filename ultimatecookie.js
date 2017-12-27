@@ -204,15 +204,22 @@ class UltimateCookie {
 				}
 			}
 			// Now only change seasons if the season change costs less than the next purchase
-			if (this.sim.season.name != "" && this.sim.season.name != seasonPref) {
+			if (this.sim.season.name != "" && Game.season != seasonPref) {
 				if (this.sim.season.toggle.price <= purchases[0].price) {
-					purchases.splice(0, 0, this.sim.season.toggle);
+					purchases.splice(0, 0, this.sim.seasons[seasonPref].toggle);
 				}
 			}
 		}
 
 		// Move Elder Pledge to the front if the current strategy calls for it
-		if (this.strategy.autoPledge) {
+		var pledge = this.strategy.autoPledge;
+		if (this.sim.season.name == "halloween") {
+			if (this.strategy.unlockSeasonUpgrades && this.sim.season.lockedUpgrades != 0) {
+				// Cant unlock halloween upgrades without popping wrinklers so dont pledge
+				pledge = false;
+			}
+		}
+		if (pledge) {
 			var ep = this.sim.modifiers["Elder Pledge"];
 			var srp = this.sim.modifiers["Sacrificial rolling pins"];
 			var i;
@@ -597,7 +604,7 @@ class Modifier {
 	// available it is used, if not, just treat it as a lump of coal.
 	get value() {
 		var ben = this.benefit;
-		if (ben > 0) 
+		if (ben > 0 || this.name == "Chocolate egg") 
 			return ben;
 		var cps = this.sim.effectiveCps();
 		this.sim.productionScale *= 1.01;
@@ -1419,6 +1426,7 @@ class Simulator {
 		prestige("Elder spice"					).requires("Unholy bait");	// You can have up to 2 more wrinklers
 		prestige("Sacrilegious corruption"		).requires("Unholy bait");	// Wrinklers regurgitate 5% more cookies
 		prestige("Wrinkly cookies"				).requires("Elder spice").requires("Sacrilegious corruption").scalesProduction(1.10);
+		prestige("Stevia caelestis"				).requires("Wrinkly cookies");	// Sugar lumps ripen an hour sooner
 		
 		// Season switcher branch
 		prestige("Season switcher"				).requires("Legacy");
