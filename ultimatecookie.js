@@ -712,10 +712,14 @@ class Building extends Purchase {
 	}
 
 	purchase() {
-		Game.ObjectsById[this.index].buy(1);
+		do {
+			Game.ObjectsById[this.index].buy(1);
+			this.apply();
+		} while (this.price <= Game.cookies && this.price <= this.sim.getCps());
 	}
 
 	reset() {
+		super.reset();
 		this.quantity = 0;
 		this.free = 0;
 		this.multiplier = 1;
@@ -966,6 +970,8 @@ class Upgrade extends Purchase {
 			p = Math.pow(2, this.sim.eggCount) * 999;
 		else if (this.isSeasonChanger)
 			p = this._basePrice * Math.pow(2, this.sim.seasonChanges);
+		else if (this.isGoldenSwitch)
+			p = this.sim.getCps() * 60 * 60;
 		if (this.isCookie)
 			p *= this.sim.cookieUpgradePriceMultiplier;
 		if (this.isSynergy)
@@ -1012,6 +1018,12 @@ class Upgrade extends Purchase {
 		return this;
 	}
 
+	boostsMaxWrinklers(amount) {
+		this.addApplier(function(sim) { sim.maxWrinklers += amount; });
+		this.addRevoker(function(sim) { sim.maxWrinklers -= amount; });
+		return this;
+	}
+
 	boostsSantaPower(amount) {
 		this.addApplier(function(sim) { sim.santa.power += amount; });
 		this.addRevoker(function(sim) { sim.santa.power -= amount; });
@@ -1033,8 +1045,19 @@ class Upgrade extends Purchase {
 		return this;
 	}
 
+	givesHeartCookie() {
+		this.addApplier(function(sim) { sim.heartCookieCount++; });
+		this.addRevoker(function(sim) { sim.heartCookieCount--; });
+		return this;
+	}
+
 	isACookie() {
 		this.isCookie = true;
+		return this;
+	}
+
+	isAGoldenSwitch() {
+		this.isGoldenSwitch = true;
 		return this;
 	}
 
@@ -1115,6 +1138,12 @@ class Upgrade extends Purchase {
 		return this;
 	}
 
+	scalesHeartCookies(scale) {
+		this.addApplier(function(sim) { sim.heartCookieScale *= scale; });
+		this.addRevoker(function(sim) { sim.heartCookieScale /= scale; });
+		return this;
+	}
+
 	scalesMilk(scale) {
 		this.addApplier(function(sim) { sim.milkMultiplier *= scale; });
 		this.addRevoker(function(sim) { sim.milkMultiplier /= scale; });
@@ -1160,6 +1189,12 @@ class Upgrade extends Purchase {
 	scalesReindeerFrequency(scale) {
 		this.addApplier(function(sim) { sim.reindeerTime /= scale; });
 		this.addRevoker(function(sim) { sim.reindeerTime *= scale; });
+		return this;
+	}
+
+	scalesSeasonalGoldenCookieFrequency(season, scale) {
+		this.addApplier(function(sim) { sim.seasons[season].goldenCookieFrequencyScale *= scale; });
+		this.addRevoker(function(sim) { sim.seasons[season].goldenCookieFrequencyScale /= scale; });
 		return this;
 	}
 
@@ -1245,6 +1280,12 @@ class Season extends Modifier {
 			this.toggle = new Upgrade(sim, toggle);
 			this.toggle.setsSeason(name);
 		}
+		this.reset();
+	}
+
+	reset() {
+		super.reset();
+		this.goldenCookieFrequencyScale = 1;
 	}
 
 	get lockedUpgrades() {
@@ -1358,6 +1399,17 @@ class Simulator {
 		building(14, 'Chancemaker',		   26000000000000000, 21000000000.0);
 
 		//
+		// Create all the seasons
+		//
+
+		season(""								);	// Default season								
+		season("christmas",	"Festive biscuit"	);	// Christmas season
+		season("fools",		"Fool's biscuit"	);	// Business Day
+		season("valentines","Lovesick biscuit"	);	// Valentines Day
+		season("easter",	"Bunny biscuit"		);	// Easter
+		season("halloween",	"Ghostly biscuit"	);	// Halloween
+		
+		//
 		// Create all the buffs
 		//
 
@@ -1421,28 +1473,36 @@ class Simulator {
 		prestige("Box of macarons"				).requires("Heavenly cookies");
 		prestige("Starter kit"					).requires("Tin of butter cookies").requires("Tin of british tea biscuits").requires("Box of brand biscuits").requires("Box of macarons");	// You start with 10 cursors
 		prestige("Halo gloves"					).requires("Starter kit").scalesClicking(1.10);
-		prestige("Starter kitchen"				).requires("Starter kit");	// You start with 5 grandmas
+		prestige("Starter kitchen"				).requires("Starter kit");		// You start with 5 grandmas
 		prestige("Unholy bait"					).requires("Starter kitchen");	// Wrinklers appear 5 times as fast
-		prestige("Elder spice"					).requires("Unholy bait");	// You can have up to 2 more wrinklers
-		prestige("Sacrilegious corruption"		).requires("Unholy bait");	// Wrinklers regurgitate 5% more cookies
+		prestige("Elder spice"					).requires("Unholy bait").boostsMaxWrinklers(2);
+		prestige("Sacrilegious corruption"		).requires("Unholy bait");		// Wrinklers regurgitate 5% more cookies
 		prestige("Wrinkly cookies"				).requires("Elder spice").requires("Sacrilegious corruption").scalesProduction(1.10);
-		prestige("Stevia caelestis"				).requires("Wrinkly cookies");	// Sugar lumps ripen an hour sooner
+		prestige("Stevia Caelestis"				).requires("Wrinkly cookies");	// Sugar lumps ripen an hour sooner
 		
 		// Season switcher branch
 		prestige("Season switcher"				).requires("Legacy");
 		prestige("Starsnow"						).requires("Season switcher").scalesReindeerFrequency(1.05);//.increasesChristmasCookieDropChance(5%);
+		prestige("Starlove"						).requires("Season switcher").scalesSeasonalGoldenCookieFrequency("valentines", 1.02).scalesHeartCookies(1.5);
+		prestige("Starterror"					).requires("Season switcher").scalesSeasonalGoldenCookieFrequency("halloween", 1.02);	// spooky cookies appear 10% more often, golden cookies 2% more often during halloween
+		prestige("Startrade"					).requires("Season switcher").scalesSeasonalGoldenCookieFrequency("fools", 1.05);
+		prestige("Starspawn"					).requires("Season switcher").scalesSeasonalGoldenCookieFrequency("easter", 1.02);	// egg drops 10% more often
 
 		// Heavenly luck branch
 		prestige("Heavenly luck"				).requires("Legacy").scalesGoldenCookieFrequency(1.05);
 		prestige("Lasting fortune"				).requires("Heavenly luck").scalesGoldenCookieEffectDuration(1.10);
 		prestige("Golden switch"				).requires("Heavenly luck");	// Unlocks the golden switch which boosts passive cps 50% but stops golden cookies
 		prestige("Lucky digit"					).requires("Heavenly luck").scalesPrestige(1.01).scalesGoldenCookieDuration(1.01).scalesGoldenCookieEffectDuration(1.01);
+		prestige("Lucky number"					).requires("Lucky digit").scalesPrestige(1.01).scalesGoldenCookieDuration(1.01).scalesGoldenCookieEffectDuration(1.01);
+		prestige("Lucky payout"					).requires("Lucky payout").scalesPrestige(1.01).scalesGoldenCookieDuration(1.01).scalesGoldenCookieEffectDuration(1.01);
 		prestige("Decisive fate"				).requires("Lasting fortune").scalesGoldenCookieDuration(1.05);
 		prestige("Golden cookie alert sound"	).requires("Golden switch").requires("Decisive fate");	// Does nothing useful
+		prestige("Residual luck"				).requires("Golden switch");	// While golden switch is on you gain 10% extra cps per golden cookie upgrade owned
 		prestige("Divine discount"				).requires("Decisive fate").scalesBuildingPrice(0.99);
 		prestige("Divine sales"					).requires("Decisive fate").scalesUpgradePrice(0.99);
 		prestige("Divine bakeries"				).requires("Divine discount").requires("Divine sales").scalesCookieUpgradePrice(0.2);
-		
+		prestige("Distilled essence of redoubled luck").requires("Residual luck").requires("Divine bakeries");	// Golden cookies have a 1% chance of being doubled
+
 		// Twin Gates of Transcendence branch
 		prestige("Twin Gates of Transcendence"	).requires("Legacy");	// Retain 5% of regular CpS for 1 hour while closed, 90% reduction to 0.5% beyond that
 		prestige("Belphegor"					).requires("Twin Gates of Transcendence");	// Doubles retention time to 2 hours
@@ -1453,6 +1513,8 @@ class Simulator {
 		prestige("Asmodeus"						).requires("Satan");						// Doubles retention time to 1 day 8 hours
 		prestige("Beelzebub"					).requires("Asmodeus");						// Doubles retention time to 2 days 16 hours
 		prestige("Lucifer"						).requires("Beelzebub");					// Doubles retention time to 5 days 8 hours
+		prestige("Diabetica Daemonicus"			).requires("Stevia Caelestis").requires("Lucifer");	// Sugar lumps mature an hour sooner
+		prestige("Sucralosia Inutilis"			).requires("Diabetica Daemonicus");			// Bifurcated sugar lumps appear 5% more often and are 5% more likely to drop two sugar lumps
 		
 		prestige("Angels"						).requires("Twin Gates of Transcendence");	// Retain an extra 10% total 15%
 		prestige("Archangels"					).requires("Angels");						// Retain an extra 10% total 25%
@@ -1472,17 +1534,6 @@ class Simulator {
 		prestige("Classic dairy selection"		).requires("Legacy");
 		prestige("Basic wallpaper assortment"	).requires("Classic dairy selection");
 		prestige("Fanciful dairy selection"		).requires("Classic dairy selection");
-		
-		//
-		// Create all the seasons
-		//
-
-		season(""								);	// Default season								
-		season("christmas",	"Festive biscuit"	);	// Christmas season
-		season("fools",		"Fool's biscuit"	);	// Business Day
-		season("valentines","Lovesick biscuit"	);	// Valentines Day
-		season("easter",	"Bunny biscuit"		);	// Easter
-		season("halloween",	"Ghostly biscuit"	);	// Halloween
 		
 		//
 		// Create all the regular upgrades
@@ -1746,6 +1797,9 @@ class Simulator {
 		upgrade("Heavenly confectionery").unlocksPrestige(0.25);
 		upgrade("Heavenly key"			).unlocksPrestige(0.25);
 
+		// Dragon unlock
+		upgrade("A crumbly egg"			).requires("How to bake your dragon");
+
 		// Christmas season
 		upgrade("A festive hat"				).requiresSeason("christmas");
 		upgrade("Naughty list"				).requiresSeason("christmas").isRandomSantaReward().scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
@@ -1797,12 +1851,12 @@ class Simulator {
 		cookie("Spider cookies"				).requiresSeason("halloween").scalesProduction(1.02);
 		
 		// Valentines Day season
-		cookie("Pure heart biscuits"		).requiresSeason("valentines").scalesProduction(1.02);
-		cookie("Ardent heart biscuits"		).requiresSeason("valentines").scalesProduction(1.02);
-		cookie("Sour heart biscuits"		).requiresSeason("valentines").scalesProduction(1.02);
-		cookie("Weeping heart biscuits"		).requiresSeason("valentines").scalesProduction(1.02);
-		cookie("Golden heart biscuits"		).requiresSeason("valentines").scalesProduction(1.02);
-		cookie("Eternal heart biscuits"		).requiresSeason("valentines").scalesProduction(1.02);
+		cookie("Pure heart biscuits"		).requiresSeason("valentines").givesHeartCookie();
+		cookie("Ardent heart biscuits"		).requiresSeason("valentines").givesHeartCookie();
+		cookie("Sour heart biscuits"		).requiresSeason("valentines").givesHeartCookie();
+		cookie("Weeping heart biscuits"		).requiresSeason("valentines").givesHeartCookie();
+		cookie("Golden heart biscuits"		).requiresSeason("valentines").givesHeartCookie();
+		cookie("Eternal heart biscuits"		).requiresSeason("valentines").givesHeartCookie();
 		
 		// Biscuits from clicking reindeer
 		cookie("Christmas tree biscuits"	).requiresSeason("christmas").scalesProduction(1.02);
@@ -1888,6 +1942,8 @@ class Simulator {
 		toggle("Background selector"			);	// Does nothing we care about
 		toggle("Milk selector"					);	// Also does nothing we care about
 		toggle("Golden cookie sound selector"	);
+		toggle("Golden switch [on]"				).isAGoldenSwitch();
+		toggle("Golden switch [off]"			).isAGoldenSwitch();
 		
 		// Just query all upgrades, gives a dump of those not supported
 		var ukeys = Object.keys(Game.Upgrades);
@@ -1915,6 +1971,8 @@ class Simulator {
 			this.buildings[i].reset();
 		for (var key in this.modifiers)
 			this.modifiers[key].reset();
+		for (var key in this.seasons)
+			this.seasons[key].reset();
 		this.santa.reset();
 			
 		// When the session started
@@ -1965,9 +2023,14 @@ class Simulator {
 		// Grandmatriarch stuff
 		this.grandmatriarchStatus = Constants.APPEASED;
 		this.wrinklerMultiplier = 1;
+		this.maxWrinklers = 10;
 
 		// Easter eggs
 		this.eggCount = 0;
+
+		// Valentines day
+		this.heartCookieScale = 1;
+		this.heartCookieCount = 0;
 
 		// Price reductions
 		this.buildingPriceScale = 1;
@@ -1976,6 +2039,7 @@ class Simulator {
 		this.cookieUpgradePriceMultiplier = 1;
 		this.synergyUpgradePriceMultiplier = 1;
 		this.upgradePriceCursorScaleEnabled = false;
+
 		// Current season
 		this.seasonChanges = 0;
 		this.seasonStack = [this.seasons[""]];	// Default to no season
@@ -2008,7 +2072,7 @@ class Simulator {
 		// Bit over simplistic for now, assumes golden cookies alternate between multiply cookies and frenzy
 
 		// Calculate baseline cps, passive + clicking
-		var totalTime = this.goldenCookieTime * 2;
+		var totalTime = this.goldenCookieTime * 2 / this.season.goldenCookieFrequencyScale;
 		var frenzyTime = this.frenzyDuration * this.goldenCookieEffectDurationMultiplier;
 		var normalTime = totalTime - frenzyTime;
 		var regularCps = (normalTime * this.effectiveCpsWithBuffs([]) + frenzyTime * this.effectiveCpsWithBuffs(['Frenzy']) ) / totalTime;
@@ -2148,8 +2212,9 @@ Simulator.prototype.getCps = function(ignoreCursedFinger = false) {
 	// Scale it for production and heavely chip multipliers
 	var santaScale = 1 + (this.santa.level + 1) * this.santa.power;
 	var prestigeScale = this.prestige * this.prestigeScale * this.prestigeUnlocked * 0.01;
+	var heartScale = Math.pow(1 + 0.02 * this.heartCookieScale, this.heartCookieCount);
 
-	var scale = this.productionScale * santaScale * (1 + prestigeScale);
+	var scale = this.productionScale * heartScale * santaScale * (1 + prestigeScale);
 
 	// Scale it for milk, two tiers to deal with ordering and minimise floating point errors
 	for (i = 0; i < this.milkUnlocks.length; ++i) {
