@@ -5,12 +5,7 @@ Config.failHard = false;
 Config.autoClick = true;
 Config.autoClickGoldenCookies = true;
 Config.autoClickReindeer = true;
-Config.autoReset = false;
 Config.autoBuy = true;
-Config.autoSwitchSeasons = false;
-Config.autoPopWrinklers = false;
-Config.skipHalloween = false;
-Config.resetLimit = 1.1;
 Config.maintainCookieBank = false;
 Config.clickRateForCalculations = -1;	// -1 to disable
 
@@ -344,7 +339,7 @@ UltimateCookie.prototype.buy = function() {
 			}
 		}
 
-		if (Config.autoPopWrinklers || (this.sim.season.name == "halloween" && this.strategy.unlockSeasonUpgrades)) {
+		if (this.sim.season.name == "halloween" && this.strategy.unlockSeasonUpgrades) {
 			for (var w in Game.wrinklers) {
 				if (Game.wrinklers[w].sucked > 0) {
 					Game.wrinklers[w].hp = 0;
@@ -407,20 +402,6 @@ UltimateCookie.prototype.update = function() {
 	}
 	if (Config.autoClickReindeer) {
 		this.popShimmer("reindeer");
-	}
-	if (Config.autoReset) {
-		// Wait until frenzy or clickFrenzyMultiplier is over to reset
-		if (!Game.frenzy && !Game.clickFrenzy) {
-			var hcs = Game.HowMuchPrestige(Game.cookiesReset);
-			var resethcs = Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned);
-
-			var scaleNow = 1 + hcs * 0.02;
-			var scaleReset = 1 + resethcs * 0.02;
-
-			if (scaleReset / scaleNow >= Config.resetLimit) {
-				this.reset();
-			}
-		}
 	}
 }
 
