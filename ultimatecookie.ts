@@ -3,13 +3,6 @@
 /// <reference path="building.ts" />
 
 // General purpose constants
-const AUTO_BUY_MIN_INTERVAL = 1;
-const AUTO_BUY_MAX_INTERVAL = 1010;
-const AUTO_CLICK_INTERVAL = 1;
-const AUTO_UPDATE_INTERVAL = 1000;
-const CLICK_RATE_ESTIMATE_SAMPLES = 120;
-const SEASON_SWITCH_DELAY = 11000;			// Season changes dont register in game immediately, this stops rapid switching
-const CLOT_MULTIPLIER = 0.5;				// Clot halves CpS
 const FRENZY_MULTIPLIER = 7;				// Frenzy multiplies CpS by 7
 const CLICK_FRENZY_MULTIPLIER = 777;		// Click frenzies give 777x cookier per click
 const REINDEER_CPS_SECONDS = 60;			// Reindeer provide 60 seconds of CpS
@@ -46,34 +39,27 @@ class UltimateCookie {
 	clickRates: number[] = [this.clickRate];
 	clickRateTicker: Ticker = new Ticker(1000);
 
+	// Purchase planning
+	nextPurchase: Purchase = null;
+	purchaseTicker: Ticker = new Ticker(1000);
+
 	strategy: Strategy = new Strategy("default");
 
-	nextPurchase?: Purchase = null;
-
-
 	constructor() {
-		this.autoBuyInterval = AUTO_BUY_MIN_INTERVAL;
+		const AutoUpdateInterval = 1;
+
 		this.lastDeterminedPurchase = "";
 		this.lastPurchaseTime = new Date().getTime();
-		this.lastClickRateCheckTime = this.lastPurchaseTime;
 		this.lastClickCount = Game.cookieClicks;
-		this.lockSeasons = false;
-		this.lockSeasonsTimer = 0;
-		this.errorMessage = "";
 		this.errors = {};
 		this.sim = new Simulator();
 		this.sim.syncToGame();
 		this.sim.strategy = this.strategy;
-		this.needsResync = false;
-		this.lastGameCps = Game.cookiesPs;
-		this.lastGameCpc = Game.mouseCps();
 
-		// Start off the automatic things
-		this.autoClick(AUTO_CLICK_INTERVAL);
-		this.autoUpdate(AUTO_UPDATE_INTERVAL);
-		this.autoBuy(AUTO_BUY_MIN_INTERVAL);
+		this.nextPurchase = this.determineNextPurchase(this.sim);
+
+		setInterval(() => this.update(), AutoUpdateInterval);
 	}
-
 
 	createPurchaseList() {
 		var purchases = [];
@@ -178,13 +164,31 @@ class UltimateCookie {
 	}
 
 	update(): void {
+		// Click the cookie
+		if (this.strategy.autoClick) {
+			Game.ClickCookie();
+		}
+
+		// Click any golden cookies
+		if (this.strategy.autoClickGoldenCookies) {
+			this.popShimmer("golden");
+		}
+
+		// Click any reindeer
+		if (this.strategy.autoClickReindeer) {
+			this.popShimmer("reindeer");
+		}
 
 		// Update the click rate
 		if (this.clickRateTicker.ticked) {
+			const MinClicksPerSecond = 0;
+			const MaxClicksPerSecond = 1000;
+			const ClickRateEstimateSamples = 120;
+
 			// Clamp clicks to be between 0 and 1000, mitigates various bugs when loading
-			let clicks = Math.max(0, Math.min(Game.cookieClicks - this.lastClickCount, 1000));
+			let clicks = Math.max(MinClicksPerSecond, Math.min(Game.cookieClicks - this.lastClickCount, MaxClicksPerSecond));
 			this.clickRates.push(clicks);
-			while (this.clickRates.length > CLICK_RATE_ESTIMATE_SAMPLES) {
+			while (this.clickRates.length > ClickRateEstimateSamples) {
 				this.clickRates.shift();
 			}
 			let sum = this.clickRates.reduce((a, b) => a + b);
@@ -193,55 +197,35 @@ class UltimateCookie {
 			this.sim.clickRate = this.strategy.clickRateOverride == -1 ? this.clickRate : this.strategy.clickRateOverride;
 		}
 
-		// Pop any reindeer
-		if (this.strategy.autoClickReindeer) {
-			this.popShimmer("reindeer");
+		// Resync to the game if needed 
+		if (Game.recalculateGains == 0 && (!floatEqual(this.sim.getCps(), Game.cookiesPs) || !floatEqual(this.sim.getCpc(), Game.mouseCps()))) {
+			console.log("resyncing");
+			this.sim.syncToGame();
+
+			// Log any errors errors if the sim doesnt match after resyncing 
+			if (!this.sim.matchesGame() && this.sim.errorMessage != "" && this.errors[this.sim.errorMessage] == undefined) {
+				this.errors[this.sim.errorMessage] = Game.WriteSave(1);
+				console.log(this.sim.errorMessage);
+			}
+		}
+
+		// Pop wrinklers during halloween if upgrades need unlocking
+		if (this.sim.season.name == "halloween" && this.strategy.unlockSeasonUpgrades) {
+			for (var w in Game.wrinklers) {
+				if (Game.wrinklers[w].sucked > 0) {
+					Game.wrinklers[w].hp = 0;
+				}
+			}
+		}
+
+		// Do any purchasing. Dont purchase during 'Cursed finger'. The game freezes its CpS numbers while it is active so it will just desync
+		if (this.strategy.autoBuy && !Game.hasBuff('Cursed finger')) {
+			if (Game.cookies >= this.nextPurchase.price) {
+				this.nextPurchase.purchase();
+				this.nextPurchase = this.determineNextPurchase(this.sim);
+			}
 		}
 	}
-}
-
-UltimateCookie.prototype.autoClick = function(interval) {
-	clearInterval(this.autoClicker);
-	if (interval == undefined) {
-		if (this.strategy.autoClick) {
-			this.click();
-		}
-		if (this.strategy.autoClickGoldenCookies) {
-			this.popShimmer("golden");
-		}
-		interval = AUTO_CLICK_INTERVAL;
-	}
-	var t = this;
-	this.autoClicker = setTimeout(function() { t.autoClick(); }, interval);
-}
-
-UltimateCookie.prototype.autoUpdate = function(interval) {
-	clearInterval(this.autoUpdater);
-	if (interval == undefined) {
-		this.update();
-		interval = AUTO_UPDATE_INTERVAL;
-	}
-	var t = this;
-	this.autoUpdater = setTimeout(function() { t.autoUpdate(); }, interval);
-}
-
-UltimateCookie.prototype.autoBuy = function(interval) {
-	clearInterval(this.autoBuyer);
-
-	var lp = this.lastPurchaseTime;
-	// Dont buy during 'Cursed finger'. The game freezes its CpS numbers while it is active so it will just desync
-	if (this.strategy.autoBuy && !Game.hasBuff('Cursed finger')) {
-		this.buy();
-	}
-	if (lp != this.lastPurchaseTime) {	// Just bought something
-		this.autoBuyInterval = AUTO_BUY_MIN_INTERVAL;
-	} else {
-		this.autoBuyInterval = Math.min(AUTO_BUY_MAX_INTERVAL, this.autoBuyInterval * 2);
-	}
-	interval = this.autoBuyInterval;
-
-	var t = this;
-	this.autoBuyer = setTimeout(function() { t.autoBuy(); }, interval);
 }
 
 // Work out what the optimal next purchase is for a given Simulator
@@ -251,62 +235,10 @@ UltimateCookie.prototype.determineNextPurchase = function(sim) {
 	if (purchases[0].name != this.lastDeterminedPurchase) {
 		this.lastDeterminedPurchase = purchases[0].name;
 		console.log("CR: " + this.clickRate + ", \u0394CpS: " + Math.round(sim.getCps() - Game.cookiesPs) + ", \u0394CpC: " + Math.round(sim.getCpc() - Game.computedMouseCps) + ", P: " + this.lastDeterminedPurchase);
+	} else {
+		console.log("redundant determine");
 	}
 	return purchases[0];
-}
-
-UltimateCookie.prototype.click = function() {
-	Game.ClickCookie();
-}
-
-UltimateCookie.prototype.buy = function() {
-	// Resync if the game has changed
-	if (this.lastGameCps != Game.cookiesPs || this.lastGameCpc != Game.mouseCps())
-		this.needsResync = true;
-
-	// Get an Simulator synced to the current game
-	if (this.needsResync && Game.recalculateGains == 0) {
-		this.sim.syncToGame();
-		this.needsResync = false;
-		this.lastGameCps = Game.cookiesPs;
-		this.lastGameCpc = Game.mouseCps();
-	} 
-
-	// If Game.recalculateGains is 1 that means we are out of sync until the next
-	// update which should be within a fraction of a second, just assume that sim
-	// is correct until then. This allows for fast purchasing without stalling until the
-	// game does a full update
-	if (Game.recalculateGains == 1 || this.sim.matchesGame()) {
-		var time = new Date().getTime();
-
-		var nextPurchase = this.determineNextPurchase(this.sim);
-		if (Game.cookies > nextPurchase.price) {
-			this.lastPurchaseTime = time;
-			if (!nextPurchase.setsSeason || !this.lockSeasons) {
-				nextPurchase.purchase();
-				this.needsResync = true;
-			}
-			if (nextPurchase.setsSeason) {
-				this.lockSeasonsTimer = time + SEASON_SWITCH_DELAY;
-			}
-		}
-
-		if (this.sim.season.name == "halloween" && this.strategy.unlockSeasonUpgrades) {
-			for (var w in Game.wrinklers) {
-				if (Game.wrinklers[w].sucked > 0) {
-					Game.wrinklers[w].hp = 0;
-				}
-			}
-		}
-	} else {
-		// Fail hard option, mostly used for 
-		if (this.sim.errorMessage != "" && this.errors[this.sim.errorMessage] == undefined) {
-			this.errors[this.sim.errorMessage] = Game.WriteSave(1);
-			console.log(this.sim.errorMessage);
-		}
-		// Resync, something has gone wrong
-		this.sim.syncToGame();
-	} 
 }
 
 UltimateCookie.prototype.popShimmer = function(type)
@@ -607,10 +539,10 @@ class Building extends Purchase {
 	}
 
 	purchase() {
-		do {
+		//do {
 			Game.ObjectsById[this.index].buy(1);
 			this.apply();
-		} while (this.price <= Game.cookies && this.price <= this.sim.getCps());
+		//} while (this.price <= Game.cookies && this.price <= this.sim.getCps());
 	}
 
 	reset() {
@@ -703,6 +635,7 @@ class SantaLevel extends Purchase {
 	purchase() {
 		Game.specialTab = "santa";
 		Game.UpgradeSanta();
+		this.apply();
 	}
 
 	get price() {
@@ -982,7 +915,8 @@ class Upgrade extends Purchase {
 	}
 
 	purchase() {
-		return Game.Upgrades[this.name].buy(1);
+		Game.Upgrades[this.name].buy(1);
+		this.apply();
 	}
 
 	scalesBaseClicking(scale) {

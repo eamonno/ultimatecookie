@@ -23,5 +23,9 @@ class Ticker {
 			return true;
 		}
 		return false;
-	}
+    }
+    
+    restart() {
+        this.last = Date.now();
+    }
 }
