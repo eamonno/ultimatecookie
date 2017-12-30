@@ -1,113 +1,39 @@
-var Constants = {};
-var Config = {};
-
-Config.failHard = false;
-Config.autoClick = true;
-Config.autoClickGoldenCookies = true;
-Config.autoClickReindeer = true;
-Config.autoBuy = true;
-Config.maintainCookieBank = false;
-Config.clickRateForCalculations = -1;	// -1 to disable
+/// <reference path="strategy.ts" />
+/// <reference path="ticker.ts" />
+/// <reference path="building.ts" />
 
 // General purpose constants
-Constants.SUPPORTED_VERSION = "2.0042";
-Constants.VERSION_ERROR = "Warning: Ultimate Cookie only supports version " + Constants.SUPPORTED_VERSION + " of the game. Your mileage may vary.\n";
-Constants.AUTO_BUY_MIN_INTERVAL = 1;
-Constants.AUTO_BUY_MAX_INTERVAL = 1010;
-Constants.AUTO_CLICK_INTERVAL = 1;
-Constants.AUTO_UPDATE_INTERVAL = 1000;
-Constants.CLICK_RATE_ESTIMATE_SAMPLES = 120;
-Constants.SEASON_SWITCH_DELAY = 11000;			// Season changes dont register in game immediately, this stops rapid switching
-Constants.CLOT_MULTIPLIER = 0.5;				// Clot halves CpS
-Constants.FRENZY_MULTIPLIER = 7;				// Frenzy multiplies CpS by 7
-Constants.CLICK_FRENZY_MULTIPLIER = 777;		// Click frenzies give 777x cookier per click
-Constants.REINDEER_CPS_SECONDS = 60;			// Reindeer provide 60 seconds of CpS
-Constants.REINDEER_MIN_COOKIES = 25;			// Reindeer give at least 25 cookies
-Constants.REINDEER_ELDER_FRENZY_MULTIPLIER = 0.5;	// Reindeer dont get complete scaling with Elder Frenzy
-Constants.REINDEER_FRENZY_MULTIPLIER = 0.75;	// Reindeer dont get complete scaling with Frenzy
-Constants.REINDEER_DURATION = 4;				// Length a reindeer lasts before upgrades
-Constants.GOLDEN_COOKIE_DURATION = 13;			// Golden cookies last 13 seconds by default
-Constants.GOLDEN_COOKIE_MIN_INTERVAL = 60 * 5;	// Minimum time between golden cookies
-Constants.GOLDEN_COOKIE_MAX_INTERVAL = 60 * 15;	// Maximum time between golden cookies
-Constants.GOLDEN_COOKIE_AVG_INTERVAL = (Constants.GOLDEN_COOKIE_MIN_INTERVAL + Constants.GOLDEN_COOKIE_MAX_INTERVAL) / 2;
-Constants.LUCKY_COOKIE_CPS_SECONDS = 60 * 15;	// Lucky provides up to 15 minutes CpS based on bank
-Constants.LUCKY_COOKIE_FLAT_BONUS = 13;			// Lucky provides 13 additional seconds of CpS regardless
-Constants.LUCKY_COOKIE_BANK_LIMIT = 0.15;		// Lucky provides 0.15 times bank at most
-Constants.COOKIE_CHAIN_MULTIPLIER = 60 * 60 * 3;// Cookie chains cap out at 3 hours of cookies
-Constants.COOKIE_CHAIN_BANK_SCALE = 4;			// Bank needs 4 times the Cookie Chain limit to payout in full
-Constants.RESET_PAUSE_TIME = 1000;				// Time to pause so reset can complete correctly
-Constants.COOKIE_CLICKER_BIRTHDAY = new Date(2013, 7, 8);	// Used for birthday cookie
+const AUTO_BUY_MIN_INTERVAL = 1;
+const AUTO_BUY_MAX_INTERVAL = 1010;
+const AUTO_CLICK_INTERVAL = 1;
+const AUTO_UPDATE_INTERVAL = 1000;
+const CLICK_RATE_ESTIMATE_SAMPLES = 120;
+const SEASON_SWITCH_DELAY = 11000;			// Season changes dont register in game immediately, this stops rapid switching
+const CLOT_MULTIPLIER = 0.5;				// Clot halves CpS
+const FRENZY_MULTIPLIER = 7;				// Frenzy multiplies CpS by 7
+const CLICK_FRENZY_MULTIPLIER = 777;		// Click frenzies give 777x cookier per click
+const REINDEER_CPS_SECONDS = 60;			// Reindeer provide 60 seconds of CpS
+const REINDEER_MIN_COOKIES = 25;			// Reindeer give at least 25 cookies
+const REINDEER_ELDER_FRENZY_MULTIPLIER = 0.5;	// Reindeer dont get complete scaling with Elder Frenzy
+const REINDEER_FRENZY_MULTIPLIER = 0.75;	// Reindeer dont get complete scaling with Frenzy
+const REINDEER_DURATION = 4;				// Length a reindeer lasts before upgrades
+const GOLDEN_COOKIE_DURATION = 13;			// Golden cookies last 13 seconds by default
+const GOLDEN_COOKIE_MIN_INTERVAL = 60 * 5;	// Minimum time between golden cookies
+const GOLDEN_COOKIE_MAX_INTERVAL = 60 * 15;	// Maximum time between golden cookies
+const GOLDEN_COOKIE_AVG_INTERVAL = (GOLDEN_COOKIE_MIN_INTERVAL + GOLDEN_COOKIE_MAX_INTERVAL) / 2;
+const LUCKY_COOKIE_CPS_SECONDS = 60 * 15;	// Lucky provides up to 15 minutes CpS based on bank
+const LUCKY_COOKIE_FLAT_BONUS = 13;			// Lucky provides 13 additional seconds of CpS regardless
+const LUCKY_COOKIE_BANK_LIMIT = 0.15;		// Lucky provides 0.15 times bank at most
+const COOKIE_CHAIN_MULTIPLIER = 60 * 60 * 3;// Cookie chains cap out at 3 hours of cookies
+const COOKIE_CHAIN_BANK_SCALE = 4;			// Bank needs 4 times the Cookie Chain limit to payout in full
+const RESET_PAUSE_TIME = 1000;				// Time to pause so reset can complete correctly
+const COOKIE_CLICKER_BIRTHDAY = new Date(2013, 7, 8);	// Used for birthday cookie
 
-// Indices into the buildings arrays
-Constants.CURSOR_INDEX = 0;
-Constants.GRANDMA_INDEX = 1;
-Constants.FARM_INDEX = 2;
-Constants.MINE_INDEX = 3;
-Constants.FACTORY_INDEX = 4;
-Constants.BANK_INDEX = 5;
-Constants.TEMPLE_INDEX = 6;
-Constants.WIZARD_TOWER_INDEX = 7;
-Constants.SHIPMENT_INDEX = 8;
-Constants.ALCHEMY_LAB_INDEX = 9;
-Constants.PORTAL_INDEX = 10;
-Constants.TIME_MACHINE_INDEX = 11;
-Constants.ANTIMATTER_CONDENSER_INDEX = 12;
-Constants.PRISM_INDEX = 13;
-Constants.CHANCEMAKER_INDEX = 14;
-
-// Elder Wrath levels
-Constants.APPEASED = 0;
-Constants.AWOKEN = 1;
-Constants.DISPLEASED = 2;
-Constants.ANGERED = 3;
-
-//
-// Periodical
-//
-// Periodicals are functions that execute on a set frequency. They can be 
-// enabled or disbled and have various timings etc.
-//
-
-class Periodical {
-	constructor(name, minInterval, maxInterval, callback) {
-		this.name = name;
-		this.minInterval = minInterval;
-		this.maxInterval = maxInterval;
-		this.interval = this.minInterval;
-		this.callback = callback;
-		this.nextTimeMillis = 0;
-	}
-
-	check(timeMillis) {
-		if (timeMillis >= nextTimeMillis) {
-			if (this.callback())
-				interval = this.minInterval;
-			else
-				interval = Math.min(this.interval * 2, this.maxInterval);
-			this.nextTimeMillis = timeMillis + this.interval;
-		}
-	}
-}
-
-// Periodical("Auto-Clicker", 1, 1, function() { return this.click(); });
-// Periodical("Auto-Buyer", 1, 1000, function() { return this.buy(); });
-// Periodical("Golden Cookie Auto-Clicker", 1, 1000, function() { return this.clickGoldenCookie(); });
-
-//
-// Strategies
-//
-// The strategy involves any details about how the game is played, should Elder Pledge be used, what
-// spells and toggles should be active etc, auto clicking, auto buying and so on are all part of a 
-// strategy.
-//
-
-class Strategy {
-	constructor(name) {
-		this.name = name;
-		this.autoPledge = true;
-		this.unlockSeasonUpgrades = true;
-		this.preferredSeason = "christmas";
-	}
+enum GrandmatriarchLevel {
+	Appeased = 0,
+	Awoken = 1,
+	Displeased = 2,
+	Angered = 3,
 }
 
 //
@@ -115,29 +41,37 @@ class Strategy {
 //
 
 class UltimateCookie {
+	// Click rate tracking 
+	clickRate: number = 100;
+	clickRates: number[] = [this.clickRate];
+	clickRateTicker: Ticker = new Ticker(1000);
+
+	strategy: Strategy = new Strategy("default");
+
+	nextPurchase?: Purchase = null;
+
+
 	constructor() {
-		this.autoBuyInterval = Constants.AUTO_BUY_MIN_INTERVAL;
+		this.autoBuyInterval = AUTO_BUY_MIN_INTERVAL;
 		this.lastDeterminedPurchase = "";
 		this.lastPurchaseTime = new Date().getTime();
 		this.lastClickRateCheckTime = this.lastPurchaseTime;
 		this.lastClickCount = Game.cookieClicks;
-		this.clickRates = [100];
-		this.clickRate = 100;
 		this.lockSeasons = false;
 		this.lockSeasonsTimer = 0;
 		this.errorMessage = "";
 		this.errors = {};
 		this.sim = new Simulator();
 		this.sim.syncToGame();
+		this.sim.strategy = this.strategy;
 		this.needsResync = false;
 		this.lastGameCps = Game.cookiesPs;
 		this.lastGameCpc = Game.mouseCps();
-		this.strategy = new Strategy("default");
 
 		// Start off the automatic things
-		this.autoClick(Constants.AUTO_CLICK_INTERVAL);
-		this.autoUpdate(Constants.AUTO_UPDATE_INTERVAL);
-		this.autoBuy(Constants.AUTO_BUY_MIN_INTERVAL);
+		this.autoClick(AUTO_CLICK_INTERVAL);
+		this.autoUpdate(AUTO_UPDATE_INTERVAL);
+		this.autoBuy(AUTO_BUY_MIN_INTERVAL);
 	}
 
 
@@ -242,18 +176,40 @@ class UltimateCookie {
 			console.log("" + (purchases[i].pvr).toFixed(20) + ": " + purchases[i].name);
 		}	
 	}
+
+	update(): void {
+
+		// Update the click rate
+		if (this.clickRateTicker.ticked) {
+			// Clamp clicks to be between 0 and 1000, mitigates various bugs when loading
+			let clicks = Math.max(0, Math.min(Game.cookieClicks - this.lastClickCount, 1000));
+			this.clickRates.push(clicks);
+			while (this.clickRates.length > CLICK_RATE_ESTIMATE_SAMPLES) {
+				this.clickRates.shift();
+			}
+			let sum = this.clickRates.reduce((a, b) => a + b);
+			this.clickRate = Math.floor(sum / this.clickRates.length);
+			this.lastClickCount = Game.cookieClicks;
+			this.sim.clickRate = this.strategy.clickRateOverride == -1 ? this.clickRate : this.strategy.clickRateOverride;
+		}
+
+		// Pop any reindeer
+		if (this.strategy.autoClickReindeer) {
+			this.popShimmer("reindeer");
+		}
+	}
 }
 
 UltimateCookie.prototype.autoClick = function(interval) {
 	clearInterval(this.autoClicker);
 	if (interval == undefined) {
-		if (Config.autoClick) {
+		if (this.strategy.autoClick) {
 			this.click();
 		}
-		if (Config.autoClickGoldenCookies) {
+		if (this.strategy.autoClickGoldenCookies) {
 			this.popShimmer("golden");
 		}
-		interval = Constants.AUTO_CLICK_INTERVAL;
+		interval = AUTO_CLICK_INTERVAL;
 	}
 	var t = this;
 	this.autoClicker = setTimeout(function() { t.autoClick(); }, interval);
@@ -263,7 +219,7 @@ UltimateCookie.prototype.autoUpdate = function(interval) {
 	clearInterval(this.autoUpdater);
 	if (interval == undefined) {
 		this.update();
-		interval = Constants.AUTO_UPDATE_INTERVAL;
+		interval = AUTO_UPDATE_INTERVAL;
 	}
 	var t = this;
 	this.autoUpdater = setTimeout(function() { t.autoUpdate(); }, interval);
@@ -274,13 +230,13 @@ UltimateCookie.prototype.autoBuy = function(interval) {
 
 	var lp = this.lastPurchaseTime;
 	// Dont buy during 'Cursed finger'. The game freezes its CpS numbers while it is active so it will just desync
-	if (Config.autoBuy && !Game.hasBuff('Cursed finger')) {
+	if (this.strategy.autoBuy && !Game.hasBuff('Cursed finger')) {
 		this.buy();
 	}
 	if (lp != this.lastPurchaseTime) {	// Just bought something
-		this.autoBuyInterval = Constants.AUTO_BUY_MIN_INTERVAL;
+		this.autoBuyInterval = AUTO_BUY_MIN_INTERVAL;
 	} else {
-		this.autoBuyInterval = Math.min(Constants.AUTO_BUY_MAX_INTERVAL, this.autoBuyInterval * 2);
+		this.autoBuyInterval = Math.min(AUTO_BUY_MAX_INTERVAL, this.autoBuyInterval * 2);
 	}
 	interval = this.autoBuyInterval;
 
@@ -288,13 +244,13 @@ UltimateCookie.prototype.autoBuy = function(interval) {
 	this.autoBuyer = setTimeout(function() { t.autoBuy(); }, interval);
 }
 
-// Work out what the optimal next purchase is for a given evaluator
-UltimateCookie.prototype.determineNextPurchase = function(eval) {
-	var purchases = this.rankPurchases(eval);
+// Work out what the optimal next purchase is for a given Simulator
+UltimateCookie.prototype.determineNextPurchase = function(sim) {
+	var purchases = this.rankPurchases(sim);
 
 	if (purchases[0].name != this.lastDeterminedPurchase) {
 		this.lastDeterminedPurchase = purchases[0].name;
-		console.log("CR: " + this.clickRate + ", \u0394CpS: " + Math.round(eval.getCps() - Game.cookiesPs) + ", \u0394CpC: " + Math.round(eval.getCpc() - Game.computedMouseCps) + ", P: " + this.lastDeterminedPurchase);
+		console.log("CR: " + this.clickRate + ", \u0394CpS: " + Math.round(sim.getCps() - Game.cookiesPs) + ", \u0394CpC: " + Math.round(sim.getCpc() - Game.computedMouseCps) + ", P: " + this.lastDeterminedPurchase);
 	}
 	return purchases[0];
 }
@@ -308,7 +264,7 @@ UltimateCookie.prototype.buy = function() {
 	if (this.lastGameCps != Game.cookiesPs || this.lastGameCpc != Game.mouseCps())
 		this.needsResync = true;
 
-	// Get an Evaluator synced to the current game
+	// Get an Simulator synced to the current game
 	if (this.needsResync && Game.recalculateGains == 0) {
 		this.sim.syncToGame();
 		this.needsResync = false;
@@ -324,18 +280,14 @@ UltimateCookie.prototype.buy = function() {
 		var time = new Date().getTime();
 
 		var nextPurchase = this.determineNextPurchase(this.sim);
-		// Shutdown if out of sync
-		var cookieBank = this.sim.getCookieBankSize();
-		// Cap cookie bank at 5% of total cookies earned
-		cookieBank = Math.min(Game.cookiesEarned / 20, cookieBank);
-		if (Game.cookies - cookieBank > nextPurchase.price) {
+		if (Game.cookies > nextPurchase.price) {
 			this.lastPurchaseTime = time;
 			if (!nextPurchase.setsSeason || !this.lockSeasons) {
 				nextPurchase.purchase();
 				this.needsResync = true;
 			}
 			if (nextPurchase.setsSeason) {
-				this.lockSeasonsTimer = time + Constants.SEASON_SWITCH_DELAY;
+				this.lockSeasonsTimer = time + SEASON_SWITCH_DELAY;
 			}
 		}
 
@@ -352,15 +304,8 @@ UltimateCookie.prototype.buy = function() {
 			this.errors[this.sim.errorMessage] = Game.WriteSave(1);
 			console.log(this.sim.errorMessage);
 		}
-		if (Config.failHard) {
-			Config.autoClick = false;
-			Config.autoBuy = false;
-			Config.autoClickGoldenCookies = false;
-			Config.autoClickReindeer = false;
-		} else {
-			// Resync, something has gone wrong
-			this.sim.syncToGame();
-		}
+		// Resync, something has gone wrong
+		this.sim.syncToGame();
 	} 
 }
 
@@ -371,37 +316,6 @@ UltimateCookie.prototype.popShimmer = function(type)
 			Game.shimmers[i].pop();
 			return;		// Only pop one at a time since the pop func might alter the array
 		}
-	}
-}
-
-UltimateCookie.prototype.update = function() {
-	var now = new Date().getTime();
-
-	if (now - this.lastClickRateCheckTime >= 1000) {
-		var newClicks = Game.cookieClicks - this.lastClickCount;
-		var newRate;
-		if (newClicks >= 0 && newClicks < 1000) {
-			newRate = newClicks * 1000 / (now - this.lastClickRateCheckTime);
-		} else {
-			// If the user imports a save Game.cookieClicks can go down, in that case just use
-			// the current click rate instead of having a weird negative click rate
-			newRate = this.clickRate;
-		}
-		this.clickRates.push(newRate);
-		while (this.clickRates.length > Constants.CLICK_RATE_ESTIMATE_SAMPLES) {
-			this.clickRates.shift();
-		}
-		var sum = 0;
-		for (var i = 0; i < this.clickRates.length; ++i)
-			sum += this.clickRates[i];
-		this.clickRate = Math.floor(sum / this.clickRates.length);
-		//console.log("Click rate - Last Second: " + Math.floor(newRate) +", Average: " + this.clickRate);
-		this.lastClickCount = Game.cookieClicks;
-		this.lastClickRateCheckTime = now;
-		this.sim.clickRate = Config.clickRateForCalculations == -1 ? this.clickRate : Config.clickRateForCalculations;
-	}
-	if (Config.autoClickReindeer) {
-		this.popShimmer("reindeer");
 	}
 }
 
@@ -420,9 +334,9 @@ UltimateCookie.prototype.reset = function() {
 	this.lastPurchaseTime = now;
 	this.lastClickCount = 0;
 	this.sim.initialize();
-	this.autoBuy(Constants.RESET_PAUSE_TIME);
-	this.autoClick(Constants.RESET_PAUSE_TIME);
-	this.autoUpdate(Constants.RESET_PAUSE_TIME);
+	this.autoBuy(RESET_PAUSE_TIME);
+	this.autoClick(RESET_PAUSE_TIME);
+	this.autoUpdate(RESET_PAUSE_TIME);
 	Game.Reset(1, 0);
 }
 
@@ -682,7 +596,7 @@ class Building extends Purchase {
 		this.index = index;
 		this._basePrice = basePrice;
 		this._baseCps = baseCps;
-		if (this.index == Constants.CURSOR_INDEX) {
+		if (this.index == BuildingIndex.Cursor) {
 			this.addApplier(function(sim) { sim.buildings[index].quantity += 1; sim.recalculateUpgradePriceCursorScale(); });
 			this.addRevoker(function(sim) { sim.buildings[index].quantity -= 1; sim.recalculateUpgradePriceCursorScale(); });
 		} else {
@@ -1144,7 +1058,7 @@ class Upgrade extends Purchase {
 	}
 
 	scalesProductionByAge(scale) {
-		var age = Math.floor((Date.now() - Constants.COOKIE_CLICKER_BIRTHDAY) / (365 * 24 * 60 * 60 * 1000));
+		var age = Math.floor((Date.now() - COOKIE_CLICKER_BIRTHDAY) / (365 * 24 * 60 * 60 * 1000));
 		this.addApplier(function(sim) { sim.productionScale *= (1 + scale * age); });
 		this.addRevoker(function(sim) { sim.productionScale /= (1 + scale * age); });
 		return this;
@@ -1398,36 +1312,36 @@ class Simulator {
 		buff('Frenzy'				).scalesFrenzyMultiplier(7).scalesReindeerBuffMultiplier(0.75);
 		buff('Elder frenzy'			).scalesFrenzyMultiplier(666).scalesReindeerBuffMultiplier(0.5);
 		buff('Click frenzy'			).scalesClickFrenzyMultiplier(777);
-		buff('High-five',			30).scalesFrenzyMultiplierPerBuilding(Constants.CURSOR_INDEX);
-		buff('Congregation',		30).scalesFrenzyMultiplierPerBuilding(Constants.GRANDMA_INDEX);
-		buff('Luxuriant harvest',	30).scalesFrenzyMultiplierPerBuilding(Constants.FARM_INDEX);
-		buff('Ore vein',			30).scalesFrenzyMultiplierPerBuilding(Constants.MINE_INDEX);
-		buff('Oiled-up',			30).scalesFrenzyMultiplierPerBuilding(Constants.FACTORY_INDEX);
-		buff('Juicy profits',		30).scalesFrenzyMultiplierPerBuilding(Constants.BANK_INDEX);
-		buff('Fervent adoration',	30).scalesFrenzyMultiplierPerBuilding(Constants.TEMPLE_INDEX);
-		buff('Manabloom',			30).scalesFrenzyMultiplierPerBuilding(Constants.WIZARD_TOWER_INDEX);
-		buff('Delicious lifeforms',	30).scalesFrenzyMultiplierPerBuilding(Constants.SHIPMENT_INDEX);
-		buff('Breakthrough',		30).scalesFrenzyMultiplierPerBuilding(Constants.ALCHEMY_LAB_INDEX);
-		buff('Righteous cataclysm',	30).scalesFrenzyMultiplierPerBuilding(Constants.PORTAL_INDEX);
-		buff('Golden ages',			30).scalesFrenzyMultiplierPerBuilding(Constants.TIME_MACHINE_INDEX);
-		buff('Extra cycles',		30).scalesFrenzyMultiplierPerBuilding(Constants.ANTIMATTER_CONDENSER_INDEX);
-		buff('Solar flare',			30).scalesFrenzyMultiplierPerBuilding(Constants.PRISM_INDEX);
-		buff('Winning streak',		30).scalesFrenzyMultiplierPerBuilding(Constants.CHANCEMAKER_INDEX);
-		buff('Slap to the face',	30).shrinksFrenzyMultiplierPerBuilding(Constants.CURSOR_INDEX);
-		buff('Senility',			30).shrinksFrenzyMultiplierPerBuilding(Constants.GRANDMA_INDEX);
-		buff('Locusts',				30).shrinksFrenzyMultiplierPerBuilding(Constants.FARM_INDEX);
-		buff('Cave-in',				30).shrinksFrenzyMultiplierPerBuilding(Constants.MINE_INDEX);
-		buff('Jammed machinery',	30).shrinksFrenzyMultiplierPerBuilding(Constants.FACTORY_INDEX);
-		buff('Recession',			30).shrinksFrenzyMultiplierPerBuilding(Constants.BANK_INDEX);
-		buff('Crisis of faith',		30).shrinksFrenzyMultiplierPerBuilding(Constants.TEMPLE_INDEX);
-		buff('Magivores',			30).shrinksFrenzyMultiplierPerBuilding(Constants.WIZARD_TOWER_INDEX);
-		buff('Black holes',			30).shrinksFrenzyMultiplierPerBuilding(Constants.SHIPMENT_INDEX);
-		buff('Lab disaster',		30).shrinksFrenzyMultiplierPerBuilding(Constants.ALCHEMY_LAB_INDEX);
-		buff('Dimensional calamity',30).shrinksFrenzyMultiplierPerBuilding(Constants.PORTAL_INDEX);
-		buff('Time jam',			30).shrinksFrenzyMultiplierPerBuilding(Constants.TIME_MACHINE_INDEX);
-		buff('Predictable tragedy',	30).shrinksFrenzyMultiplierPerBuilding(Constants.ANTIMATTER_CONDENSER_INDEX);
-		buff('Eclipse',				30).shrinksFrenzyMultiplierPerBuilding(Constants.PRISM_INDEX);
-		buff('Dry spell',			30).shrinksFrenzyMultiplierPerBuilding(Constants.CHANCEMAKER_INDEX);
+		buff('High-five',			30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Cursor);
+		buff('Congregation',		30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Grandma);
+		buff('Luxuriant harvest',	30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Farm);
+		buff('Ore vein',			30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Mine);
+		buff('Oiled-up',			30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Factory);
+		buff('Juicy profits',		30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Bank);
+		buff('Fervent adoration',	30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Temple);
+		buff('Manabloom',			30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.WizardTower);
+		buff('Delicious lifeforms',	30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Shipment);
+		buff('Breakthrough',		30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.AlchemyLab);
+		buff('Righteous cataclysm',	30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Portal);
+		buff('Golden ages',			30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.TimeMachine);
+		buff('Extra cycles',		30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.AntimatterCondenser);
+		buff('Solar flare',			30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Prism);
+		buff('Winning streak',		30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Chancemaker);
+		buff('Slap to the face',	30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Cursor);
+		buff('Senility',			30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Grandma);
+		buff('Locusts',				30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Farm);
+		buff('Cave-in',				30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Mine);
+		buff('Jammed machinery',	30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Factory);
+		buff('Recession',			30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Bank);
+		buff('Crisis of faith',		30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Temple);
+		buff('Magivores',			30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.WizardTower);
+		buff('Black holes',			30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Shipment);
+		buff('Lab disaster',		30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.AlchemyLab);
+		buff('Dimensional calamity',30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Portal);
+		buff('Time jam',			30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.TimeMachine);
+		buff('Predictable tragedy',	30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.AntimatterCondenser);
+		buff('Eclipse',				30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Prism);
+		buff('Dry spell',			30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Chancemaker);
 		buff('Cursed finger', 		10).cursesFinger();	
 		buff('Cookie storm',		 7);		// Spawns a lot of golden cookies
 		
@@ -1521,145 +1435,145 @@ class Simulator {
 		//
 
 		// Upgrades that double the productivity of a type of building
-		upgrade("Forwards from grandma"			).scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
-		upgrade("Steel-plated rolling pins"		).scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
-		upgrade("Lubricated dentures"			).scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
-		upgrade("Double-thick glasses"			).scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
-		upgrade("Prune juice"					).scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
-		upgrade("Aging agents"					).scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
-		upgrade("Xtreme walkers"				).scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
-		upgrade("The Unbridling"				).scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
-		upgrade("Reverse dementia"				).scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
-		upgrade("Farmer grandmas"				).scalesBuildingCps(Constants.GRANDMA_INDEX, 2).givesSynergy(Constants.FARM_INDEX, Constants.GRANDMA_INDEX, 0.01);
-		upgrade("Miner grandmas"				).scalesBuildingCps(Constants.GRANDMA_INDEX, 2).givesSynergy(Constants.MINE_INDEX, Constants.GRANDMA_INDEX, 0.01 / 2);
-		upgrade("Worker grandmas"				).scalesBuildingCps(Constants.GRANDMA_INDEX, 2).givesSynergy(Constants.FACTORY_INDEX, Constants.GRANDMA_INDEX, 0.01 / 3);
-		upgrade("Banker grandmas"				).scalesBuildingCps(Constants.GRANDMA_INDEX, 2).givesSynergy(Constants.BANK_INDEX, Constants.GRANDMA_INDEX, 0.01 / 4);
-		upgrade("Priestess grandmas"			).scalesBuildingCps(Constants.GRANDMA_INDEX, 2).givesSynergy(Constants.TEMPLE_INDEX, Constants.GRANDMA_INDEX, 0.01 / 5);
-		upgrade("Witch grandmas"				).scalesBuildingCps(Constants.GRANDMA_INDEX, 2).givesSynergy(Constants.WIZARD_TOWER_INDEX, Constants.GRANDMA_INDEX, 0.01 / 6);
-		upgrade("Cosmic grandmas"				).scalesBuildingCps(Constants.GRANDMA_INDEX, 2).givesSynergy(Constants.SHIPMENT_INDEX, Constants.GRANDMA_INDEX, 0.01 / 7);
-		upgrade("Transmuted grandmas"			).scalesBuildingCps(Constants.GRANDMA_INDEX, 2).givesSynergy(Constants.ALCHEMY_LAB_INDEX, Constants.GRANDMA_INDEX, 0.01 / 8);
-		upgrade("Altered grandmas"				).scalesBuildingCps(Constants.GRANDMA_INDEX, 2).givesSynergy(Constants.PORTAL_INDEX, Constants.GRANDMA_INDEX, 0.01 / 9);
-		upgrade("Grandmas' grandmas"			).scalesBuildingCps(Constants.GRANDMA_INDEX, 2).givesSynergy(Constants.TIME_MACHINE_INDEX, Constants.GRANDMA_INDEX, 0.01 / 10);
-		upgrade("Antigrandmas"					).scalesBuildingCps(Constants.GRANDMA_INDEX, 2).givesSynergy(Constants.ANTIMATTER_CONDENSER_INDEX, Constants.GRANDMA_INDEX, 0.01 / 11);
-		upgrade("Rainbow grandmas"				).scalesBuildingCps(Constants.GRANDMA_INDEX, 2).givesSynergy(Constants.PRISM_INDEX, Constants.GRANDMA_INDEX, 0.01 / 12);
-		upgrade("Lucky grandmas"				).scalesBuildingCps(Constants.GRANDMA_INDEX, 2).givesSynergy(Constants.CHANCEMAKER_INDEX, Constants.GRANDMA_INDEX, 0.01 / 13);
-		upgrade("Cheap hoes"					).scalesBuildingCps(Constants.FARM_INDEX, 2);
-		upgrade("Fertilizer"					).scalesBuildingCps(Constants.FARM_INDEX, 2);
-		upgrade("Cookie trees"					).scalesBuildingCps(Constants.FARM_INDEX, 2);
-		upgrade("Genetically-modified cookies"	).scalesBuildingCps(Constants.FARM_INDEX, 2);
-		upgrade("Gingerbread scarecrows"		).scalesBuildingCps(Constants.FARM_INDEX, 2);
-		upgrade("Pulsar sprinklers"				).scalesBuildingCps(Constants.FARM_INDEX, 2);
-		upgrade("Fudge fungus"					).scalesBuildingCps(Constants.FARM_INDEX, 2);
-		upgrade("Wheat triffids"				).scalesBuildingCps(Constants.FARM_INDEX, 2);
-		upgrade("Humane pesticides"				).scalesBuildingCps(Constants.FARM_INDEX, 2);
-		upgrade("Sugar gas"						).scalesBuildingCps(Constants.MINE_INDEX, 2);
-		upgrade("Megadrill"						).scalesBuildingCps(Constants.MINE_INDEX, 2);
-		upgrade("Ultradrill"					).scalesBuildingCps(Constants.MINE_INDEX, 2);
-		upgrade("Ultimadrill"					).scalesBuildingCps(Constants.MINE_INDEX, 2);
-		upgrade("H-bomb mining"					).scalesBuildingCps(Constants.MINE_INDEX, 2);
-		upgrade("Coreforge"						).scalesBuildingCps(Constants.MINE_INDEX, 2);
-		upgrade("Planetsplitters"				).scalesBuildingCps(Constants.MINE_INDEX, 2);
-		upgrade("Canola oil wells"				).scalesBuildingCps(Constants.MINE_INDEX, 2);
-		upgrade("Mole people"					).scalesBuildingCps(Constants.MINE_INDEX, 2);
-		upgrade("Sturdier conveyor belts"		).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
-		upgrade("Child labor"					).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
-		upgrade("Sweatshop"						).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
-		upgrade("Radium reactors"				).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
-		upgrade("Recombobulators"				).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
-		upgrade("Deep-bake process"				).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
-		upgrade("Cyborg workforce"				).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
-		upgrade("78-hour days"					).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
-		upgrade("Machine learning"				).scalesBuildingCps(Constants.FACTORY_INDEX, 2);
-		upgrade("Taller tellers"				).scalesBuildingCps(Constants.BANK_INDEX, 2);
-		upgrade("Scissor-resistant credit cards").scalesBuildingCps(Constants.BANK_INDEX, 2);
-		upgrade("Acid-proof vaults"				).scalesBuildingCps(Constants.BANK_INDEX, 2);
-		upgrade("Chocolate coins"				).scalesBuildingCps(Constants.BANK_INDEX, 2);
-		upgrade("Exponential interest rates"	).scalesBuildingCps(Constants.BANK_INDEX, 2);
-		upgrade("Financial zen"					).scalesBuildingCps(Constants.BANK_INDEX, 2);
-		upgrade("Way of the wallet"				).scalesBuildingCps(Constants.BANK_INDEX, 2);
-		upgrade("The stuff rationale"			).scalesBuildingCps(Constants.BANK_INDEX, 2);
-		upgrade("Edible money"					).scalesBuildingCps(Constants.BANK_INDEX, 2);
-		upgrade("Golden idols"					).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
-		upgrade("Sacrifices"					).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
-		upgrade("Delicious blessing"			).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
-		upgrade("Sun festival"					).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
-		upgrade("Enlarged pantheon"				).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
-		upgrade("Great Baker in the sky"		).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
-		upgrade("Creation myth"					).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
-		upgrade("Theocracy"						).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
-		upgrade("Sick rap prayers"				).scalesBuildingCps(Constants.TEMPLE_INDEX, 2);
-		upgrade("Pointier hats"					).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
-		upgrade("Beardlier beards"				).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
-		upgrade("Ancient grimoires"				).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
-		upgrade("Kitchen curses"				).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
-		upgrade("School of sorcery"				).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
-		upgrade("Dark formulas"					).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
-		upgrade("Cookiemancy"					).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
-		upgrade("Rabbit trick"					).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
-		upgrade("Deluxe tailored wands"			).scalesBuildingCps(Constants.WIZARD_TOWER_INDEX, 2);
-		upgrade("Vanilla nebulae"				).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
-		upgrade("Wormholes"						).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
-		upgrade("Frequent flyer"				).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
-		upgrade("Warp drive"					).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
-		upgrade("Chocolate monoliths"			).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
-		upgrade("Generation ship"				).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
-		upgrade("Dyson sphere"					).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
-		upgrade("The final frontier"			).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
-		upgrade("Autopilot"						).scalesBuildingCps(Constants.SHIPMENT_INDEX, 2);
-		upgrade("Antimony"						).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
-		upgrade("Essence of dough"				).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
-		upgrade("True chocolate"				).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
-		upgrade("Ambrosia"						).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
-		upgrade("Aqua crustulae"				).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
-		upgrade("Origin crucible"				).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
-		upgrade("Theory of atomic fluidity"		).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
-		upgrade("Beige goo"						).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
-		upgrade("The advent of chemistry"		).scalesBuildingCps(Constants.ALCHEMY_LAB_INDEX, 2);
-		upgrade("Ancient tablet"				).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
-		upgrade("Insane oatling workers"		).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
-		upgrade("Soul bond"						).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
-		upgrade("Sanity dance"					).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
-		upgrade("Brane transplant"				).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
-		upgrade("Deity-sized portals"			).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
-		upgrade("End of times back-up plan"		).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
-		upgrade("Maddening chants"				).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
-		upgrade("The real world"				).scalesBuildingCps(Constants.PORTAL_INDEX, 2);
-		upgrade("Flux capacitors"				).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
-		upgrade("Time paradox resolver"			).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
-		upgrade("Quantum conundrum"				).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
-		upgrade("Causality enforcer"			).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
-		upgrade("Yestermorrow comparators"		).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
-		upgrade("Far future enactment"			).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
-		upgrade("Great loop hypothesis"			).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
-		upgrade("Cookietopian moments of maybe"	).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
-		upgrade("Second seconds"				).scalesBuildingCps(Constants.TIME_MACHINE_INDEX, 2);
-		upgrade("Sugar bosons"					).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
-		upgrade("String theory"					).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
-		upgrade("Large macaron collider"		).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
-		upgrade("Big bang bake"					).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
-		upgrade("Reverse cyclotrons"			).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
-		upgrade("Nanocosmics"					).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
-		upgrade("The Pulse"						).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
-		upgrade("Some other super-tiny fundamental particle? Probably?"	).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
-		upgrade("Quantum comb"					).scalesBuildingCps(Constants.ANTIMATTER_CONDENSER_INDEX, 2);
-		upgrade("Gem polish"					).scalesBuildingCps(Constants.PRISM_INDEX, 2);
-		upgrade("9th color"						).scalesBuildingCps(Constants.PRISM_INDEX, 2);
-		upgrade("Chocolate light"				).scalesBuildingCps(Constants.PRISM_INDEX, 2);
-		upgrade("Grainbow"						).scalesBuildingCps(Constants.PRISM_INDEX, 2);
-		upgrade("Pure cosmic light"				).scalesBuildingCps(Constants.PRISM_INDEX, 2);
-		upgrade("Glow-in-the-dark"				).scalesBuildingCps(Constants.PRISM_INDEX, 2);
-		upgrade("Lux sanctorum"					).scalesBuildingCps(Constants.PRISM_INDEX, 2);
-		upgrade("Reverse shadows"				).scalesBuildingCps(Constants.PRISM_INDEX, 2);
-		upgrade("Crystal mirrors"				).scalesBuildingCps(Constants.PRISM_INDEX, 2);
-		upgrade("Your lucky cookie"				).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
-		upgrade('"All Bets Are Off" magic coin' ).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
-		upgrade("Winning lottery ticket" 		).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
-		upgrade("Four-leaf clover field" 		).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
-		upgrade("A recipe book about books"		).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
-		upgrade("Leprechaun village"			).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
-		upgrade("Improbability drive"			).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
-		upgrade("Antisuperstistronics"			).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
-		upgrade("Bunnypedes"					).scalesBuildingCps(Constants.CHANCEMAKER_INDEX, 2);
+		upgrade("Forwards from grandma"			).scalesBuildingCps(BuildingIndex.Grandma, 2);
+		upgrade("Steel-plated rolling pins"		).scalesBuildingCps(BuildingIndex.Grandma, 2);
+		upgrade("Lubricated dentures"			).scalesBuildingCps(BuildingIndex.Grandma, 2);
+		upgrade("Double-thick glasses"			).scalesBuildingCps(BuildingIndex.Grandma, 2);
+		upgrade("Prune juice"					).scalesBuildingCps(BuildingIndex.Grandma, 2);
+		upgrade("Aging agents"					).scalesBuildingCps(BuildingIndex.Grandma, 2);
+		upgrade("Xtreme walkers"				).scalesBuildingCps(BuildingIndex.Grandma, 2);
+		upgrade("The Unbridling"				).scalesBuildingCps(BuildingIndex.Grandma, 2);
+		upgrade("Reverse dementia"				).scalesBuildingCps(BuildingIndex.Grandma, 2);
+		upgrade("Farmer grandmas"				).scalesBuildingCps(BuildingIndex.Grandma, 2).givesSynergy(BuildingIndex.Farm, BuildingIndex.Grandma, 0.01);
+		upgrade("Miner grandmas"				).scalesBuildingCps(BuildingIndex.Grandma, 2).givesSynergy(BuildingIndex.Mine, BuildingIndex.Grandma, 0.01 / 2);
+		upgrade("Worker grandmas"				).scalesBuildingCps(BuildingIndex.Grandma, 2).givesSynergy(BuildingIndex.Factory, BuildingIndex.Grandma, 0.01 / 3);
+		upgrade("Banker grandmas"				).scalesBuildingCps(BuildingIndex.Grandma, 2).givesSynergy(BuildingIndex.Bank, BuildingIndex.Grandma, 0.01 / 4);
+		upgrade("Priestess grandmas"			).scalesBuildingCps(BuildingIndex.Grandma, 2).givesSynergy(BuildingIndex.Temple, BuildingIndex.Grandma, 0.01 / 5);
+		upgrade("Witch grandmas"				).scalesBuildingCps(BuildingIndex.Grandma, 2).givesSynergy(BuildingIndex.WizardTower, BuildingIndex.Grandma, 0.01 / 6);
+		upgrade("Cosmic grandmas"				).scalesBuildingCps(BuildingIndex.Grandma, 2).givesSynergy(BuildingIndex.Shipment, BuildingIndex.Grandma, 0.01 / 7);
+		upgrade("Transmuted grandmas"			).scalesBuildingCps(BuildingIndex.Grandma, 2).givesSynergy(BuildingIndex.AlchemyLab, BuildingIndex.Grandma, 0.01 / 8);
+		upgrade("Altered grandmas"				).scalesBuildingCps(BuildingIndex.Grandma, 2).givesSynergy(BuildingIndex.Portal, BuildingIndex.Grandma, 0.01 / 9);
+		upgrade("Grandmas' grandmas"			).scalesBuildingCps(BuildingIndex.Grandma, 2).givesSynergy(BuildingIndex.TimeMachine, BuildingIndex.Grandma, 0.01 / 10);
+		upgrade("Antigrandmas"					).scalesBuildingCps(BuildingIndex.Grandma, 2).givesSynergy(BuildingIndex.AntimatterCondenser, BuildingIndex.Grandma, 0.01 / 11);
+		upgrade("Rainbow grandmas"				).scalesBuildingCps(BuildingIndex.Grandma, 2).givesSynergy(BuildingIndex.Prism, BuildingIndex.Grandma, 0.01 / 12);
+		upgrade("Lucky grandmas"				).scalesBuildingCps(BuildingIndex.Grandma, 2).givesSynergy(BuildingIndex.Chancemaker, BuildingIndex.Grandma, 0.01 / 13);
+		upgrade("Cheap hoes"					).scalesBuildingCps(BuildingIndex.Farm, 2);
+		upgrade("Fertilizer"					).scalesBuildingCps(BuildingIndex.Farm, 2);
+		upgrade("Cookie trees"					).scalesBuildingCps(BuildingIndex.Farm, 2);
+		upgrade("Genetically-modified cookies"	).scalesBuildingCps(BuildingIndex.Farm, 2);
+		upgrade("Gingerbread scarecrows"		).scalesBuildingCps(BuildingIndex.Farm, 2);
+		upgrade("Pulsar sprinklers"				).scalesBuildingCps(BuildingIndex.Farm, 2);
+		upgrade("Fudge fungus"					).scalesBuildingCps(BuildingIndex.Farm, 2);
+		upgrade("Wheat triffids"				).scalesBuildingCps(BuildingIndex.Farm, 2);
+		upgrade("Humane pesticides"				).scalesBuildingCps(BuildingIndex.Farm, 2);
+		upgrade("Sugar gas"						).scalesBuildingCps(BuildingIndex.Mine, 2);
+		upgrade("Megadrill"						).scalesBuildingCps(BuildingIndex.Mine, 2);
+		upgrade("Ultradrill"					).scalesBuildingCps(BuildingIndex.Mine, 2);
+		upgrade("Ultimadrill"					).scalesBuildingCps(BuildingIndex.Mine, 2);
+		upgrade("H-bomb mining"					).scalesBuildingCps(BuildingIndex.Mine, 2);
+		upgrade("Coreforge"						).scalesBuildingCps(BuildingIndex.Mine, 2);
+		upgrade("Planetsplitters"				).scalesBuildingCps(BuildingIndex.Mine, 2);
+		upgrade("Canola oil wells"				).scalesBuildingCps(BuildingIndex.Mine, 2);
+		upgrade("Mole people"					).scalesBuildingCps(BuildingIndex.Mine, 2);
+		upgrade("Sturdier conveyor belts"		).scalesBuildingCps(BuildingIndex.Factory, 2);
+		upgrade("Child labor"					).scalesBuildingCps(BuildingIndex.Factory, 2);
+		upgrade("Sweatshop"						).scalesBuildingCps(BuildingIndex.Factory, 2);
+		upgrade("Radium reactors"				).scalesBuildingCps(BuildingIndex.Factory, 2);
+		upgrade("Recombobulators"				).scalesBuildingCps(BuildingIndex.Factory, 2);
+		upgrade("Deep-bake process"				).scalesBuildingCps(BuildingIndex.Factory, 2);
+		upgrade("Cyborg workforce"				).scalesBuildingCps(BuildingIndex.Factory, 2);
+		upgrade("78-hour days"					).scalesBuildingCps(BuildingIndex.Factory, 2);
+		upgrade("Machine learning"				).scalesBuildingCps(BuildingIndex.Factory, 2);
+		upgrade("Taller tellers"				).scalesBuildingCps(BuildingIndex.Bank, 2);
+		upgrade("Scissor-resistant credit cards").scalesBuildingCps(BuildingIndex.Bank, 2);
+		upgrade("Acid-proof vaults"				).scalesBuildingCps(BuildingIndex.Bank, 2);
+		upgrade("Chocolate coins"				).scalesBuildingCps(BuildingIndex.Bank, 2);
+		upgrade("Exponential interest rates"	).scalesBuildingCps(BuildingIndex.Bank, 2);
+		upgrade("Financial zen"					).scalesBuildingCps(BuildingIndex.Bank, 2);
+		upgrade("Way of the wallet"				).scalesBuildingCps(BuildingIndex.Bank, 2);
+		upgrade("The stuff rationale"			).scalesBuildingCps(BuildingIndex.Bank, 2);
+		upgrade("Edible money"					).scalesBuildingCps(BuildingIndex.Bank, 2);
+		upgrade("Golden idols"					).scalesBuildingCps(BuildingIndex.Temple, 2);
+		upgrade("Sacrifices"					).scalesBuildingCps(BuildingIndex.Temple, 2);
+		upgrade("Delicious blessing"			).scalesBuildingCps(BuildingIndex.Temple, 2);
+		upgrade("Sun festival"					).scalesBuildingCps(BuildingIndex.Temple, 2);
+		upgrade("Enlarged pantheon"				).scalesBuildingCps(BuildingIndex.Temple, 2);
+		upgrade("Great Baker in the sky"		).scalesBuildingCps(BuildingIndex.Temple, 2);
+		upgrade("Creation myth"					).scalesBuildingCps(BuildingIndex.Temple, 2);
+		upgrade("Theocracy"						).scalesBuildingCps(BuildingIndex.Temple, 2);
+		upgrade("Sick rap prayers"				).scalesBuildingCps(BuildingIndex.Temple, 2);
+		upgrade("Pointier hats"					).scalesBuildingCps(BuildingIndex.WizardTower, 2);
+		upgrade("Beardlier beards"				).scalesBuildingCps(BuildingIndex.WizardTower, 2);
+		upgrade("Ancient grimoires"				).scalesBuildingCps(BuildingIndex.WizardTower, 2);
+		upgrade("Kitchen curses"				).scalesBuildingCps(BuildingIndex.WizardTower, 2);
+		upgrade("School of sorcery"				).scalesBuildingCps(BuildingIndex.WizardTower, 2);
+		upgrade("Dark formulas"					).scalesBuildingCps(BuildingIndex.WizardTower, 2);
+		upgrade("Cookiemancy"					).scalesBuildingCps(BuildingIndex.WizardTower, 2);
+		upgrade("Rabbit trick"					).scalesBuildingCps(BuildingIndex.WizardTower, 2);
+		upgrade("Deluxe tailored wands"			).scalesBuildingCps(BuildingIndex.WizardTower, 2);
+		upgrade("Vanilla nebulae"				).scalesBuildingCps(BuildingIndex.Shipment, 2);
+		upgrade("Wormholes"						).scalesBuildingCps(BuildingIndex.Shipment, 2);
+		upgrade("Frequent flyer"				).scalesBuildingCps(BuildingIndex.Shipment, 2);
+		upgrade("Warp drive"					).scalesBuildingCps(BuildingIndex.Shipment, 2);
+		upgrade("Chocolate monoliths"			).scalesBuildingCps(BuildingIndex.Shipment, 2);
+		upgrade("Generation ship"				).scalesBuildingCps(BuildingIndex.Shipment, 2);
+		upgrade("Dyson sphere"					).scalesBuildingCps(BuildingIndex.Shipment, 2);
+		upgrade("The final frontier"			).scalesBuildingCps(BuildingIndex.Shipment, 2);
+		upgrade("Autopilot"						).scalesBuildingCps(BuildingIndex.Shipment, 2);
+		upgrade("Antimony"						).scalesBuildingCps(BuildingIndex.AlchemyLab, 2);
+		upgrade("Essence of dough"				).scalesBuildingCps(BuildingIndex.AlchemyLab, 2);
+		upgrade("True chocolate"				).scalesBuildingCps(BuildingIndex.AlchemyLab, 2);
+		upgrade("Ambrosia"						).scalesBuildingCps(BuildingIndex.AlchemyLab, 2);
+		upgrade("Aqua crustulae"				).scalesBuildingCps(BuildingIndex.AlchemyLab, 2);
+		upgrade("Origin crucible"				).scalesBuildingCps(BuildingIndex.AlchemyLab, 2);
+		upgrade("Theory of atomic fluidity"		).scalesBuildingCps(BuildingIndex.AlchemyLab, 2);
+		upgrade("Beige goo"						).scalesBuildingCps(BuildingIndex.AlchemyLab, 2);
+		upgrade("The advent of chemistry"		).scalesBuildingCps(BuildingIndex.AlchemyLab, 2);
+		upgrade("Ancient tablet"				).scalesBuildingCps(BuildingIndex.Portal, 2);
+		upgrade("Insane oatling workers"		).scalesBuildingCps(BuildingIndex.Portal, 2);
+		upgrade("Soul bond"						).scalesBuildingCps(BuildingIndex.Portal, 2);
+		upgrade("Sanity dance"					).scalesBuildingCps(BuildingIndex.Portal, 2);
+		upgrade("Brane transplant"				).scalesBuildingCps(BuildingIndex.Portal, 2);
+		upgrade("Deity-sized portals"			).scalesBuildingCps(BuildingIndex.Portal, 2);
+		upgrade("End of times back-up plan"		).scalesBuildingCps(BuildingIndex.Portal, 2);
+		upgrade("Maddening chants"				).scalesBuildingCps(BuildingIndex.Portal, 2);
+		upgrade("The real world"				).scalesBuildingCps(BuildingIndex.Portal, 2);
+		upgrade("Flux capacitors"				).scalesBuildingCps(BuildingIndex.TimeMachine, 2);
+		upgrade("Time paradox resolver"			).scalesBuildingCps(BuildingIndex.TimeMachine, 2);
+		upgrade("Quantum conundrum"				).scalesBuildingCps(BuildingIndex.TimeMachine, 2);
+		upgrade("Causality enforcer"			).scalesBuildingCps(BuildingIndex.TimeMachine, 2);
+		upgrade("Yestermorrow comparators"		).scalesBuildingCps(BuildingIndex.TimeMachine, 2);
+		upgrade("Far future enactment"			).scalesBuildingCps(BuildingIndex.TimeMachine, 2);
+		upgrade("Great loop hypothesis"			).scalesBuildingCps(BuildingIndex.TimeMachine, 2);
+		upgrade("Cookietopian moments of maybe"	).scalesBuildingCps(BuildingIndex.TimeMachine, 2);
+		upgrade("Second seconds"				).scalesBuildingCps(BuildingIndex.TimeMachine, 2);
+		upgrade("Sugar bosons"					).scalesBuildingCps(BuildingIndex.AntimatterCondenser, 2);
+		upgrade("String theory"					).scalesBuildingCps(BuildingIndex.AntimatterCondenser, 2);
+		upgrade("Large macaron collider"		).scalesBuildingCps(BuildingIndex.AntimatterCondenser, 2);
+		upgrade("Big bang bake"					).scalesBuildingCps(BuildingIndex.AntimatterCondenser, 2);
+		upgrade("Reverse cyclotrons"			).scalesBuildingCps(BuildingIndex.AntimatterCondenser, 2);
+		upgrade("Nanocosmics"					).scalesBuildingCps(BuildingIndex.AntimatterCondenser, 2);
+		upgrade("The Pulse"						).scalesBuildingCps(BuildingIndex.AntimatterCondenser, 2);
+		upgrade("Some other super-tiny fundamental particle? Probably?"	).scalesBuildingCps(BuildingIndex.AntimatterCondenser, 2);
+		upgrade("Quantum comb"					).scalesBuildingCps(BuildingIndex.AntimatterCondenser, 2);
+		upgrade("Gem polish"					).scalesBuildingCps(BuildingIndex.Prism, 2);
+		upgrade("9th color"						).scalesBuildingCps(BuildingIndex.Prism, 2);
+		upgrade("Chocolate light"				).scalesBuildingCps(BuildingIndex.Prism, 2);
+		upgrade("Grainbow"						).scalesBuildingCps(BuildingIndex.Prism, 2);
+		upgrade("Pure cosmic light"				).scalesBuildingCps(BuildingIndex.Prism, 2);
+		upgrade("Glow-in-the-dark"				).scalesBuildingCps(BuildingIndex.Prism, 2);
+		upgrade("Lux sanctorum"					).scalesBuildingCps(BuildingIndex.Prism, 2);
+		upgrade("Reverse shadows"				).scalesBuildingCps(BuildingIndex.Prism, 2);
+		upgrade("Crystal mirrors"				).scalesBuildingCps(BuildingIndex.Prism, 2);
+		upgrade("Your lucky cookie"				).scalesBuildingCps(BuildingIndex.Chancemaker, 2);
+		upgrade('"All Bets Are Off" magic coin' ).scalesBuildingCps(BuildingIndex.Chancemaker, 2);
+		upgrade("Winning lottery ticket" 		).scalesBuildingCps(BuildingIndex.Chancemaker, 2);
+		upgrade("Four-leaf clover field" 		).scalesBuildingCps(BuildingIndex.Chancemaker, 2);
+		upgrade("A recipe book about books"		).scalesBuildingCps(BuildingIndex.Chancemaker, 2);
+		upgrade("Leprechaun village"			).scalesBuildingCps(BuildingIndex.Chancemaker, 2);
+		upgrade("Improbability drive"			).scalesBuildingCps(BuildingIndex.Chancemaker, 2);
+		upgrade("Antisuperstistronics"			).scalesBuildingCps(BuildingIndex.Chancemaker, 2);
+		upgrade("Bunnypedes"					).scalesBuildingCps(BuildingIndex.Chancemaker, 2);
 		
 		// Upgrades that increase cookie production
 		cookie("Plain cookies"							).scalesProduction(1.01);
@@ -1722,31 +1636,31 @@ class Simulator {
 		upgrade("Get lucky"						).scalesGoldenCookieEffectDuration(2);
 
 		// Research centre related upgrades
-		upgrade("Bingo center/Research facility").scalesBuildingCps(Constants.GRANDMA_INDEX, 4);
+		upgrade("Bingo center/Research facility").scalesBuildingCps(BuildingIndex.Grandma, 4);
 		upgrade("Specialized chocolate chips"	).scalesProduction(1.01);
 		upgrade("Designer cocoa beans"			).scalesProduction(1.02);
-		upgrade("Ritual rolling pins"			).scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
+		upgrade("Ritual rolling pins"			).scalesBuildingCps(BuildingIndex.Grandma, 2);
 		upgrade("Underworld ovens"				).scalesProduction(1.03);
-		upgrade("One mind"						).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02).angersGrandmas();
+		upgrade("One mind"						).givesPerBuildingBoost(BuildingIndex.Grandma, BuildingIndex.Grandma, 0.02).angersGrandmas();
 		upgrade("Exotic nuts"					).scalesProduction(1.04);
-		upgrade("Communal brainsweep"			).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.GRANDMA_INDEX, 0.02).angersGrandmas();
+		upgrade("Communal brainsweep"			).givesPerBuildingBoost(BuildingIndex.Grandma, BuildingIndex.Grandma, 0.02).angersGrandmas();
 		upgrade("Arcane sugar"					).scalesProduction(1.05);
-		upgrade("Elder Pact"					).givesPerBuildingBoost(Constants.GRANDMA_INDEX, Constants.PORTAL_INDEX, 0.05).angersGrandmas();
+		upgrade("Elder Pact"					).givesPerBuildingBoost(BuildingIndex.Grandma, BuildingIndex.Portal, 0.05).angersGrandmas();
 		upgrade("Sacrificial rolling pins"		).doublesElderPledge();
 
 		// Assorted cursor / clicking upgrades
-		upgrade("Reinforced index finger"		).scalesBaseClicking(2).scalesBuildingCps(Constants.CURSOR_INDEX, 2);
-		upgrade("Carpal tunnel prevention cream").scalesBaseClicking(2).scalesBuildingCps(Constants.CURSOR_INDEX, 2);
-		upgrade("Ambidextrous"					).scalesBaseClicking(2).scalesBuildingCps(Constants.CURSOR_INDEX, 2);
-		upgrade("Thousand fingers"				).givesBuildingPerBuildingFlatCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 0.1).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 0.1);
-		upgrade("Million fingers"				).givesBuildingPerBuildingFlatCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 0.5).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 0.5);
-		upgrade("Billion fingers"				).givesBuildingPerBuildingFlatCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 5).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 5);
-		upgrade("Trillion fingers"				).givesBuildingPerBuildingFlatCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 50).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 50);
-		upgrade("Quadrillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 500).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 500);
-		upgrade("Quintillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 5000).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 5000);
-		upgrade("Sextillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 50000).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 50000);
-		upgrade("Septillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 500000).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 500000);
-		upgrade("Octillion fingers"				).givesBuildingPerBuildingFlatCpsBoost(Constants.CURSOR_INDEX, [Constants.CURSOR_INDEX], 5000000).givesPerBuildingFlatCpcBoost([Constants.CURSOR_INDEX], 5000000);
+		upgrade("Reinforced index finger"		).scalesBaseClicking(2).scalesBuildingCps(BuildingIndex.Cursor, 2);
+		upgrade("Carpal tunnel prevention cream").scalesBaseClicking(2).scalesBuildingCps(BuildingIndex.Cursor, 2);
+		upgrade("Ambidextrous"					).scalesBaseClicking(2).scalesBuildingCps(BuildingIndex.Cursor, 2);
+		upgrade("Thousand fingers"				).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 0.1).givesPerBuildingFlatCpcBoost([BuildingIndex.Cursor], 0.1);
+		upgrade("Million fingers"				).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 0.5).givesPerBuildingFlatCpcBoost([BuildingIndex.Cursor], 0.5);
+		upgrade("Billion fingers"				).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 5).givesPerBuildingFlatCpcBoost([BuildingIndex.Cursor], 5);
+		upgrade("Trillion fingers"				).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 50).givesPerBuildingFlatCpcBoost([BuildingIndex.Cursor], 50);
+		upgrade("Quadrillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 500).givesPerBuildingFlatCpcBoost([BuildingIndex.Cursor], 500);
+		upgrade("Quintillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 5000).givesPerBuildingFlatCpcBoost([BuildingIndex.Cursor], 5000);
+		upgrade("Sextillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 50000).givesPerBuildingFlatCpcBoost([BuildingIndex.Cursor], 50000);
+		upgrade("Septillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 500000).givesPerBuildingFlatCpcBoost([BuildingIndex.Cursor], 500000);
+		upgrade("Octillion fingers"				).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 5000000).givesPerBuildingFlatCpcBoost([BuildingIndex.Cursor], 5000000);
 		upgrade("Plastic mouse"					).boostsClickCps(0.01);
 		upgrade("Iron mouse"					).boostsClickCps(0.01);
 		upgrade("Titanium mouse"				).boostsClickCps(0.01);
@@ -1783,7 +1697,7 @@ class Simulator {
 
 		// Christmas season
 		upgrade("A festive hat"				).requiresSeason("christmas");
-		upgrade("Naughty list"				).requiresSeason("christmas").isRandomSantaReward().scalesBuildingCps(Constants.GRANDMA_INDEX, 2);
+		upgrade("Naughty list"				).requiresSeason("christmas").isRandomSantaReward().scalesBuildingCps(BuildingIndex.Grandma, 2);
 		upgrade("A lump of coal"			).requiresSeason("christmas").isRandomSantaReward().scalesProduction(1.01);
 		upgrade("An itchy sweater"			).requiresSeason("christmas").isRandomSantaReward().scalesProduction(1.01);
 		upgrade("Improved jolliness"		).requiresSeason("christmas").isRandomSantaReward().scalesProduction(1.15);
@@ -1887,34 +1801,34 @@ class Simulator {
 		cookie("Licorice macarons"	).requires("Box of macarons").scalesProduction(1.03);
 
 		// Synergies Vol. I
-		synergy("Seismic magic"					).requires("Synergies Vol. I").givesSynergy(Constants.MINE_INDEX, Constants.WIZARD_TOWER_INDEX, 0.05, 0.001);
-		synergy("Fossil fuels"					).requires("Synergies Vol. I").givesSynergy(Constants.MINE_INDEX, Constants.SHIPMENT_INDEX, 0.05, 0.001);
-		synergy("Primordial ores"				).requires("Synergies Vol. I").givesSynergy(Constants.MINE_INDEX, Constants.ALCHEMY_LAB_INDEX, 0.05, 0.001);
-		synergy("Arcane knowledge"				).requires("Synergies Vol. I").givesSynergy(Constants.WIZARD_TOWER_INDEX, Constants.ALCHEMY_LAB_INDEX, 0.05, 0.001);
-		synergy("Infernal crops"				).requires("Synergies Vol. I").givesSynergy(Constants.FARM_INDEX, Constants.PORTAL_INDEX, 0.05, 0.001);
-		synergy("Contracts from beyond"			).requires("Synergies Vol. I").givesSynergy(Constants.BANK_INDEX, Constants.PORTAL_INDEX, 0.05, 0.001);
-		synergy("Paganism"						).requires("Synergies Vol. I").givesSynergy(Constants.TEMPLE_INDEX, Constants.PORTAL_INDEX, 0.05, 0.001);
-		synergy("Future almanacs"				).requires("Synergies Vol. I").givesSynergy(Constants.FARM_INDEX, Constants.TIME_MACHINE_INDEX, 0.05, 0.001);
-		synergy("Relativistic parsec-skipping"	).requires("Synergies Vol. I").givesSynergy(Constants.SHIPMENT_INDEX, Constants.TIME_MACHINE_INDEX, 0.05, 0.001);
-		synergy("Quantum electronics"			).requires("Synergies Vol. I").givesSynergy(Constants.FACTORY_INDEX, Constants.ANTIMATTER_CONDENSER_INDEX, 0.05, 0.001);
-		synergy("Extra physics funding"			).requires("Synergies Vol. I").givesSynergy(Constants.BANK_INDEX, Constants.ANTIMATTER_CONDENSER_INDEX, 0.05, 0.001);
-		synergy("Light magic"					).requires("Synergies Vol. I").givesSynergy(Constants.WIZARD_TOWER_INDEX, Constants.PRISM_INDEX, 0.05, 0.001);
-		synergy("Gemmed talismans"				).requires("Synergies Vol. I").givesSynergy(Constants.MINE_INDEX, Constants.CHANCEMAKER_INDEX, 0.05, 0.001);
+		synergy("Seismic magic"					).requires("Synergies Vol. I").givesSynergy(BuildingIndex.Mine, BuildingIndex.WizardTower, 0.05, 0.001);
+		synergy("Fossil fuels"					).requires("Synergies Vol. I").givesSynergy(BuildingIndex.Mine, BuildingIndex.Shipment, 0.05, 0.001);
+		synergy("Primordial ores"				).requires("Synergies Vol. I").givesSynergy(BuildingIndex.Mine, BuildingIndex.AlchemyLab, 0.05, 0.001);
+		synergy("Arcane knowledge"				).requires("Synergies Vol. I").givesSynergy(BuildingIndex.WizardTower, BuildingIndex.AlchemyLab, 0.05, 0.001);
+		synergy("Infernal crops"				).requires("Synergies Vol. I").givesSynergy(BuildingIndex.Farm, BuildingIndex.Portal, 0.05, 0.001);
+		synergy("Contracts from beyond"			).requires("Synergies Vol. I").givesSynergy(BuildingIndex.Bank, BuildingIndex.Portal, 0.05, 0.001);
+		synergy("Paganism"						).requires("Synergies Vol. I").givesSynergy(BuildingIndex.Temple, BuildingIndex.Portal, 0.05, 0.001);
+		synergy("Future almanacs"				).requires("Synergies Vol. I").givesSynergy(BuildingIndex.Farm, BuildingIndex.TimeMachine, 0.05, 0.001);
+		synergy("Relativistic parsec-skipping"	).requires("Synergies Vol. I").givesSynergy(BuildingIndex.Shipment, BuildingIndex.TimeMachine, 0.05, 0.001);
+		synergy("Quantum electronics"			).requires("Synergies Vol. I").givesSynergy(BuildingIndex.Factory, BuildingIndex.AntimatterCondenser, 0.05, 0.001);
+		synergy("Extra physics funding"			).requires("Synergies Vol. I").givesSynergy(BuildingIndex.Bank, BuildingIndex.AntimatterCondenser, 0.05, 0.001);
+		synergy("Light magic"					).requires("Synergies Vol. I").givesSynergy(BuildingIndex.WizardTower, BuildingIndex.Prism, 0.05, 0.001);
+		synergy("Gemmed talismans"				).requires("Synergies Vol. I").givesSynergy(BuildingIndex.Mine, BuildingIndex.Chancemaker, 0.05, 0.001);
 
 		// Synergies Vol. II
-		synergy("Printing presses"				).requires("Synergies Vol. II").givesSynergy(Constants.FACTORY_INDEX, Constants.BANK_INDEX, 0.05, 0.001);
-		synergy("Rain prayer"					).requires("Synergies Vol. II").givesSynergy(Constants.FARM_INDEX, Constants.TEMPLE_INDEX, 0.05, 0.001);
-		synergy("Magical botany"				).requires("Synergies Vol. II").givesSynergy(Constants.FARM_INDEX, Constants.WIZARD_TOWER_INDEX, 0.05, 0.001);
-		synergy("Asteroid mining"				).requires("Synergies Vol. II").givesSynergy(Constants.MINE_INDEX, Constants.SHIPMENT_INDEX, 0.05, 0.001);
-		synergy("Shipyards"						).requires("Synergies Vol. II").givesSynergy(Constants.FACTORY_INDEX, Constants.SHIPMENT_INDEX, 0.05, 0.001);
-		synergy("Gold fund"						).requires("Synergies Vol. II").givesSynergy(Constants.BANK_INDEX, Constants.ALCHEMY_LAB_INDEX, 0.05, 0.001);
-		synergy("Temporal overclocking"			).requires("Synergies Vol. II").givesSynergy(Constants.FACTORY_INDEX, Constants.TIME_MACHINE_INDEX, 0.05, 0.001);
-		synergy("God particle"					).requires("Synergies Vol. II").givesSynergy(Constants.TEMPLE_INDEX, Constants.ANTIMATTER_CONDENSER_INDEX, 0.05, 0.001);
-		synergy("Chemical proficiency"			).requires("Synergies Vol. II").givesSynergy(Constants.ALCHEMY_LAB_INDEX, Constants.ANTIMATTER_CONDENSER_INDEX, 0.05, 0.001);
-		synergy("Mystical energies"				).requires("Synergies Vol. II").givesSynergy(Constants.TEMPLE_INDEX, Constants.PRISM_INDEX, 0.05, 0.001);
-		synergy("Abysmal glimmer"				).requires("Synergies Vol. II").givesSynergy(Constants.PORTAL_INDEX, Constants.PRISM_INDEX, 0.05, 0.001);
-		synergy("Primeval glow"					).requires("Synergies Vol. II").givesSynergy(Constants.TIME_MACHINE_INDEX, Constants.PRISM_INDEX, 0.05, 0.001);
-		synergy("Charm quarks"					).requires("Synergies Vol. II").givesSynergy(Constants.ANTIMATTER_CONDENSER_INDEX, Constants.CHANCEMAKER_INDEX, 0.05, 0.001);
+		synergy("Printing presses"				).requires("Synergies Vol. II").givesSynergy(BuildingIndex.Factory, BuildingIndex.Bank, 0.05, 0.001);
+		synergy("Rain prayer"					).requires("Synergies Vol. II").givesSynergy(BuildingIndex.Farm, BuildingIndex.Temple, 0.05, 0.001);
+		synergy("Magical botany"				).requires("Synergies Vol. II").givesSynergy(BuildingIndex.Farm, BuildingIndex.WizardTower, 0.05, 0.001);
+		synergy("Asteroid mining"				).requires("Synergies Vol. II").givesSynergy(BuildingIndex.Mine, BuildingIndex.Shipment, 0.05, 0.001);
+		synergy("Shipyards"						).requires("Synergies Vol. II").givesSynergy(BuildingIndex.Factory, BuildingIndex.Shipment, 0.05, 0.001);
+		synergy("Gold fund"						).requires("Synergies Vol. II").givesSynergy(BuildingIndex.Bank, BuildingIndex.AlchemyLab, 0.05, 0.001);
+		synergy("Temporal overclocking"			).requires("Synergies Vol. II").givesSynergy(BuildingIndex.Factory, BuildingIndex.TimeMachine, 0.05, 0.001);
+		synergy("God particle"					).requires("Synergies Vol. II").givesSynergy(BuildingIndex.Temple, BuildingIndex.AntimatterCondenser, 0.05, 0.001);
+		synergy("Chemical proficiency"			).requires("Synergies Vol. II").givesSynergy(BuildingIndex.AlchemyLab, BuildingIndex.AntimatterCondenser, 0.05, 0.001);
+		synergy("Mystical energies"				).requires("Synergies Vol. II").givesSynergy(BuildingIndex.Temple, BuildingIndex.Prism, 0.05, 0.001);
+		synergy("Abysmal glimmer"				).requires("Synergies Vol. II").givesSynergy(BuildingIndex.Portal, BuildingIndex.Prism, 0.05, 0.001);
+		synergy("Primeval glow"					).requires("Synergies Vol. II").givesSynergy(BuildingIndex.TimeMachine, BuildingIndex.Prism, 0.05, 0.001);
+		synergy("Charm quarks"					).requires("Synergies Vol. II").givesSynergy(BuildingIndex.AntimatterCondenser, BuildingIndex.Chancemaker, 0.05, 0.001);
 
 		// Elder pledge and other toggles
 		toggle("Elder Pledge"					).calmsGrandmas();
@@ -1991,18 +1905,18 @@ class Simulator {
 
 		// Golden cookie stuff information
 		this.frenzyDuration = 77;
-		this.goldenCookieTime = Constants.GOLDEN_COOKIE_AVG_INTERVAL;
-		this.goldenCookieDuration = Constants.GOLDEN_COOKIE_DURATION;
+		this.goldenCookieTime = GOLDEN_COOKIE_AVG_INTERVAL;
+		this.goldenCookieDuration = GOLDEN_COOKIE_DURATION;
 		this.goldenCookieEffectDurationMultiplier = 1;
 
 		// Reindeer stuff
-		this.reindeerDuration = Constants.REINDEER_DURATION;
+		this.reindeerDuration = REINDEER_DURATION;
 		this.reindeerTime = 180;
 		this.reindeerMultiplier = 1;
 		this.reindeerBuffMultiplier = 1;
 
 		// Grandmatriarch stuff
-		this.grandmatriarchStatus = Constants.APPEASED;
+		this.grandmatriarchStatus = GrandmatriarchLevel.Appeased;
 		this.wrinklerMultiplier = 1;
 		this.maxWrinklers = 10;
 
@@ -2030,7 +1944,7 @@ class Simulator {
 
 	recalculateUpgradePriceCursorScale() {
 		if (this.upgradePriceCursorScaleEnabled) {
-			this.upgradePriceCursorScale = Math.pow(0.99, this.buildings[Constants.CURSOR_INDEX].quantity / 100);
+			this.upgradePriceCursorScale = Math.pow(0.99, this.buildings[BuildingIndex.Cursor].quantity / 100);
 		} else {
 			this.upgradePriceCursorScale = 1;
 		}
@@ -2083,8 +1997,8 @@ class Simulator {
 	}
 
 	cookiesPerReindeer() {
-		var cookies = this.getCps() * Constants.REINDEER_CPS_SECONDS * this.reindeerBuffMultiplier;
-		return Math.max(Constants.REINDEER_MIN_COOKIES, cookies) * this.reindeerMultiplier;
+		var cookies = this.getCps() * REINDEER_CPS_SECONDS * this.reindeerBuffMultiplier;
+		return Math.max(REINDEER_MIN_COOKIES, cookies) * this.reindeerMultiplier;
 	}
 
 	//
@@ -2097,18 +2011,18 @@ class Simulator {
 
 	cookiesPerLucky() {
 		// If we dont click them, they don't work
-		if (!Config.autoClickGoldenCookies) {
+		if (!this.strategy.autoClickGoldenCookies) {
 			return 0;
 		}
 
-		var cookies1 = this.getCps() * Constants.LUCKY_COOKIE_CPS_SECONDS;
+		var cookies1 = this.getCps() * LUCKY_COOKIE_CPS_SECONDS;
 		var cookies2 = cookies1; // cookieBank * 0.15;
 
-		return Math.min(cookies1, cookies2) + Constants.LUCKY_COOKIE_FLAT_BONUS;
+		return Math.min(cookies1, cookies2) + LUCKY_COOKIE_FLAT_BONUS;
 	}
 }
 
-// Check that the values in the evaluator match those of the game, for debugging use
+// Check that the values in the Simulator match those of the game, for debugging use
 Simulator.prototype.matchesGame = function(equalityFunction=floatEqual) {
 	var errMsg = "";
 	// Check that Cps matches the game
@@ -2147,7 +2061,7 @@ Simulator.prototype.matchesGame = function(equalityFunction=floatEqual) {
 	}
 
 	if (errMsg != "") {
-		errMsg = "Evaluator Mismatch:\n" + errMsg;
+		errMsg = "Simulator Mismatch:\n" + errMsg;
 		for (var key in Game.buffs) {
 			errMsg += "- Buff Active: " + key + "\n";
 		}
@@ -2219,50 +2133,7 @@ Simulator.prototype.getCps = function(ignoreCursedFinger = false) {
 }
 
 Simulator.prototype.getCookieChainMax = function(frenzy) {
-	return this.getFrenziedCps(frenzy) * Constants.COOKIE_CHAIN_MULTIPLIER;
-}
-
-// Get the current required cookie bank size, accounts for time until the
-// next golden cookie appears
-Simulator.prototype.getCookieBankSize = function(timeSinceLastGoldenCookie) {
-	// Don't need one if not clicking golden cookies
-	if (!Config.maintainCookieBank) {
-		return 0;
-	}
-
-	var bank;
-	var normalTimeRemaining;
-	var frenzyTimeRemaining;
-	var luckyBank;
-	var chainBank;
-
-	var timeToNextCookie = Math.max(this.goldenCookieTime - Game.shimmerTypes['golden'] ? Game.shimmerTypes['golden'].time / Game.fps : 0, 0);
-
-	// Bank size varies on whether you can get another golden cookie during frenzy
-	if (this.frenzyDuration * this.goldenCookieEffectDurationMultiplier < this.goldenCookieTime) {
-		luckyBank = this.getLuckyCookieMax(1) * Constants.LUCKY_COOKIE_BANK_SCALE;
-		chainBank = this.getCookieChainMax(1) * Constants.COOKIE_CHAIN_BANK_SCALE;
-
-		normalTimeRemaining = timeToNextCookie;
-		frenzyTimeRemaining = 0;
-	} else {
-		luckyBank = this.getLuckyCookieMax(Constants.FRENZY_MULTIPLIER) * Constants.LUCKY_COOKIE_BANK_SCALE;
-		chainBank = this.getCookieChainMax(Constants.FRENZY_MULTIPLIER) * Constants.COOKIE_CHAIN_BANK_SCALE;
-
-		if (this.frenzy) {
-			normalTimeRemaining = 0;
-			frenzyTimeRemaining = timeToNextCookie;
-		} else {
-			normalTimeRemaining = timeToNextCookie;
-			frenzyTimeRemaining = this.frenzyDuration * this.goldenCookieEffectDurationMultiplier;
-		}
-	}
-	var frenzyMult = Math.min(this.frenzyMultiplier, Constants.FRENZY_MULTIPLIER);	// stop elder frenzy messing up bank
-	bank = Math.max(luckyBank, chainBank);
-	bank -= normalTimeRemaining * (this.getFrenziedCps(1) + this.getFrenziedCpc(1) * this.clickRate);
-	bank -= frenzyTimeRemaining * (this.getFrenziedCps(frenzyMult) + this.getFrenziedCpc(frenzyMult) * this.clickRate);
-	
-	return Math.max(bank, 0);
+	return this.getFrenziedCps(frenzy) * COOKIE_CHAIN_MULTIPLIER;
 }
 
 Simulator.prototype.getModifier = function(name) {
@@ -2276,7 +2147,7 @@ Simulator.prototype.getModifier = function(name) {
 	return upgrade;
 }
 
-// Sync an evaluator with the current in game store
+// Sync a Simulator with the current in game store
 Simulator.prototype.syncToGame = function() {
 	this.reset();
 	var i;

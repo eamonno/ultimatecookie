@@ -1,0 +1,8 @@
+{
+    "compilerOptions": {
+        "target": "es2015",
+        "removeComments": true,
+        "outDir": "./bin",
+        "outFile": "./bin/ult.js"
+    }
+}
