@@ -18,7 +18,7 @@ class Strategy {
     clickRateOverride: number = -1;
 
     unlockSeasonUpgrades: boolean = true
-    preferredSeason: string = ""
+    preferredSeason: string = "fools"
 
 	constructor(name : string) {
 		this.name = name;

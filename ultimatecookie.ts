@@ -29,6 +29,12 @@ enum GrandmatriarchLevel {
 	Angered = 3,
 }
 
+enum ModifierStatus {
+	Locked = 0,
+	Available = 1,
+	Applied = 2
+}
+
 //
 // UltimateCookie represents the app itself
 //
@@ -49,7 +55,6 @@ class UltimateCookie {
 		const AutoUpdateInterval = 1;
 
 		this.lastDeterminedPurchase = "";
-		this.lastPurchaseTime = new Date().getTime();
 		this.lastClickCount = Game.cookieClicks;
 		this.errors = {};
 		this.sim = new Simulator();
@@ -199,9 +204,7 @@ class UltimateCookie {
 
 		// Resync to the game if needed 
 		if (Game.recalculateGains == 0 && (!floatEqual(this.sim.getCps(), Game.cookiesPs) || !floatEqual(this.sim.getCpc(), Game.mouseCps()))) {
-			console.log("resyncing");
 			this.sim.syncToGame();
-
 			// Log any errors errors if the sim doesnt match after resyncing 
 			if (!this.sim.matchesGame() && this.sim.errorMessage != "" && this.errors[this.sim.errorMessage] == undefined) {
 				this.errors[this.sim.errorMessage] = Game.WriteSave(1);
@@ -263,7 +266,6 @@ UltimateCookie.prototype.reset = function() {
 	var resethcs = Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned);
 
 	console.log("Resetting game. HCs now: " + hcs + ", HCs after reset: " + resethcs + ", time: " + now);
-	this.lastPurchaseTime = now;
 	this.lastClickCount = 0;
 	this.sim.initialize();
 	this.autoBuy(RESET_PAUSE_TIME);
@@ -349,12 +351,14 @@ BuildingCounter.prototype.subtractCountMost = function(excludes, scale=1) {
 //
 
 class Modifier {
+	status: ModifierStatus
+
 	constructor(sim, name) {
 		this.sim = sim;
 		this.name = name;
-		this.applied = false;
 		this.appliers = [];
 		this.revokers = [];
+		this.reset();
 	}
 
 	// REFACTOR - ADD ERROR CHECK TO PREVENT DOUBLE REPLY
@@ -362,11 +366,12 @@ class Modifier {
 		var i;
 		for (i = 0; i < this.appliers.length; ++i)
 			this.appliers[i](this.sim);
-		this.applied = true;
+		this.revokeStatus = this.status;
+		this.status = ModifierStatus.Applied;
 	}
 
 	reset() {
-		this.applied = false;
+		this.status = ModifierStatus.Locked;
 	}
 
 	// REFACTOR - ADD ERROR CHECK TO PREVENT FAULTY REVOKE
@@ -374,7 +379,7 @@ class Modifier {
 		var i;
 		for (i = this.revokers.length - 1; i >= 0; --i)
 			this.revokers[i](this.sim);
-		this.applied = false;
+		this.status = this.revokeStatus;
 	}
 
 	addApplier(func) {
@@ -1119,12 +1124,11 @@ class Season extends Modifier {
 
 	get lockedUpgrades() {
 		if (this.locks) {
-			var applied = 0;
-			var i;
-			for (i = 0; i < this.locks.length; ++i)
-				if (this.locks[i].applied)
-					applied++
-			return this.locks.length - applied;
+			let  locked = 0;
+			for (let i = 0; i < this.locks.length; ++i)
+				if (this.locks[i].status == ModifierStatus.Locked)
+					locked++
+			return locked;
 		}
 		return 0;
 	}
@@ -2094,7 +2098,7 @@ Simulator.prototype.syncToGame = function() {
 			var uf = this.getModifier(Game.UpgradesById[i].name);
 			uf.apply();
 		} else if (Game.UpgradesById[i].unlocked == 1) {
-			this.getModifier(Game.UpgradesById[i].name);
+			this.getModifier(Game.UpgradesById[i].name).status = ModifierStatus.Available;
 		}
 	}
 	this.heavenlyChips = Game.heavenlyChips;
