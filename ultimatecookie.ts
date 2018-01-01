@@ -420,6 +420,12 @@ class Modifier {
 		return this;
 	}
 
+	scalesBuildingPrice(scale) {
+		this.addApplier(function(sim) { sim.buildingPriceScale *= scale; });
+		this.addRevoker(function(sim) { sim.buildingPriceScale /= scale; });
+		return this;
+	}
+	
 	// The benefit is the exact amount of effective CpS that will be gained from applying this
 	// modifier
 	get benefit() {
@@ -936,12 +942,6 @@ class Upgrade extends Purchase {
 		return this;
 	}
 
-	scalesBuildingPrice(scale) {
-		this.addApplier(function(sim) { sim.buildingPriceScale *= scale; });
-		this.addRevoker(function(sim) { sim.buildingPriceScale /= scale; });
-		return this;
-	}
-
 	scalesClicking(scale) {
 		this.addApplier(function(sim) { sim.cpcMultiplier *= scale; });
 		this.addRevoker(function(sim) { sim.cpcMultiplier /= scale; });
@@ -1280,6 +1280,7 @@ class Simulator {
 		buff('Predictable tragedy',	30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.AntimatterCondenser);
 		buff('Eclipse',				30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Prism);
 		buff('Dry spell',			30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Chancemaker);
+		buff('Everything must go',	 8).scalesBuildingPrice(0.95);
 		buff('Cursed finger', 		10).cursesFinger();	
 		buff('Cookie storm',		 7);		// Spawns a lot of golden cookies
 		
