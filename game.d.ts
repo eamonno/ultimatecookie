@@ -6,8 +6,39 @@
 // just the bare minimum it takes to make the typescript compiler stop complaining.
 
 declare namespace Game {
+    interface Upgrade {
+        name: string
+        bought: number
+    }
+
+    interface Shimmer {
+        type: string
+        pop(): void
+    }
+
+    interface Wrinkler {
+        sucked: number
+        hp: number
+    }
+
+    interface Buff {
+    }
+
+    let cookies: number
     let cookieClicks: number
     let heavenlyChips: number
     let prestige: number
     let santaLevel: number
+    let season: string
+    let recalculateGains: number
+    let cookiesPs: number
+
+    let shimmers: Shimmer[]
+    let wrinklers: Wrinkler[]
+    let UpgradesInStore: Upgrade[]
+
+    function ClickCookie(event?: any, amount?: number): void
+    function mouseCps(): number
+    function WriteSave(type: number): string
+    function hasBuff(string): number | Buff
 }

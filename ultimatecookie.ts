@@ -36,6 +36,20 @@ enum ModifierStatus {
 }
 
 //
+// MatchError 
+//
+// Simple interface for match errors. Contains a boolean indicating if a match occurred and
+// a string describing the error if that happene. If there is an error a save can be added
+// too for easier replication later.
+//
+
+interface MatchError {
+	match: boolean
+	error?: string
+	save?: string
+}
+
+//
 // UltimateCookie represents the app itself
 //
 
@@ -54,10 +68,11 @@ class UltimateCookie {
 	sim: Simulator = new Simulator();
 	strategy: Strategy = new Strategy("default");
 
+	// Errors
+	errors: MatchError[] = []
+
 	constructor() {
 		const AutoUpdateInterval = 1;
-
-		this.errors = {}
 
 		this.sim.syncToGame();
 		this.sim.strategy = this.strategy;
@@ -67,17 +82,16 @@ class UltimateCookie {
 		setInterval(() => this.update(), AutoUpdateInterval);
 	}
 
-	createPurchaseList() {
-		var purchases = [];
-		var i;
+	createPurchaseList(): Purchase[] {
+		let purchases = [];
 
 		// Add the buildings	
-		for (i = 0; i < this.sim.buildings.length; ++i) {
+		for (let i = 0; i < this.sim.buildings.length; ++i) {
 			purchases.push(this.sim.buildings[i]);
 		}
 		// Add the upgrades
-		for (i = 0; i < Game.UpgradesInStore.length; ++i) {
-			var modifier = this.sim.getModifier(Game.UpgradesInStore[i].name);
+		for (let i = 0; i < Game.UpgradesInStore.length; ++i) {
+			let modifier = this.sim.getModifier(Game.UpgradesInStore[i].name);
 			if (this.sim.toggles[modifier.name] == undefined) {
 				// Dont consider toggles
 				purchases.push(this.sim.getModifier(Game.UpgradesInStore[i].name));
@@ -91,27 +105,35 @@ class UltimateCookie {
 		return purchases;
 	}
 
-	rankPurchases() {
-		var i;
-		
+	popShimmer(type: string): void {
+		for (let i = 0; i < Game.shimmers.length; ++i) {
+			if (Game.shimmers[i].type == type) {
+				Game.shimmers[i].pop();
+				return;		// Only pop one at a time since the pop func might alter the array
+			}
+		}
+	}
+	
+	rankPurchases(): Purchase[] {
 		// First pass, find the upgrade that offers the best price-benefit ratio
-		var purchases = this.createPurchaseList();
+		let purchases: Purchase[] = this.createPurchaseList();
 		purchases.sort(function(a, b) { return b.pvr - a.pvr; });
 		
 		// Second pass, find the fastest path to buying that upgrade
-		for (i = 1; i < purchases.length; ++i) {
-			purchases[i] = new PurchaseChain(this.sim, [purchases[i], purchases[0]]);
+		let purchaseChains: PurchaseChain[] = [];
+		purchaseChains[0] = new PurchaseChain(this.sim, [purchases[0]]);
+		for (let i = 1; i < purchases.length; ++i) {
+			purchaseChains[i] = new PurchaseChain(this.sim, [purchases[i], purchases[0]]);
 		}
-		purchases[0] = new PurchaseChain(this.sim, [purchases[0]]);
-		purchases.sort((a, b) => a.purchaseTime - b.purchaseTime);
+		purchaseChains.sort((a, b) => a.purchaseTime - b.purchaseTime);
 
 		// Now just take the first item from each chain leaving a full ranked list of purchases
-		purchases = purchases.map(p => p.purchases[0]);
+		purchases = purchaseChains.map(p => p.purchases[0]);
 
 		// Accomodate season strategy		
 		if (this.sim.season.lockedUpgrades == 0) {
 			// Default to whatever the strategy prefers
-			var seasonPref = this.strategy.preferredSeason;
+			let seasonPref: string = this.strategy.preferredSeason;
 			// Override for unlocking, unlock in the order valentines, christmas, halloween, easter
 			if (this.strategy.unlockSeasonUpgrades) {
 				if (this.sim.seasons["valentines"].lockedUpgrades > 0) {
@@ -133,7 +155,7 @@ class UltimateCookie {
 		}
 
 		// Move Elder Pledge to the front if the current strategy calls for it
-		var pledge = this.strategy.autoPledge;
+		let pledge: boolean = this.strategy.autoPledge;
 		if (this.sim.season.name == "halloween") {
 			if (this.strategy.unlockSeasonUpgrades && this.sim.season.lockedUpgrades != 0) {
 				// Cant unlock halloween upgrades without popping wrinklers so dont pledge
@@ -141,14 +163,12 @@ class UltimateCookie {
 			}
 		}
 		if (pledge) {
-			var ep = this.sim.modifiers["Elder Pledge"];
-			var srp = this.sim.modifiers["Sacrificial rolling pins"];
-			var i;
-			for (i = 0; i < Game.UpgradesInStore.length; ++i) {
+			let ep: Modifier = this.sim.modifiers["Elder Pledge"];
+			let srp: Modifier = this.sim.modifiers["Sacrificial rolling pins"];
+			for (let i = 0; i < Game.UpgradesInStore.length; ++i) {
 				if (Game.UpgradesInStore[i].name == ep.name && Game.UpgradesInStore[i].bought == 0) {
 					purchases.splice(0, 0, ep);
-					var j;
-					for (j = 0; j < Game.UpgradesInStore.length; ++j) {
+					for (let j = 0; j < Game.UpgradesInStore.length; ++j) {
 						if (Game.UpgradesInStore[j].name == srp.name && Game.UpgradesInStore[j].bought == 0) {
 							if (srp.price < ep.price)
 								purchases.splice(0, 0, srp);
@@ -160,11 +180,29 @@ class UltimateCookie {
 		return purchases;
 	}
 
-	sortTest() {
-		var purchases = this.rankPurchases();
+	// reset(): void {
+	// 	var now = new Date().getTime();
+	// 	// if (upgradeFunctions.chocolateEgg.isAvailableToPurchase()) {
+	// 	// 	for (var o in Game.ObjectsById) {
+	// 	// 		Game.ObjectsById[o].sell(Game.ObjectsById[o].amount);
+	// 	// 	}
+	// 	// 	upgradeFunctions.chocolateEgg.purchase();
+	// 	// }
+	// 	var hcs = Game.HowMuchPrestige(Game.cookiesReset);
+	// 	var resethcs = Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned);	
+	// 	console.log("Resetting game. HCs now: " + hcs + ", HCs after reset: " + resethcs + ", time: " + now);
+	// 	this.clickCount = 0;
+	// 	this.sim.initialize();
+	// 	this.autoBuy(RESET_PAUSE_TIME);
+	// 	this.autoClick(RESET_PAUSE_TIME);
+	// 	this.autoUpdate(RESET_PAUSE_TIME);
+	// 	Game.Reset(1, 0);
+	// }
+
+	sortTest(): void {
+		let purchases = this.rankPurchases();
 		
-		var i;
-		for (i = 0; i < purchases.length; ++i) {
+		for (let i = 0; i < purchases.length; ++i) {
 			console.log("" + (purchases[i].pvr).toFixed(20) + ": " + purchases[i].name);
 		}	
 	}
@@ -192,12 +230,12 @@ class UltimateCookie {
 			const ClickRateEstimateSamples = 120;
 
 			// Clamp clicks to be between 0 and 1000, mitigates various bugs when loading
-			let clicks = Math.max(MinClicksPerSecond, Math.min(Game.cookieClicks - this.clickCount, MaxClicksPerSecond));
+			let clicks: number = Math.max(MinClicksPerSecond, Math.min(Game.cookieClicks - this.clickCount, MaxClicksPerSecond));
 			this.clickRates.push(clicks);
 			while (this.clickRates.length > ClickRateEstimateSamples) {
 				this.clickRates.shift();
 			}
-			let sum = this.clickRates.reduce((a, b) => a + b);
+			let sum: number = this.clickRates.reduce((a, b) => a + b);
 			this.clickRate = Math.floor(sum / this.clickRates.length);
 			this.clickCount = Game.cookieClicks;
 			this.sim.clickRate = this.strategy.clickRateOverride == -1 ? this.clickRate : this.strategy.clickRateOverride;
@@ -215,7 +253,7 @@ class UltimateCookie {
 
 		// Pop wrinklers during halloween if upgrades need unlocking
 		if (this.sim.season.name == "halloween" && this.strategy.unlockSeasonUpgrades) {
-			for (var w in Game.wrinklers) {
+			for (let w in Game.wrinklers) {
 				if (Game.wrinklers[w].sucked > 0) {
 					Game.wrinklers[w].hp = 0;
 				}
@@ -237,36 +275,6 @@ class UltimateCookie {
 			}
 		}
 	}
-}
-
-UltimateCookie.prototype.popShimmer = function(type)
-{
-	for (var i = 0; i < Game.shimmers.length; ++i) {
-		if (Game.shimmers[i].type == type) {
-			Game.shimmers[i].pop();
-			return;		// Only pop one at a time since the pop func might alter the array
-		}
-	}
-}
-
-UltimateCookie.prototype.reset = function() {
-	var now = new Date().getTime();
-	// if (upgradeFunctions.chocolateEgg.isAvailableToPurchase()) {
-	// 	for (var o in Game.ObjectsById) {
-	// 		Game.ObjectsById[o].sell(Game.ObjectsById[o].amount);
-	// 	}
-	// 	upgradeFunctions.chocolateEgg.purchase();
-	// }
-	var hcs = Game.HowMuchPrestige(Game.cookiesReset);
-	var resethcs = Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned);
-
-	console.log("Resetting game. HCs now: " + hcs + ", HCs after reset: " + resethcs + ", time: " + now);
-	this.clickCount = 0;
-	this.sim.initialize();
-	this.autoBuy(RESET_PAUSE_TIME);
-	this.autoClick(RESET_PAUSE_TIME);
-	this.autoUpdate(RESET_PAUSE_TIME);
-	Game.Reset(1, 0);
 }
 
 
