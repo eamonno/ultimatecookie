@@ -41,6 +41,7 @@ enum ModifierStatus {
 
 class UltimateCookie {
 	// Click rate tracking 
+	clickCount: number = Game.cookieClicks;
 	clickRate: number = 100;
 	clickRates: number[] = [this.clickRate];
 	clickRateTicker: Ticker = new Ticker(1000);
@@ -49,19 +50,19 @@ class UltimateCookie {
 	nextPurchase: Purchase = null;
 	purchaseTicker: Ticker = new Ticker(1000);
 
+	// Simulation and strategy
+	sim: Simulator = new Simulator();
 	strategy: Strategy = new Strategy("default");
 
 	constructor() {
 		const AutoUpdateInterval = 1;
 
-		this.lastDeterminedPurchase = "";
-		this.lastClickCount = Game.cookieClicks;
-		this.errors = {};
-		this.sim = new Simulator();
+		this.errors = {}
+
 		this.sim.syncToGame();
 		this.sim.strategy = this.strategy;
 
-		this.nextPurchase = this.determineNextPurchase(this.sim);
+		this.nextPurchase = this.rankPurchases()[0];
 
 		setInterval(() => this.update(), AutoUpdateInterval);
 	}
@@ -160,7 +161,7 @@ class UltimateCookie {
 	}
 
 	sortTest() {
-		var purchases = this.rankPurchases(this.sim);
+		var purchases = this.rankPurchases();
 		
 		var i;
 		for (i = 0; i < purchases.length; ++i) {
@@ -191,14 +192,14 @@ class UltimateCookie {
 			const ClickRateEstimateSamples = 120;
 
 			// Clamp clicks to be between 0 and 1000, mitigates various bugs when loading
-			let clicks = Math.max(MinClicksPerSecond, Math.min(Game.cookieClicks - this.lastClickCount, MaxClicksPerSecond));
+			let clicks = Math.max(MinClicksPerSecond, Math.min(Game.cookieClicks - this.clickCount, MaxClicksPerSecond));
 			this.clickRates.push(clicks);
 			while (this.clickRates.length > ClickRateEstimateSamples) {
 				this.clickRates.shift();
 			}
 			let sum = this.clickRates.reduce((a, b) => a + b);
 			this.clickRate = Math.floor(sum / this.clickRates.length);
-			this.lastClickCount = Game.cookieClicks;
+			this.clickCount = Game.cookieClicks;
 			this.sim.clickRate = this.strategy.clickRateOverride == -1 ? this.clickRate : this.strategy.clickRateOverride;
 		}
 
@@ -223,7 +224,7 @@ class UltimateCookie {
 
 		// Recheck the best purchase if purchaseTicker has ticked
 		if (this.purchaseTicker.ticked) {
-			this.nextPurchase = this.determineNextPurchase(this.sim);
+			this.nextPurchase = this.rankPurchases()[0];
 		}
 
 		// Do any purchasing. Dont purchase during 'Cursed finger'. The game freezes its CpS numbers while it is active so it will just desync
@@ -231,21 +232,11 @@ class UltimateCookie {
 			if (Game.cookies >= this.nextPurchase.price) {
 				console.log("Purchasing: " + this.nextPurchase.name);
 				this.nextPurchase.purchase();
-				this.nextPurchase = this.determineNextPurchase(this.sim);
+				this.nextPurchase = this.rankPurchases()[0];
 				this.purchaseTicker.restart();
 			}
 		}
 	}
-}
-
-// Work out what the optimal next purchase is for a given Simulator
-UltimateCookie.prototype.determineNextPurchase = function(sim) {
-	var purchases = this.rankPurchases(sim);
-
-	if (purchases[0].name != this.lastDeterminedPurchase) {
-		this.lastDeterminedPurchase = purchases[0].name;
-	} 
-	return purchases[0];
 }
 
 UltimateCookie.prototype.popShimmer = function(type)
@@ -270,7 +261,7 @@ UltimateCookie.prototype.reset = function() {
 	var resethcs = Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned);
 
 	console.log("Resetting game. HCs now: " + hcs + ", HCs after reset: " + resethcs + ", time: " + now);
-	this.lastClickCount = 0;
+	this.clickCount = 0;
 	this.sim.initialize();
 	this.autoBuy(RESET_PAUSE_TIME);
 	this.autoClick(RESET_PAUSE_TIME);
