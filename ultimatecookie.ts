@@ -124,8 +124,8 @@ class UltimateCookie {
 				}
 			}
 			// Now only change seasons if the season change costs less than the next purchase
-			if (this.sim.season.name != "" && Game.season != seasonPref) {
-				if (this.sim.season.toggle.price <= purchases[0].price) {
+			if (seasonPref != "" && Game.season != seasonPref) {
+				if (this.sim.seasons[seasonPref].toggle.price <= purchases[0].price) {
 					purchases.splice(0, 0, this.sim.seasons[seasonPref].toggle);
 				}
 			}
@@ -221,11 +221,18 @@ class UltimateCookie {
 			}
 		}
 
+		// Recheck the best purchase if purchaseTicker has ticked
+		if (this.purchaseTicker.ticked) {
+			this.nextPurchase = this.determineNextPurchase(this.sim);
+		}
+
 		// Do any purchasing. Dont purchase during 'Cursed finger'. The game freezes its CpS numbers while it is active so it will just desync
 		if (this.strategy.autoBuy && !Game.hasBuff('Cursed finger')) {
 			if (Game.cookies >= this.nextPurchase.price) {
+				console.log("Purchasing: " + this.nextPurchase.name);
 				this.nextPurchase.purchase();
 				this.nextPurchase = this.determineNextPurchase(this.sim);
+				this.purchaseTicker.restart();
 			}
 		}
 	}
@@ -237,10 +244,7 @@ UltimateCookie.prototype.determineNextPurchase = function(sim) {
 
 	if (purchases[0].name != this.lastDeterminedPurchase) {
 		this.lastDeterminedPurchase = purchases[0].name;
-		console.log("CR: " + this.clickRate + ", \u0394CpS: " + Math.round(sim.getCps() - Game.cookiesPs) + ", \u0394CpC: " + Math.round(sim.getCpc() - Game.computedMouseCps) + ", P: " + this.lastDeterminedPurchase);
-	} else {
-		console.log("redundant determine");
-	}
+	} 
 	return purchases[0];
 }
 
