@@ -6,9 +6,16 @@
 // just the bare minimum it takes to make the typescript compiler stop complaining.
 
 declare namespace Game {
+    interface Object {
+        level: number
+        amount: number
+        free: number
+    }
+
     interface Upgrade {
         name: string
         bought: number
+        unlocked: number
     }
 
     interface Shimmer {
@@ -36,6 +43,8 @@ declare namespace Game {
     let shimmers: Shimmer[]
     let wrinklers: Wrinkler[]
     let UpgradesInStore: Upgrade[]
+    let UpgradesById: Upgrade[]
+    let ObjectsById: Game.Object[]
 
     function ClickCookie(event?: any, amount?: number): void
     function mouseCps(): number

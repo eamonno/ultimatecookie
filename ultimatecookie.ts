@@ -467,6 +467,8 @@ abstract class Purchase extends Modifier {
 
 class Building extends Purchase {
 	quantity: number
+	level: number
+	free: number
 
 	constructor(sim, index, name, basePrice, baseCps) {
 		super(sim, name);
@@ -493,6 +495,7 @@ class Building extends Purchase {
 	reset() {
 		super.reset();
 		this.quantity = 0;
+		this.level = 0;
 		this.free = 0;
 		this.multiplier = 1;
 		this.synergies = [];
@@ -507,11 +510,16 @@ class Building extends Purchase {
 	}
 	
 	get cps() {
-		return this.quantity * this.individualCps;
+		// Level multiplier only gets added to total buildings, adding it to the individual cps will cause a mismatch
+		return this.quantity * this.individualCps * this.levelMultiplier;
 	}
 
 	get individualCps() {
 		return this.perBuildingFlatCpsBoostCounter.getCount(this.sim.buildings) + this._baseCps * (1 + this.scaleCounter.getCount(this.sim.buildings)) * this.synergyMultiplier * (1 + this.buildingScaler.getCount(this.sim.buildings)) * this.multiplier;
+	}
+
+	get levelMultiplier(): number {
+		return 1 + (this.level * 0.01);
 	}
 
 	get synergyMultiplier() {
@@ -544,6 +552,8 @@ class Building extends Purchase {
 		if (gameObj) {
 			if (this.name != gameObj.name)
 				error += "Building Name " + this.name + " does not match " + gameObj.name + ".\n";			
+			if (this.level != gameObj.level)
+				error += "Building Level " + this.level + " does not match " + gameObj.level + ".\n";			
 			if (!equalityFunction(this.price, gameObj.getPrice()))
 				error += "Building Cost " + this.name + " - Predicted: " + this.price + ", Actual: " + gameObj.getPrice() + ".\n";
 			if (!equalityFunction(this.individualCps, gameObj.cps(gameObj)))
@@ -1921,6 +1931,7 @@ class Simulator {
 		for (let i = 0; i < Game.ObjectsById.length && i < this.buildings.length; ++i) {
 			this.buildings[i].quantity = Game.ObjectsById[i].amount;
 			this.buildings[i].free = Game.ObjectsById[i].free;
+			this.buildings[i].level = Game.ObjectsById[i].level;
 		}
 		for (let i = 0; i < Game.UpgradesById.length; ++i) {
 			if (Game.UpgradesById[i].bought == 1) {
