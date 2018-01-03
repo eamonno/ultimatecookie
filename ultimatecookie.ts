@@ -3,12 +3,6 @@
 /// <reference path="building.ts" />
 
 // General purpose constants
-const FRENZY_MULTIPLIER = 7;				// Frenzy multiplies CpS by 7
-const CLICK_FRENZY_MULTIPLIER = 777;		// Click frenzies give 777x cookier per click
-const REINDEER_CPS_SECONDS = 60;			// Reindeer provide 60 seconds of CpS
-const REINDEER_MIN_COOKIES = 25;			// Reindeer give at least 25 cookies
-const REINDEER_ELDER_FRENZY_MULTIPLIER = 0.5;	// Reindeer dont get complete scaling with Elder Frenzy
-const REINDEER_FRENZY_MULTIPLIER = 0.75;	// Reindeer dont get complete scaling with Frenzy
 const REINDEER_DURATION = 4;				// Length a reindeer lasts before upgrades
 const GOLDEN_COOKIE_DURATION = 13;			// Golden cookies last 13 seconds by default
 const GOLDEN_COOKIE_MIN_INTERVAL = 60 * 5;	// Minimum time between golden cookies
@@ -285,7 +279,9 @@ class UltimateCookie {
 //
 
 class Modifier {
+	sim: Simulator
 	status: ModifierStatus
+	name: string
 
 	constructor(sim, name) {
 		this.sim = sim;
@@ -444,10 +440,12 @@ class Buff extends Modifier {
 // information about costing that can be used to prioritise what to buy next.
 //
 
-class Purchase extends Modifier {
+abstract class Purchase extends Modifier {
 	constructor(sim, name) {
 		super(sim, name);
 	}
+
+	abstract get price(): number;
 
 	get purchaseTime() {
 		return this.price / this.sim.effectiveCps();
@@ -468,6 +466,8 @@ class Purchase extends Modifier {
 // Represents one of the building types in the game.
 
 class Building extends Purchase {
+	quantity: number
+
 	constructor(sim, index, name, basePrice, baseCps) {
 		super(sim, name);
 		this.index = index;
@@ -654,7 +654,9 @@ class Santa {
 //
 
 class PurchaseChain extends Purchase {
-	constructor(sim, purchases) {
+	purchases: Purchase[]
+
+	constructor(sim: Simulator, purchases: Purchase[]) {
 		super(sim, purchases.map(p => p.name).join(" -> "));
 		this.purchases = purchases;
 	}
@@ -1042,6 +1044,8 @@ Upgrade.prototype.isAvailableToPurchase = function() {
 //
 
 class Season extends Modifier {
+	toggle?: Upgrade
+
 	constructor(sim, name, toggle) {
 		super(sim, name);
 		if (toggle) {
@@ -1078,15 +1082,17 @@ class Season extends Modifier {
 //
 
 class Simulator {
+	strategy: Strategy
+	buildings: Building[] = []
+	modifiers: { [index: string]: Modifier } = {}
+	toggles: { [index: string]: Upgrade } = {}
+	seasons: { [index: string]: Season } = {}
+	santa: Santa = new Santa(this)
+
 	constructor() {
-		this.buildings = [];
-		this.modifiers = {};
 		this.upgrades = {};
 		this.prestiges = {};
-		this.seasons = {};
-		this.toggles = {};
 		this.buffs = {};
-		this.santa = new Santa(this);
 	
 		var sim = this;
 
@@ -1869,9 +1875,12 @@ class Simulator {
 		return cpr;
 	}
 
-	cookiesPerReindeer() {
-		var cookies = this.getCps() * REINDEER_CPS_SECONDS * this.reindeerBuffMultiplier;
-		return Math.max(REINDEER_MIN_COOKIES, cookies) * this.reindeerMultiplier;
+	cookiesPerReindeer(): number {
+		const ReindeerCpsSeconds = 60;
+		const ReindeerMinCookies = 25;
+
+		let cookies: number = this.getCps() * ReindeerCpsSeconds * this.reindeerBuffMultiplier;
+		return Math.max(ReindeerMinCookies, cookies) * this.reindeerMultiplier;
 	}
 
 	//
@@ -1892,6 +1901,51 @@ class Simulator {
 		var cookies2 = cookies1; // cookieBank * 0.15;
 
 		return Math.min(cookies1, cookies2) + LUCKY_COOKIE_FLAT_BONUS;
+	}
+
+	getModifier(name: string): Modifier {
+		let upgrade = this.modifiers[name];
+		if (!upgrade) {
+			console.log("Unsupported upgrade: " + name);
+			upgrade = new Upgrade(this, name); 
+			upgrade.isUnsupported();
+			this.modifiers[name] = upgrade;
+		}
+		return upgrade;
+	}
+
+	syncToGame(): void {
+		const AchievementsPerMilk = 25;
+
+		this.reset();
+		for (let i = 0; i < Game.ObjectsById.length && i < this.buildings.length; ++i) {
+			this.buildings[i].quantity = Game.ObjectsById[i].amount;
+			this.buildings[i].free = Game.ObjectsById[i].free;
+		}
+		for (let i = 0; i < Game.UpgradesById.length; ++i) {
+			if (Game.UpgradesById[i].bought == 1) {
+				this.getModifier(Game.UpgradesById[i].name).apply();
+			} else if (Game.UpgradesById[i].unlocked == 1) {
+				this.getModifier(Game.UpgradesById[i].name).status = ModifierStatus.Available;
+			}
+		}
+		this.heavenlyChips = Game.heavenlyChips;
+		this.prestige = Game.prestige;
+		this.milkAmount = Game.AchievementsOwned / AchievementsPerMilk;
+		this.frenzyMultiplier = 1;
+		this.clickFrenzyMultiplier = 1;
+		this.seasonChanges = Game.seasonUses;
+		for (let key in Game.buffs) {
+			if (this.buffs[key]) {
+				this.buffs[key].apply();
+			} else {
+				console.log("Unknown buff: " + key);
+			}
+		}
+		this.seasonStack = [this.seasons[Game.season]];
+		this.santa.level = Game.santaLevel;
+		this.sessionStartTime = Game.startDate;
+		this.currentTime = new Date().getTime();
 	}
 }
 
@@ -2007,52 +2061,6 @@ Simulator.prototype.getCps = function(ignoreCursedFinger = false) {
 
 Simulator.prototype.getCookieChainMax = function(frenzy) {
 	return this.getFrenziedCps(frenzy) * COOKIE_CHAIN_MULTIPLIER;
-}
-
-Simulator.prototype.getModifier = function(name) {
-	var upgrade = this.modifiers[name];
-	if (!upgrade) {
-		console.log("Unsupported upgrade: " + name);
-		upgrade = new Upgrade(this, name); 
-		upgrade.isUnsupported();
-		this.modifiers[name] = upgrade;
-	}
-	return upgrade;
-}
-
-// Sync a Simulator with the current in game store
-Simulator.prototype.syncToGame = function() {
-	this.reset();
-	var i;
-	for (i = 0; i < Game.ObjectsById.length && i < this.buildings.length; ++i) {
-		this.buildings[i].quantity = Game.ObjectsById[i].amount;
-		this.buildings[i].free = Game.ObjectsById[i].free;
-	}
-	for (i = 0; i < Game.UpgradesById.length; ++i) {
-		if (Game.UpgradesById[i].bought == 1) {
-			var uf = this.getModifier(Game.UpgradesById[i].name);
-			uf.apply();
-		} else if (Game.UpgradesById[i].unlocked == 1) {
-			this.getModifier(Game.UpgradesById[i].name).status = ModifierStatus.Available;
-		}
-	}
-	this.heavenlyChips = Game.heavenlyChips;
-	this.prestige = Game.prestige;
-	this.milkAmount = Game.AchievementsOwned / 25;
-	this.frenzyMultiplier = 1;
-	this.clickFrenzyMultiplier = 1;
-	this.seasonChanges = Game.seasonUses;
-	for (var key in Game.buffs) {
-		if (this.buffs[key]) {
-			this.buffs[key].apply();
-		} else {
-			console.log("Unknown buff: " + key);
-		}
-	}
-	this.seasonStack = [this.seasons[Game.season]];
-	this.santa.level = Game.santaLevel;
-	this.sessionStartTime = Game.startDate;
-	this.currentTime = new Date().getTime();
 }
 
 //
