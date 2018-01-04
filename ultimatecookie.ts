@@ -95,6 +95,10 @@ class UltimateCookie {
 		if (this.sim.santa.canBeLeveled) {
 			purchases.push(this.sim.santa.nextLevel);
 		}
+		// Add Dragon
+		if (this.sim.dragon.canBeLeveled) {
+			purchases.push(this.sim.dragon.nextLevel);
+		}
 		
 		return purchases;
 	}
@@ -565,6 +569,70 @@ class Building extends Purchase {
 	}
 }
 
+//
+// Dragon related stuff
+//
+
+class DragonLevel extends Purchase {
+	dragon: Dragon
+	num: number
+
+	constructor(dragon: Dragon, num: number, name: string) {
+		super(dragon.sim, name);
+		this.dragon = dragon;
+		this.num = num;
+		this.addApplier(function(sim) { sim.dragon.level++; });
+		this.addRevoker(function(sim) { sim.dragon.level--; });
+	}
+
+	get price(): number {
+		return 1000000 * Math.pow(2, this.num);
+	}
+
+	purchase(): void {
+		Game.specialTab = "dragon";
+		Game.UpgradeDragon();
+		this.apply();
+	}
+}
+
+class Dragon {
+	sim: Simulator
+	level: number
+	levels: DragonLevel[] = []
+
+	constructor(sim) {
+		this.sim = sim;
+		this.levels = [];
+
+		let dragon = this;
+		function level(num, name) {
+			let level =  new DragonLevel(dragon, num, name)
+			dragon.levels[num] = level;
+			return level;
+		}
+
+		level( 0, "Dragon egg"					);
+		level( 1, "Dragon egg"					);
+		level( 2, "Dragon egg"					);
+		level( 3, "Shivering dragon egg"		);
+		level( 4, "Krumblor, cookie hatchling"	);
+	}
+
+	get canBeLeveled(): boolean {
+		return Game.Has('A crumbly egg') && Game.dragonLevel <= 4;
+	}
+
+	get nextLevel(): DragonLevel {
+		return this.levels[this.level];
+	}
+
+	reset() {
+		this.level = 0;
+	}
+}
+
+//
 //
 // SantaLevel
 //
@@ -1108,6 +1176,7 @@ class Simulator {
 	toggles: { [index: string]: Upgrade } = {}
 	seasons: { [index: string]: Season } = {}
 	santa: Santa = new Santa(this)
+	dragon: Dragon = new Dragon(this)
 
 	constructor() {
 		populate_simulator(this);
@@ -1133,6 +1202,7 @@ class Simulator {
 		for (var key in this.seasons)
 			this.seasons[key].reset();
 		this.santa.reset();
+		this.dragon.reset();
 			
 		// When the session started
 		this.sessionStartTime = new Date().getTime();
@@ -1384,6 +1454,7 @@ class Simulator {
 		}
 		this.seasonStack = [this.seasons[Game.season]];
 		this.santa.level = Game.santaLevel;
+		this.dragon.level = Game.dragonLevel;
 		this.currentTime = new Date().getTime();
 		this.sessionStartTime = Game.startDate;
 	}
@@ -1426,6 +1497,14 @@ Simulator.prototype.matchesGame = function(equalityFunction=floatEqual): boolean
 		errMsg += "- Simulator season \"" + this.season.name + "\" does not match Game.season \"" + Game.season + "\"\n";
 	}
 
+	// Check that dragon and santa levels
+	if (this.dragon.level != Game.dragonLevel) {
+		errMsg += "- Dragon level \"" + this.dragon.level + "\" does not match Game.dragonLevel \"" + Game.dragonLevel + "\"\n";
+	}
+	if (this.santa.level != Game.santaLevel) {
+		errMsg += "- Santa level \"" + this.santa.level + "\" does not match Game.santaLevel \"" + Game.santaLevel + "\"\n";
+	}
+
 	if (errMsg != "") {
 		errMsg = "Simulator Mismatch:\n" + errMsg;
 		for (var key in Game.buffs) {
@@ -1444,7 +1523,7 @@ Simulator.prototype.getCookieChainMax = function(frenzy) {
 function populate_simulator(sim: Simulator): void {
 	// Add a new Buff to the Simulation
 	function buff(name, duration) {
-		var buff = new Buff(sim, name, duration);
+		let buff = new Buff(sim, name, duration);
 		sim.modifiers[name] = buff;
 		sim.buffs[name] = buff;
 		return buff;
@@ -1452,14 +1531,14 @@ function populate_simulator(sim: Simulator): void {
 
 	// Add a new Building upgrade to the Simulation
 	function building(index, name, cost, cps) {
-		var building = new Building(sim, index, name, cost, cps);
+		let building = new Building(sim, index, name, cost, cps);
 		sim.buildings.push(building);
 		return building;
 	}
 
 	// Add a new prestige upgrade to the Simulation
 	function prestige(name) {
-		var prestige = new Upgrade(sim, name);
+		let prestige = new Upgrade(sim, name);
 		sim.modifiers[name] = prestige;
 		sim.prestiges[name] = prestige;
 		return prestige;
@@ -1467,7 +1546,7 @@ function populate_simulator(sim: Simulator): void {
 
 	// Add a new Season to the Simulation
 	function season(name: string, toggle?: string) {
-		var season = new Season(sim, name, toggle);
+		let season = new Season(sim, name, toggle);
 		if (season.toggle) {
 			sim.modifiers[toggle] = season.toggle;
 			sim.toggles[toggle] = season.toggle;
@@ -1478,7 +1557,7 @@ function populate_simulator(sim: Simulator): void {
 
 	// Add a new Toggle to the Simulation
 	function toggle(name) {
-		var toggle = new Upgrade(sim, name);
+		let toggle = new Upgrade(sim, name);
 		sim.modifiers[name] = toggle;
 		sim.toggles[name] = toggle;
 		return toggle;
@@ -1486,7 +1565,7 @@ function populate_simulator(sim: Simulator): void {
 
 	// Add a new Upgrade to the Simulation
 	function upgrade(name) {
-		var upgrade = new Upgrade(sim, name);
+		let upgrade = new Upgrade(sim, name);
 		sim.modifiers[name] = upgrade;
 		sim.upgrades[name] = upgrade;
 		return upgrade;

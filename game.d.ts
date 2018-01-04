@@ -36,9 +36,12 @@ declare namespace Game {
     let heavenlyChips: number
     let prestige: number
     let santaLevel: number
+    let dragonLevel: number
     let season: string
     let recalculateGains: number
     let cookiesPs: number
+    let specialTab: string
+    let startDate: number
 
     let buffs: { [index: string]: Buff }
     let shimmers: Shimmer[]
@@ -47,8 +50,11 @@ declare namespace Game {
     let UpgradesById: Upgrade[]
     let ObjectsById: Game.Object[]
 
+    function Has(string): number
     function ClickCookie(event?: any, amount?: number): void
     function mouseCps(): number
     function WriteSave(type: number): string
     function hasBuff(string): number | Buff
+    function UpgradeSanta(): void
+    function UpgradeDragon(): void
 }
