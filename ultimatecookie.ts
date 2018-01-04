@@ -99,6 +99,12 @@ class UltimateCookie {
 		if (this.sim.dragon.canBeLeveled) {
 			purchases.push(this.sim.dragon.nextLevel);
 		}
+		// Add Dragon auras
+		for (let aura in this.sim.dragonAuras) {
+			if (this.sim.dragonAuras[aura].canBePurchased) {
+				purchases.push(this.sim.dragonAuras[aura]);
+			}
+		}
 		
 		return purchases;
 	}
@@ -265,7 +271,7 @@ class UltimateCookie {
 
 		// Do any purchasing. Dont purchase during 'Cursed finger'. The game freezes its CpS numbers while it is active so it will just desync
 		if (this.strategy.autoBuy && !Game.hasBuff('Cursed finger')) {
-			if (Game.cookies >= this.nextPurchase.price) {
+			if (Game.cookies >= this.nextPurchase.price || this.nextPurchase instanceof DragonAura) {
 				console.log("Purchasing: " + this.nextPurchase.name);
 				this.nextPurchase.purchase();
 				this.nextPurchase = this.rankPurchases()[0];
@@ -359,6 +365,12 @@ class Modifier {
 		this.addRevoker(function(sim) { sim.buildingPriceScale /= scale; });
 		return this;
 	}
+
+	scalesMilk(scale) {
+		this.addApplier(function(sim) { sim.milkMultiplier *= scale; });
+		this.addRevoker(function(sim) { sim.milkMultiplier /= scale; });
+		return this;
+	}	
 	
 	// The benefit is the exact amount of effective CpS that will be gained from applying this
 	// modifier
@@ -450,6 +462,7 @@ abstract class Purchase extends Modifier {
 	}
 
 	abstract get price(): number;
+	abstract purchase(): void;
 
 	get purchaseTime() {
 		return this.price / this.sim.effectiveCps();
@@ -509,8 +522,12 @@ class Building extends Purchase {
 		this.scaleCounter = new BuildingCounter();
 	}
 
-	get price() {
-		return Math.ceil(this.sim.buildingPriceScale * this._basePrice * Math.pow(1.15, Math.max(0, this.quantity - this.free)));
+	nthPrice(n: number): number {
+		return Math.ceil(this.sim.buildingPriceScale * this._basePrice * Math.pow(1.15, Math.max(0, n - this.free)));
+	}
+
+	get price(): number {
+		return this.nthPrice(this.quantity);
 	}
 	
 	get cps() {
@@ -572,6 +589,46 @@ class Building extends Purchase {
 //
 // Dragon related stuff
 //
+
+class DragonAura extends Purchase {
+	index: number
+
+	constructor(sim: Simulator, index: number, name: string) {
+		super(sim, name);
+		this.index = index;
+	}
+
+	get sacrificialBuildingIndex(): BuildingIndex {
+		let index: BuildingIndex = -1;
+		for (let i = 0; i < BuildingIndex.NumBuildings; ++i)
+			if (this.sim.buildings[i].quantity > 0)
+				index = i;
+		return index;
+	}
+
+	get price(): number {
+		let index: BuildingIndex = this.sacrificialBuildingIndex;
+		return index == -1 ? 0 : this.sim.buildings[index].nthPrice(this.sim.buildings[index].quantity - 1);
+	}
+
+	purchase(): void {
+		Game.dragonAura = this.index;
+		let index: BuildingIndex = this.sacrificialBuildingIndex;
+		if (index != -1) {
+			Game.ObjectsById[index].sacrifice(1);
+		}
+		this.apply();
+	}
+
+	get value(): number {
+		// Override the minor benefit default for auras
+		return this.benefit;
+	}
+
+	get canBePurchased(): boolean {
+		return this.index + 4 <= this.sim.dragon.level && this.status != ModifierStatus.Applied;
+	}
+}
 
 class DragonLevel extends Purchase {
 	dragon: Dragon
@@ -987,12 +1044,6 @@ class Upgrade extends Purchase {
 		return this;
 	}
 
-	scalesMilk(scale) {
-		this.addApplier(function(sim) { sim.milkMultiplier *= scale; });
-		this.addRevoker(function(sim) { sim.milkMultiplier /= scale; });
-		return this;
-	}
-	
 	scalesPrestige(scale)	{
 		this.addApplier(function(sim) { sim.prestigeScale *= scale; });
 		this.addRevoker(function(sim) { sim.prestigeScale /= scale; });
@@ -1169,6 +1220,7 @@ class Simulator {
 
 	// Representations of Game entities
 	buildings: Building[] = []
+	dragonAuras: { [index: number]: DragonAura } = {}
 	buffs: { [index: string]: Buff } = {}
 	modifiers: { [index: string]: Modifier } = {}
 	prestiges: { [index: string]: Upgrade } = {}
@@ -1201,6 +1253,8 @@ class Simulator {
 			this.modifiers[key].reset();
 		for (var key in this.seasons)
 			this.seasons[key].reset();
+		for (var key in this.dragonAuras)
+			this.dragonAuras[key].reset();
 		this.santa.reset();
 		this.dragon.reset();
 			
@@ -1455,6 +1509,7 @@ class Simulator {
 		this.seasonStack = [this.seasons[Game.season]];
 		this.santa.level = Game.santaLevel;
 		this.dragon.level = Game.dragonLevel;
+		this.dragonAuras[Game.dragonAura].apply();
 		this.currentTime = new Date().getTime();
 		this.sessionStartTime = Game.startDate;
 	}
@@ -1536,6 +1591,13 @@ function populate_simulator(sim: Simulator): void {
 		return building;
 	}
 
+	// Add a new Dragon aura to the Simulation
+	function dragonAura(index, name) {
+		let aura = new DragonAura(sim, index, name);
+		sim.dragonAuras[index] = aura;
+		return aura;
+	}
+
 	// Add a new prestige upgrade to the Simulation
 	function prestige(name) {
 		let prestige = new Upgrade(sim, name);
@@ -1595,6 +1657,13 @@ function populate_simulator(sim: Simulator): void {
 	building(12, 'Antimatter condenser', 170000000000000,   430000000.0);
 	building(13, 'Prism',				2100000000000000,  2900000000.0);
 	building(14, 'Chancemaker',		   26000000000000000, 21000000000.0);
+
+	//
+	// Create all the dragon auras
+	//
+
+	dragonAura(0, "Cancel Dragon Aura"	);	// Do nothing default dragon aura
+	dragonAura(1, "Breath of Milk"		).scalesMilk(1.05);
 
 	//
 	// Create all the seasons

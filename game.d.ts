@@ -6,10 +6,12 @@
 // just the bare minimum it takes to make the typescript compiler stop complaining.
 
 declare namespace Game {
-    interface Object {
-        level: number
-        amount: number
-        free: number
+    namespace Object {
+        let level: number
+        let amount: number
+        let free: number
+
+        function sacrifice(number): void
     }
 
     interface Upgrade {
@@ -36,6 +38,7 @@ declare namespace Game {
     let heavenlyChips: number
     let prestige: number
     let santaLevel: number
+    let dragonAura: number
     let dragonLevel: number
     let season: string
     let recalculateGains: number
