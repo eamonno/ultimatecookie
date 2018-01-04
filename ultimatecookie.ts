@@ -236,7 +236,7 @@ class UltimateCookie {
 		}
 
 		// Resync to the game if needed 
-		if (Game.recalculateGains == 0 && (!floatEqual(this.sim.getCps(), Game.cookiesPs) || !floatEqual(this.sim.getCpc(), Game.mouseCps()))) {
+		if (Game.recalculateGains == 0 && (!floatEqual(this.sim.cps, Game.cookiesPs) || !floatEqual(this.sim.cpc, Game.mouseCps()))) {
 			this.sim.syncToGame();
 			// Log any errors errors if the sim doesnt match after resyncing 
 			if (!this.sim.matchesGame() && this.sim.errorMessage != "" && this.errors[this.sim.errorMessage] == undefined) {
@@ -489,7 +489,7 @@ class Building extends Purchase {
 		//do {
 			Game.ObjectsById[this.index].buy(1);
 			this.apply();
-		//} while (this.price <= Game.cookies && this.price <= this.sim.getCps());
+		//} while (this.price <= Game.cookies && this.price <= this.sim.cps);
 	}
 
 	reset() {
@@ -562,11 +562,6 @@ class Building extends Purchase {
 			error += "Building Index " + this.index + " doesn't match any building.\n";
 		}
 		return { match: error == "" ? true : false, error: error };
-	}
-	// DELETE THESE AS SOON AS SORT WORKS WITHOUT THEM
-
-	getCps() {
-		return this.cps;
 	}
 }
 
@@ -756,7 +751,7 @@ class Upgrade extends Purchase {
 		else if (this.isSeasonChanger)
 			p = this._basePrice * Math.pow(2, this.sim.seasonChanges);
 		else if (this.isGoldenSwitch)
-			p = this.sim.getCps() * 60 * 60;
+			p = this.sim.cps * 60 * 60;
 		if (this.isCookie)
 			p *= this.sim.cookieUpgradePriceMultiplier;
 		if (this.isSynergy)
@@ -1097,6 +1092,12 @@ class Simulator {
 
 	// State variables
 	clickRate: number
+	seasonChanges: number
+	seasonStack: Season[]
+	
+	// Time
+	currentTime: number
+	sessionStartTime: number
 
 	// Representations of Game entities
 	buildings: Building[] = []
@@ -1135,7 +1136,6 @@ class Simulator {
 			
 		// When the session started
 		this.sessionStartTime = new Date().getTime();
-		this.currentTime = new Date().getTime();
 
 		// Mouse click information
 		this.clickRate = 0;
@@ -1205,6 +1205,61 @@ class Simulator {
 		this.errorMessage = "";
 	}
 
+	get cpc(): number {
+		if (this.cursedFinger) {
+			return this.preCurseCps * this.buffs['Cursed finger'].duration * this.goldenCookieEffectDurationMultiplier;
+		}
+		return this.preCurseCpc;
+	}
+
+	get cps(): number {
+		return this.cursedFinger ? 0 : this.preCurseCps;
+	}
+
+	// Get the current cookies per click amount
+	get preCurseCpc(): number {
+		// Add the per building flat boost first
+		let cpc: number = this.perBuildingFlatCpcBoostCounter.getCount(this.buildings);
+		
+		// Add percentage of recular CpS
+		cpc += this.preCurseCps * this.cpcCpsMultiplier;
+
+		// Scale with normal CpC multipliers
+		cpc += 1 * this.cpcBaseMultiplier;			// Base cpc
+
+		return cpc * this.cpcMultiplier * this.clickFrenzyMultiplier;
+	}
+
+	get preCurseCps(): number {
+		let cps: number = this.baseCps;
+		// Get the cps from buildings - start at 1, cursors generate clicks
+		for (let i = 0; i < this.buildings.length; ++i) {
+			cps += this.buildings[i].cps;
+		}
+
+		// Scale it for production and heavely chip multipliers
+		let santaScale: number = 1 + (this.santa.level + 1) * this.santa.power;
+		let prestigeScale: number = this.prestige * this.prestigeScale * this.prestigeUnlocked * 0.01;
+		let heartScale: number = Math.pow(1 + 0.02 * this.heartCookieScale, this.heartCookieCount);
+		let scale: number = this.productionScale * heartScale * santaScale * (1 + prestigeScale);
+
+		// Scale it for milk, two tiers to deal with ordering and minimise floating point errors
+		for (let i = 0; i < this.milkUnlocks.length; ++i) {
+			for (let j = 0; j < this.milkUnlocks[i].length; ++j) {
+				scale *= (1 + this.milkUnlocks[i][j] * this.milkAmount * this.milkMultiplier);
+			}
+		}
+
+		// Scale it for global production
+		let sessionDays: number = Math.min(Math.floor((this.currentTime - this.sessionStartTime) / 1000 / 10) * 10 / 60 / 60 / 24, 100);
+		let centuryMult: number = 1 + ((1 - Math.pow(1 - sessionDays / 100, 3)) * (this.centuryMultiplier - 1));
+
+		scale *= centuryMult;
+		scale *= this.frenzyMultiplier;
+
+		return cps * scale;
+	}
+	
 	recalculateUpgradePriceCursorScale() {
 		if (this.upgradePriceCursorScaleEnabled) {
 			this.upgradePriceCursorScale = Math.pow(0.99, this.buildings[BuildingIndex.Cursor].quantity / 100);
@@ -1222,7 +1277,7 @@ class Simulator {
 	//
 
 	effectiveCpsWithBuffs(buffs) {
-		var eCps = this.getCps() + this.getCpc() * this.clickRate;
+		var eCps = this.cps + this.cpc * this.clickRate;
 		return eCps;
 	}
 
@@ -1263,7 +1318,7 @@ class Simulator {
 		const ReindeerCpsSeconds = 60;
 		const ReindeerMinCookies = 25;
 
-		let cookies: number = this.getCps() * ReindeerCpsSeconds * this.reindeerBuffMultiplier;
+		let cookies: number = this.cps * ReindeerCpsSeconds * this.reindeerBuffMultiplier;
 		return Math.max(ReindeerMinCookies, cookies) * this.reindeerMultiplier;
 	}
 
@@ -1281,7 +1336,7 @@ class Simulator {
 			return 0;
 		}
 
-		var cookies1 = this.getCps() * LUCKY_COOKIE_CPS_SECONDS;
+		var cookies1 = this.cps * LUCKY_COOKIE_CPS_SECONDS;
 		var cookies2 = cookies1; // cookieBank * 0.15;
 
 		return Math.min(cookies1, cookies2) + LUCKY_COOKIE_FLAT_BONUS;
@@ -1329,28 +1384,27 @@ class Simulator {
 		}
 		this.seasonStack = [this.seasons[Game.season]];
 		this.santa.level = Game.santaLevel;
-		this.sessionStartTime = Game.startDate;
 		this.currentTime = new Date().getTime();
+		this.sessionStartTime = Game.startDate;
 	}
 }
 
 // Check that the values in the Simulator match those of the game, for debugging use
-Simulator.prototype.matchesGame = function(equalityFunction=floatEqual) {
-	var errMsg = "";
+Simulator.prototype.matchesGame = function(equalityFunction=floatEqual): boolean {
+	let errMsg: string = "";
 	// Check that Cps matches the game
-	var cps = this.getCps();
+	let cps: number = this.cps;
 	if (!equalityFunction(cps, Game.cookiesPs)) {
-		errMsg += "- CpS - Predicted: " + this.getCps() + ", Actual: " + Game.cookiesPs + "\n";
+		errMsg += "- CpS - Predicted: " + cps + ", Actual: " + Game.cookiesPs + "\n";
 	}
 	// Check the Cpc matches the game
-	var cpc = this.getCpc();
-	var gcpc = Game.mouseCps();
+	let cpc: number = this.cpc;
+	let gcpc: number = Game.mouseCps();
 	if (!equalityFunction(cpc, gcpc)) {
 		errMsg += "- CpC - Predicted: " + cpc + ", Actual: " + gcpc + "\n";
 	}
 	// Check the building costs match the game
-	var i;
-	for (i = 0; i < this.buildings.length; ++i) {
+	for (let i = 0; i < this.buildings.length; ++i) {
 		let { match, error } = this.buildings[i].matchesGame(equalityFunction);
 		if (match == false) 
 			errMsg += error;
@@ -1361,7 +1415,7 @@ Simulator.prototype.matchesGame = function(equalityFunction=floatEqual) {
 		errMsg += "- Building getCount " + this.buildings.length + " does not match " + Game.ObjectsById.length + "\n";
 
 	// Check that all available upgrade costs match those of similar upgrade functions
-	for (i = 0; i < Game.UpgradesInStore.length; ++i) {
+	for (let i = 0; i < Game.UpgradesInStore.length; ++i) {
 		let { match, error } = this.modifiers[Game.UpgradesInStore[i].name].matchesGame(equalityFunction);
 		if (match == false)
 			errMsg += error;
@@ -1381,67 +1435,6 @@ Simulator.prototype.matchesGame = function(equalityFunction=floatEqual) {
 	this.errorMessage = errMsg;
 
 	return this.errorMessage == "";
-}
-
-// Get the current cookies per click amount
-Simulator.prototype.getCpc = function(ignoreCursedFinger = false) {
-	// Add the per building flat boost first
-	var cpc = this.perBuildingFlatCpcBoostCounter.getCount(this.buildings);
-	
-	// Add percentage of recular CpS
-	cpc += this.getCps(true) * this.cpcCpsMultiplier;
-
-	// Scale with normal CpC multipliers
-	cpc += 1 * this.cpcBaseMultiplier;			// Base cpc
-
-	// Scale with click multiplier
-	cpc *= this.cpcMultiplier;
-
-	// Scale with click frenzy
-	cpc *= this.clickFrenzyMultiplier;
-	
-	if (ignoreCursedFinger || !this.cursedFinger)
-		return cpc;
-	return this.getCps(true) * this.buffs['Cursed finger'].duration * this.goldenCookieEffectDurationMultiplier;
-}
-
-// Calculate the total Cps generated by the game in this state
-Simulator.prototype.getCps = function(ignoreCursedFinger = false) {
-	var i;
-	var j;
-
-	var cps = this.baseCps;
-	// Get the cps from buildings - start at 1, cursors generate clicks
-	for (i = 0; i < this.buildings.length; ++i) {
-		cps += this.buildings[i].cps;
-	}
-
-	// Scale it for production and heavely chip multipliers
-	var santaScale = 1 + (this.santa.level + 1) * this.santa.power;
-	var prestigeScale = this.prestige * this.prestigeScale * this.prestigeUnlocked * 0.01;
-	var heartScale = Math.pow(1 + 0.02 * this.heartCookieScale, this.heartCookieCount);
-
-	var scale = this.productionScale * heartScale * santaScale * (1 + prestigeScale);
-
-	// Scale it for milk, two tiers to deal with ordering and minimise floating point errors
-	for (i = 0; i < this.milkUnlocks.length; ++i) {
-		for (j = 0; j < this.milkUnlocks[i].length; ++j) {
-			scale *= (1 + this.milkUnlocks[i][j] * this.milkAmount * this.milkMultiplier);
-		}
-	}
-
-	// Scale it for global production
-	var sessionDays = Math.min(Math.floor((this.currentTime - this.sessionStartTime) / 1000 / 10) * 10 / 60 / 60 / 24, 100);
-	var centuryMult = 1 + ((1 - Math.pow(1 - sessionDays / 100, 3)) * (this.centuryMultiplier - 1));
-
-	scale *= centuryMult;
-	scale *= this.frenzyMultiplier;
-
-	cps *= scale;
-
-	if (ignoreCursedFinger || !this.cursedFinger)
-		return cps;
-	return 0;
 }
 
 Simulator.prototype.getCookieChainMax = function(frenzy) {

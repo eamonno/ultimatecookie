@@ -40,6 +40,7 @@ declare namespace Game {
     let recalculateGains: number
     let cookiesPs: number
 
+    let buffs: { [index: string]: Buff }
     let shimmers: Shimmer[]
     let wrinklers: Wrinkler[]
     let UpgradesInStore: Upgrade[]
