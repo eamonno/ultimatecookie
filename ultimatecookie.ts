@@ -287,70 +287,75 @@ class UltimateCookie {
 // modifier can be applied to or revoked from a Simulation.
 //
 
+type ModifierCallback = (sim: Simulator) => void;
+
 class Modifier {
 	sim: Simulator
-	status: ModifierStatus
 	name: string
+	status: ModifierStatus
+	revokeStatus: ModifierStatus
+	unsupported: boolean
+	appliers: ModifierCallback[] = []
+	revokers: ModifierCallback[] = []
+	locks: Modifier[]
 
 	constructor(sim, name) {
 		this.sim = sim;
 		this.name = name;
-		this.appliers = [];
-		this.revokers = [];
 		this.reset();
 	}
 
-	// REFACTOR - ADD ERROR CHECK TO PREVENT DOUBLE REPLY
-	apply() {
-		var i;
-		for (i = 0; i < this.appliers.length; ++i)
+	apply(): void {
+		if (this.status == ModifierStatus.Applied)
+			console.log("Reapplying Modifier: " + this.name);
+		for (let i = 0; i < this.appliers.length; ++i)
 			this.appliers[i](this.sim);
 		this.revokeStatus = this.status;
 		this.status = ModifierStatus.Applied;
 	}
 
-	reset() {
+	reset(): void {
 		this.status = ModifierStatus.Locked;
 	}
 
-	// REFACTOR - ADD ERROR CHECK TO PREVENT FAULTY REVOKE
-	revoke() {
-		var i;
-		for (i = this.revokers.length - 1; i >= 0; --i)
+	revoke(): void {
+		if (this.status != ModifierStatus.Applied)
+			console.log("Revoking unapplied Modifier: " + this.name);
+		for (let i = this.revokers.length - 1; i >= 0; --i)
 			this.revokers[i](this.sim);
 		this.status = this.revokeStatus;
 	}
 
-	addApplier(func) {
+	addApplier(func: ModifierCallback): void {
 		this.appliers.push(func);
 	}
 
-	addRevoker(func) {
+	addRevoker(func: ModifierCallback): void {
 		this.revokers.push(func);
 	}
 
-	addLock(modifier) {
+	private addLock(modifier: Modifier): void {
 		if (this.locks == undefined)
 			this.locks = [];
 		this.locks.push(modifier);
 	}
 
-	isUnsupported() {
+	isUnsupported(): void {
 		this.unsupported = true;
 	}
 
-	requires(modifier) {
-		var required = this.sim.modifiers[modifier];
+	requires(name: string): this {
+		let required: Modifier = this.sim.modifiers[name];
 		if (!required) {
-			console.log("Missing requirement for " + this.name + ": " + modifier);
+			console.log("Missing requirement for " + this.name + ": " + name);
 		} else {
 			required.addLock(this);
 		}
 		return this;
 	}
 
-	requiresSeason(name) {
-		var season = this.sim.seasons[name];
+	requiresSeason(name: string): this {
+		let season: Season = this.sim.seasons[name];
 		if (!season) {
 			console.log("Missing season for " + this.name + ": " + name);
 		} else {
@@ -359,13 +364,13 @@ class Modifier {
 		return this;
 	}
 
-	scalesBuildingPrice(scale) {
+	scalesBuildingPrice(scale: number): this {
 		this.addApplier(function(sim) { sim.buildingPriceScale *= scale; });
 		this.addRevoker(function(sim) { sim.buildingPriceScale /= scale; });
 		return this;
 	}
 
-	scalesMilk(scale) {
+	scalesMilk(scale: number): this {
 		this.addApplier(function(sim) { sim.milkMultiplier *= scale; });
 		this.addRevoker(function(sim) { sim.milkMultiplier /= scale; });
 		return this;
@@ -373,8 +378,8 @@ class Modifier {
 	
 	// The benefit is the exact amount of effective CpS that will be gained from applying this
 	// modifier
-	get benefit() {
-		var cps = this.sim.effectiveCps();
+	get benefit(): number {
+		let cps: number = this.sim.effectiveCps();
 		this.apply();
 		cps = this.sim.effectiveCps() - cps;
 		this.revoke();
@@ -385,11 +390,11 @@ class Modifier {
 	// benefit still be included in the purchase rankings and also provides a slight boost to
 	// the purchase order of things like discounts etc. Basically if a measurable benefit is 
 	// available it is used, if not, just treat it as a lump of coal.
-	get value() {
-		var ben = this.benefit;
+	get value(): number {
+		let ben: number = this.benefit;
 		if (ben > 0 || this.name == "Chocolate egg") 
 			return ben;
-		var cps = this.sim.effectiveCps();
+		let cps: number = this.sim.effectiveCps();
 		this.sim.productionScale *= 1.01;
 		cps = this.sim.effectiveCps() - cps;
 		this.sim.productionScale /= 1.01;
@@ -1209,7 +1214,10 @@ class Simulator {
 	strategy: Strategy
 
 	// State variables
+	buildingPriceScale: number
 	clickRate: number
+	milkMultiplier: number
+	productionScale: number
 	seasonChanges: number
 	seasonStack: Season[]
 	

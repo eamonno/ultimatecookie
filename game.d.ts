@@ -49,6 +49,7 @@ declare namespace Game {
     let buffs: { [index: string]: Buff }
     let shimmers: Shimmer[]
     let wrinklers: Wrinkler[]
+    let Upgrades: Upgrade[]
     let UpgradesInStore: Upgrade[]
     let UpgradesById: Upgrade[]
     let ObjectsById: Object[]
