@@ -11,7 +11,6 @@ const GOLDEN_COOKIE_AVG_INTERVAL = (GOLDEN_COOKIE_MIN_INTERVAL + GOLDEN_COOKIE_M
 const LUCKY_COOKIE_CPS_SECONDS = 60 * 15;	// Lucky provides up to 15 minutes CpS based on bank
 const LUCKY_COOKIE_FLAT_BONUS = 13;			// Lucky provides 13 additional seconds of CpS regardless
 const LUCKY_COOKIE_BANK_LIMIT = 0.15;		// Lucky provides 0.15 times bank at most
-const COOKIE_CHAIN_MULTIPLIER = 60 * 60 * 3;// Cookie chains cap out at 3 hours of cookies
 const COOKIE_CHAIN_BANK_SCALE = 4;			// Bank needs 4 times the Cookie Chain limit to payout in full
 const RESET_PAUSE_TIME = 1000;				// Time to pause so reset can complete correctly
 const COOKIE_CLICKER_BIRTHDAY = new Date(2013, 7, 8);	// Used for birthday cookie
@@ -1218,6 +1217,8 @@ class Simulator {
 	currentTime: number
 	sessionStartTime: number
 
+	errorMessage: string = ""
+
 	// Representations of Game entities
 	buildings: Building[] = []
 	dragonAuras: { [index: number]: DragonAura } = {}
@@ -1446,9 +1447,61 @@ class Simulator {
 		return Math.max(ReindeerMinCookies, cookies) * this.reindeerMultiplier;
 	}
 
-	//
-	// Lucky cookies
-	//
+	// Check that the values in the Simulator match those of the game, for debugging use
+	matchesGame(equalityFunction=floatEqual): boolean {
+		let errMsg: string = "";
+		// Check that Cps matches the game
+		let cps: number = this.cps;
+		if (!equalityFunction(cps, Game.cookiesPs)) {
+			errMsg += "- CpS - Predicted: " + cps + ", Actual: " + Game.cookiesPs + "\n";
+		}
+		// Check the Cpc matches the game
+		let cpc: number = this.cpc;
+		let gcpc: number = Game.mouseCps();
+		if (!equalityFunction(cpc, gcpc)) {
+			errMsg += "- CpC - Predicted: " + cpc + ", Actual: " + gcpc + "\n";
+		}
+		// Check the building costs match the game
+		for (let i = 0; i < this.buildings.length; ++i) {
+			let { match, error } = this.buildings[i].matchesGame(equalityFunction);
+			if (match == false) 
+				errMsg += error;
+		}
+
+		// Check that all buildings are supported
+		if (this.buildings.length != Game.ObjectsById.length)
+			errMsg += "- Building getCount " + this.buildings.length + " does not match " + Game.ObjectsById.length + "\n";
+
+		// Check that all available upgrade costs match those of similar upgrade functions
+		for (let i = 0; i < Game.UpgradesInStore.length; ++i) {
+			let { match, error } = this.modifiers[Game.UpgradesInStore[i].name].matchesGame(equalityFunction);
+			if (match == false)
+				errMsg += error;
+		}
+
+		// Check that the season matches
+		if (this.season.name != Game.season) {
+			errMsg += "- Simulator season \"" + this.season.name + "\" does not match Game.season \"" + Game.season + "\"\n";
+		}
+
+		// Check that dragon and santa levels
+		if (this.dragon.level != Game.dragonLevel) {
+			errMsg += "- Dragon level \"" + this.dragon.level + "\" does not match Game.dragonLevel \"" + Game.dragonLevel + "\"\n";
+		}
+		if (this.santa.level != Game.santaLevel) {
+			errMsg += "- Santa level \"" + this.santa.level + "\" does not match Game.santaLevel \"" + Game.santaLevel + "\"\n";
+		}
+
+		if (errMsg != "") {
+			errMsg = "Simulator Mismatch:\n" + errMsg;
+			for (var key in Game.buffs) {
+				errMsg += "- Buff Active: " + key + "\n";
+			}
+		}
+		this.errorMessage = errMsg;
+
+		return this.errorMessage == "";
+	}
 
 	cookiesPerLuckyWithBuffs(buffs) {
 		return this.cookiesPerLucky();
@@ -1466,6 +1519,11 @@ class Simulator {
 		return Math.min(cookies1, cookies2) + LUCKY_COOKIE_FLAT_BONUS;
 	}
 
+	// getCookieChainMax() {
+	// 	const CookieChainMultiplier = 60 * 60 * 3;	// Verify this
+	// 	return this.preCurseCps * CookieChainMultiplier;
+	// }
+	
 	getModifier(name: string): Modifier {
 		let upgrade = this.modifiers[name];
 		if (!upgrade) {
@@ -1513,66 +1571,6 @@ class Simulator {
 		this.currentTime = new Date().getTime();
 		this.sessionStartTime = Game.startDate;
 	}
-}
-
-// Check that the values in the Simulator match those of the game, for debugging use
-Simulator.prototype.matchesGame = function(equalityFunction=floatEqual): boolean {
-	let errMsg: string = "";
-	// Check that Cps matches the game
-	let cps: number = this.cps;
-	if (!equalityFunction(cps, Game.cookiesPs)) {
-		errMsg += "- CpS - Predicted: " + cps + ", Actual: " + Game.cookiesPs + "\n";
-	}
-	// Check the Cpc matches the game
-	let cpc: number = this.cpc;
-	let gcpc: number = Game.mouseCps();
-	if (!equalityFunction(cpc, gcpc)) {
-		errMsg += "- CpC - Predicted: " + cpc + ", Actual: " + gcpc + "\n";
-	}
-	// Check the building costs match the game
-	for (let i = 0; i < this.buildings.length; ++i) {
-		let { match, error } = this.buildings[i].matchesGame(equalityFunction);
-		if (match == false) 
-			errMsg += error;
-	}
-
-	// Check that all buildings are supported
-	if (this.buildings.length != Game.ObjectsById.length)
-		errMsg += "- Building getCount " + this.buildings.length + " does not match " + Game.ObjectsById.length + "\n";
-
-	// Check that all available upgrade costs match those of similar upgrade functions
-	for (let i = 0; i < Game.UpgradesInStore.length; ++i) {
-		let { match, error } = this.modifiers[Game.UpgradesInStore[i].name].matchesGame(equalityFunction);
-		if (match == false)
-			errMsg += error;
-	}
-
-	// Check that the season matches
-	if (this.season.name != Game.season) {
-		errMsg += "- Simulator season \"" + this.season.name + "\" does not match Game.season \"" + Game.season + "\"\n";
-	}
-
-	// Check that dragon and santa levels
-	if (this.dragon.level != Game.dragonLevel) {
-		errMsg += "- Dragon level \"" + this.dragon.level + "\" does not match Game.dragonLevel \"" + Game.dragonLevel + "\"\n";
-	}
-	if (this.santa.level != Game.santaLevel) {
-		errMsg += "- Santa level \"" + this.santa.level + "\" does not match Game.santaLevel \"" + Game.santaLevel + "\"\n";
-	}
-
-	if (errMsg != "") {
-		errMsg = "Simulator Mismatch:\n" + errMsg;
-		for (var key in Game.buffs) {
-			errMsg += "- Buff Active: " + key + "\n";
-		}
-	}
-	this.errorMessage = errMsg;
-
-	return this.errorMessage == "";
-}
-
-Simulator.prototype.getCookieChainMax = function(frenzy) {
-	return this.getFrenziedCps(frenzy) * COOKIE_CHAIN_MULTIPLIER;
 }
 
 function populate_simulator(sim: Simulator): void {
@@ -1680,10 +1678,10 @@ function populate_simulator(sim: Simulator): void {
 	// Create all the buffs
 	//
 
-	buff('Clot'					).scalesFrenzyMultiplier(0.5);
-	buff('Frenzy'				).scalesFrenzyMultiplier(7).scalesReindeerBuffMultiplier(0.75);
-	buff('Elder frenzy'			).scalesFrenzyMultiplier(666).scalesReindeerBuffMultiplier(0.5);
-	buff('Click frenzy'			).scalesClickFrenzyMultiplier(777);
+	buff('Clot',				66).scalesFrenzyMultiplier(0.5);
+	buff('Frenzy',				77).scalesFrenzyMultiplier(7).scalesReindeerBuffMultiplier(0.75);
+	buff('Elder frenzy',		 6).scalesFrenzyMultiplier(666).scalesReindeerBuffMultiplier(0.5);
+	buff('Click frenzy',		13).scalesClickFrenzyMultiplier(777);
 	buff('High-five',			30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Cursor);
 	buff('Congregation',		30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Grandma);
 	buff('Luxuriant harvest',	30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Farm);
@@ -1714,8 +1712,10 @@ function populate_simulator(sim: Simulator): void {
 	buff('Predictable tragedy',	30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.AntimatterCondenser);
 	buff('Eclipse',				30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Prism);
 	buff('Dry spell',			30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Chancemaker);
-	buff('Everything must go',	 8).scalesBuildingPrice(0.95);
 	buff('Cursed finger', 		10).cursesFinger();	
+	buff('Dragonflight', 		10);	
+	buff('Dragon harvest', 		60);	
+	buff('Everything must go',	 8).scalesBuildingPrice(0.95);
 	buff('Cookie storm',		 7);		// Spawns a lot of golden cookies
 	
 	//

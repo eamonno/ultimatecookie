@@ -51,7 +51,7 @@ declare namespace Game {
     let wrinklers: Wrinkler[]
     let UpgradesInStore: Upgrade[]
     let UpgradesById: Upgrade[]
-    let ObjectsById: Game.Object[]
+    let ObjectsById: Object[]
 
     function Has(string): number
     function ClickCookie(event?: any, amount?: number): void
