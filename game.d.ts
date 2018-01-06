@@ -50,6 +50,7 @@ declare namespace Game {
     let specialTab: string
     let startDate: number
     let seasonUses: number
+    let pledges: number
     let AchievementsOwned: number
 
     let buffs: { [index: string]: Buff }
