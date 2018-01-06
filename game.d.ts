@@ -6,31 +6,35 @@
 // just the bare minimum it takes to make the typescript compiler stop complaining.
 
 declare namespace Game {
-    namespace Object {
-        let level: number
-        let amount: number
-        let free: number
+    class Object {
+        level: number
+        amount: number
+        free: number
+        name: string
 
-        function sacrifice(number): void
+        buy(number): void
+        sacrifice(number): void
+        getPrice(): number
+        cps(Object): number
     }
 
-    interface Upgrade {
+    class Upgrade {
         name: string
         bought: number
         unlocked: number
     }
 
-    interface Shimmer {
+    class Shimmer {
         type: string
         pop(): void
     }
 
-    interface Wrinkler {
+    class Wrinkler {
         sucked: number
         hp: number
     }
 
-    interface Buff {
+    class Buff {
     }
 
     let cookies: number
@@ -45,6 +49,8 @@ declare namespace Game {
     let cookiesPs: number
     let specialTab: string
     let startDate: number
+    let seasonUses: number
+    let AchievementsOwned: number
 
     let buffs: { [index: string]: Buff }
     let shimmers: Shimmer[]

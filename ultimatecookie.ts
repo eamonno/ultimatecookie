@@ -299,7 +299,7 @@ class Modifier {
 	revokers: ModifierCallback[] = []
 	locks: Modifier[]
 
-	constructor(sim, name) {
+	constructor(sim: Simulator, name: string) {
 		this.sim = sim;
 		this.name = name;
 		this.reset();
@@ -410,47 +410,48 @@ class Modifier {
 //
 
 class Buff extends Modifier {
-	constructor(sim, name, duration) {
+	duration: number
+
+	constructor(sim: Simulator, name: string, duration: number) {
 		super(sim, name);
 		this.duration = duration;
 	}
 
-	cursesFinger() {
+	cursesFinger(): this {
 		this.addApplier(function(sim) { sim.cursedFinger = true; });
 		this.addRevoker(function(sim) { sim.cursedFinger = false; });
 		return this;
 	}
 
-	scalesClickFrenzyMultiplier(scale) {
+	scalesClickFrenzyMultiplier(scale): this {
 		this.addApplier(function(sim) { sim.clickFrenzyMultiplier *= scale; });
 		this.addRevoker(function(sim) { sim.clickFrenzyMultiplier /= scale; });
 		return this;
 	}
 
-	scalesFrenzyMultiplier(scale) {
+	scalesFrenzyMultiplier(scale): this {
 		this.addApplier(function(sim) { sim.frenzyMultiplier *= scale; });
 		this.addRevoker(function(sim) { sim.frenzyMultiplier /= scale; });
 		return this;
 	}
 
-	scalesFrenzyMultiplierPerBuilding(index) {
+	scalesFrenzyMultiplierPerBuilding(index): this {
 		this.addApplier(function(sim) { sim.frenzyMultiplier *= (1 + sim.buildings[index].quantity * 0.1); });
 		this.addRevoker(function(sim) { sim.frenzyMultiplier /= (1 + sim.buildings[index].quantity * 0.1); });
 		return this;
 	}
 
-	scalesReindeerBuffMultiplier(scale) {
+	scalesReindeerBuffMultiplier(scale): this {
 		this.addApplier(function(sim) { sim.reindeerBuffMultiplier *= scale; });
 		this.addRevoker(function(sim) { sim.reindeerBuffMultiplier /= scale; });
 		return this;
 	}
 
-	shrinksFrenzyMultiplierPerBuilding(index) {
+	shrinksFrenzyMultiplierPerBuilding(index): this {
 		this.addApplier(function(sim) { sim.frenzyMultiplier /= (1 + sim.buildings[index].quantity * 0.1); });
 		this.addRevoker(function(sim) { sim.frenzyMultiplier *= (1 + sim.buildings[index].quantity * 0.1); });
 		return this;
 	}
-
 }
 
 //
@@ -461,22 +462,22 @@ class Buff extends Modifier {
 //
 
 abstract class Purchase extends Modifier {
-	constructor(sim, name) {
+	constructor(sim: Simulator, name: string) {
 		super(sim, name);
 	}
 
 	abstract get price(): number;
 	abstract purchase(): void;
 
-	get purchaseTime() {
+	get purchaseTime(): number {
 		return this.price / this.sim.effectiveCps();
 	}
 
-	get pbr() {
+	get pbr(): number {
 		return this.benefit / this.price;
 	}
 
-	get pvr() {
+	get pvr(): number {
 		return this.value / this.price;
 	}
 }
@@ -486,16 +487,32 @@ abstract class Purchase extends Modifier {
 //
 // Represents one of the building types in the game.
 
+interface BuildingSynergy {
+	index: BuildingIndex
+	scale: number
+}
+
 class Building extends Purchase {
 	quantity: number
 	level: number
 	free: number
+	index: BuildingIndex
+	basePrice: number
+	baseCps: number
+	multiplier: number
+	synergies: BuildingSynergy[]
+	perBuildingFlatCpcBoostCounter: BuildingCounter
+	perBuildingFlatCpsBoostCounter: BuildingCounter
+	buildingScaler: BuildingCounter
+	scaleCounter: BuildingCounter
 
-	constructor(sim, index, name, basePrice, baseCps) {
+	constructor(sim: Simulator, index: BuildingIndex, name: string, basePrice: number, baseCps: number) {
 		super(sim, name);
 		this.index = index;
-		this._basePrice = basePrice;
-		this._baseCps = baseCps;
+		this.basePrice = basePrice;
+		this.baseCps = baseCps;
+		// REFACTOR: This causes "reapplying modifier" errors. Building probably shouldn't be a modifier 
+		// but since it needs to be a purchase that change will take some refactoring
 		if (this.index == BuildingIndex.Cursor) {
 			this.addApplier(function(sim) { sim.buildings[index].quantity += 1; sim.recalculateUpgradePriceCursorScale(); });
 			this.addRevoker(function(sim) { sim.buildings[index].quantity -= 1; sim.recalculateUpgradePriceCursorScale(); });
@@ -506,14 +523,14 @@ class Building extends Purchase {
 		this.reset();
 	}
 
-	purchase() {
+	purchase(): void {
 		//do {
 			Game.ObjectsById[this.index].buy(1);
 			this.apply();
 		//} while (this.price <= Game.cookies && this.price <= this.sim.cps);
 	}
 
-	reset() {
+	reset(): void {
 		super.reset();
 		this.quantity = 0;
 		this.level = 0;
@@ -527,42 +544,40 @@ class Building extends Purchase {
 	}
 
 	nthPrice(n: number): number {
-		return Math.ceil(this.sim.buildingPriceScale * this._basePrice * Math.pow(1.15, Math.max(0, n - this.free)));
+		return Math.ceil(this.sim.buildingPriceScale * this.basePrice * Math.pow(1.15, Math.max(0, n - this.free)));
 	}
 
 	get price(): number {
 		return this.nthPrice(this.quantity);
 	}
 	
-	get cps() {
+	get cps(): number {
 		// Level multiplier only gets added to total buildings, adding it to the individual cps will cause a mismatch
 		return this.quantity * this.individualCps * this.levelMultiplier;
 	}
 
-	get individualCps() {
-		return this.perBuildingFlatCpsBoostCounter.getCount(this.sim.buildings) + this._baseCps * (1 + this.scaleCounter.getCount(this.sim.buildings)) * this.synergyMultiplier * (1 + this.buildingScaler.getCount(this.sim.buildings)) * this.multiplier;
+	get individualCps(): number {
+		return this.perBuildingFlatCpsBoostCounter.getCount(this.sim.buildings) + this.baseCps * (1 + this.scaleCounter.getCount(this.sim.buildings)) * this.synergyMultiplier * (1 + this.buildingScaler.getCount(this.sim.buildings)) * this.multiplier;
 	}
 
 	get levelMultiplier(): number {
 		return 1 + (this.level * 0.01);
 	}
 
-	get synergyMultiplier() {
-		var scale = 1;
-		var i;
-		for (i = 0; i < this.synergies.length; ++i) {
-			scale *= 1 + this.sim.buildings[this.synergies[i][0]].quantity * this.synergies[i][1];
+	get synergyMultiplier(): number {
+		let scale = 1;
+		for (let i = 0; i < this.synergies.length; ++i) {
+			scale *= 1 + this.sim.buildings[this.synergies[i].index].quantity * this.synergies[i].scale;
 		}
 		return scale;
 	}
 
-	addSynergy(index, scale) {
-		this.synergies.push([index, scale]);
+	addSynergy(index, scale): void {
+		this.synergies.push({ index, scale });
 	}
 
-	removeSynergy(index, scale) {
-		var i;
-		for (i = this.synergies.length - 1; i >= 0; --i) {
+	removeSynergy(index, scale): void {
+		for (let i = this.synergies.length - 1; i >= 0; --i) {
 			if (this.synergies[i][0] == index && this.synergies[i][1] == scale) {
 				this.synergies.splice(i, 1);
 				return;
@@ -570,10 +585,10 @@ class Building extends Purchase {
 		}
 	}
 
-	matchesGame(equalityFunction) {
-		var error = "";
+	matchesGame(equalityFunction): MatchError {
+		let error: string = "";
 
-		var gameObj = Game.ObjectsById[this.index];
+		let gameObj = Game.ObjectsById[this.index];
 		if (gameObj) {
 			if (this.name != gameObj.name)
 				error += "Building Name " + this.name + " does not match " + gameObj.name + ".\n";			
@@ -703,7 +718,10 @@ class Dragon {
 //
 
 class SantaLevel extends Purchase {
-	constructor(santa, num, name) {
+	santa: Santa
+	num: number
+
+	constructor(santa: Santa, num: number, name: string) {
 		super(santa.sim, name);
 		this.santa = santa;
 		this.num = num;
@@ -711,13 +729,13 @@ class SantaLevel extends Purchase {
 		this.addRevoker(function(sim) { sim.santa.level--; });
 	}
 
-	purchase() {
+	purchase(): void {
 		Game.specialTab = "santa";
 		Game.UpgradeSanta();
 		this.apply();
 	}
 
-	get price() {
+	get price(): number {
 		return Math.pow(this.num + 1, this.num + 1);
 	}
 }
@@ -729,14 +747,20 @@ class SantaLevel extends Purchase {
 //
 
 class Santa {
-	constructor(sim) {
+	sim: Simulator
+	level: number
+	levels: SantaLevel[]
+	randomRewards: Upgrade[]
+	power: number
+
+	constructor(sim: Simulator) {
 		this.sim = sim;
 		this.levels = [];
 		this.randomRewards = [];
 
-		var santa = this;
-		function level(num, name) {
-			var level =  new SantaLevel(santa, num, name)
+		let santa = this;
+		function level(num: number, name: string) {
+			let level: SantaLevel =  new SantaLevel(santa, num, name)
 			if (num > 0) {
 				level.requires(santa.levels[num - 1].name);
 			}
@@ -762,20 +786,20 @@ class Santa {
 		level(14, "Final Claus"			);
 	}
 
-	randomRewardCost(level) {
+	randomRewardCost(level: number): number {
 		return Math.pow(3, level) * 2525;
 	}
 
-	reset() {
+	reset(): void {
 		this.level = 0;		
 		this.power = 0;
 	}
 
-	get canBeLeveled() {
+	get canBeLeveled(): boolean {
 		return Game.Has("A festive hat") && this.level < 14;
 	}
 
-	get nextLevel() {
+	get nextLevel(): SantaLevel {
 		return this.levels[this.level + 1];
 	}
 }
@@ -795,24 +819,21 @@ class PurchaseChain extends Purchase {
 		this.purchases = purchases;
 	}
 
-	apply() {
-		var i;
-		for (i = 0; i < this.purchases.length; ++i) {
+	apply(): void {
+		for (let i = 0; i < this.purchases.length; ++i) {
 			this.purchases[i].apply();
 		}
 	}
 
-	revoke() {
-		var i;
-		for (i = this.purchases.length - 1; i >= 0; --i) {
+	revoke(): void {
+		for (let i = this.purchases.length - 1; i >= 0; --i) {
 			this.purchases[i].revoke();
 		}
 	}
 
-	get purchaseTime() {
-		var time = 0;
-		var i;
-		for (i = 0; i < this.purchases.length; ++i) {
+	get purchaseTime(): number {
+		let time: number = 0;
+		for (var i = 0; i < this.purchases.length; ++i) {
 			time += this.purchases[i].purchaseTime;
 			this.purchases[i].apply();
 		}
@@ -820,10 +841,13 @@ class PurchaseChain extends Purchase {
 		return time;
 	}
 
-	get price() {
-		var price = 0;
-		var i;
-		for (i = 0; i < this.purchases.length; ++i) {
+	purchase(): void {
+		console.log("Attempt to buy a PurchaseChain");
+	}
+
+	get price(): number {
+		let price = 0;
+		for (let i = 0; i < this.purchases.length; ++i) {
 			price += this.purchases[i].price;
 			this.purchases[i].apply();
 		}
@@ -1215,9 +1239,13 @@ class Simulator {
 
 	// State variables
 	buildingPriceScale: number
+	clickFrenzyMultiplier: number
 	clickRate: number
+	cursedFinger: boolean
+	frenzyMultiplier: number
 	milkMultiplier: number
 	productionScale: number
+	reindeerBuffMultiplier: number
 	seasonChanges: number
 	seasonStack: Season[]
 	
