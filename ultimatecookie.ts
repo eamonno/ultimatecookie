@@ -661,7 +661,33 @@ class DragonLevel extends Purchase {
 	}
 
 	get price(): number {
-		return 1000000 * Math.pow(2, this.num);
+		if (this.num <= 4) {
+			return 1000000 * Math.pow(2, this.num);
+		} else if (this.num <= 4 + BuildingIndex.NumBuildings) {
+			// Cost of 100 of a given building
+			let cost: number = 0;
+			let index: BuildingIndex = this.num - 4;
+			for (let i = 1; i <= 100; ++i)
+				cost += this.dragon.sim.buildings[index].nthPrice(this.dragon.sim.buildings[index].quantity - i);
+			return cost * 0.5;	// 50% refund
+		} else if (this.num == 5 + BuildingIndex.NumBuildings) {
+			// 50 of each building
+			let cost: number = 0;
+			for (let index: BuildingIndex = 0; index < BuildingIndex.NumBuildings; ++index)
+				for (let i = 1; i <= 50; ++i)
+					cost += this.dragon.sim.buildings[index].nthPrice(this.dragon.sim.buildings[index].quantity - i);
+			return cost * 0.5;	// 50% refund
+		} else if (this.num == 6 + BuildingIndex.NumBuildings) {
+			// 100 of each building 
+			let cost: number = 0;
+			for (let index: BuildingIndex = 0; index < BuildingIndex.NumBuildings; ++index)
+				for (let i = 1; i <= 100; ++i)
+					cost += this.dragon.sim.buildings[index].nthPrice(this.dragon.sim.buildings[index].quantity - i);
+			return cost * 0.5;	// 50% refund
+		} else {
+			console.log("Invalid dragon level " + this.num + " " + this.name);
+			return 0;
+		}
 	}
 
 	purchase(): void {
@@ -687,11 +713,14 @@ class Dragon {
 			return level;
 		}
 
-		level( 0, "Dragon egg"					);
-		level( 1, "Dragon egg"					);
-		level( 2, "Dragon egg"					);
-		level( 3, "Shivering dragon egg"		);
-		level( 4, "Krumblor, cookie hatchling"	);
+		// Declare all the levels
+		for (let i = 0; i < 3; ++i)
+			level(i, "Dragon egg");
+		level(3, "Shivering dragon egg");
+		for (let i = 4; i < 7; ++i)
+			level(i, "Krumblor, cookie hatchling");
+		for (let i = 7; i < 22; ++i)
+			level(i, "Krumblor, cookie dragon");
 	}
 
 	get canBeLeveled(): boolean {
@@ -1781,8 +1810,8 @@ function populate_simulator(sim: Simulator): void {
 	buff('Eclipse',				30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Prism);
 	buff('Dry spell',			30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Chancemaker);
 	buff('Cursed finger', 		10).cursesFinger();	
-	buff('Dragonflight', 		10);	
-	buff('Dragon harvest', 		60);	
+	buff('Dragonflight', 		10).scalesClickFrenzyMultiplier(1111);	
+	buff('Dragon harvest', 		60).scalesFrenzyMultiplier(15);	
 	buff('Everything must go',	 8).scalesBuildingPrice(0.95);
 	buff('Cookie storm',		 7);		// Spawns a lot of golden cookies
 	
