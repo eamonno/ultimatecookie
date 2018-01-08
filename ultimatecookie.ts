@@ -1278,6 +1278,8 @@ class Simulator {
 	cpcCpsMultiplier: number
 	cpcMultiplier: number
 	cursedFinger: boolean
+	dragonAura1?: DragonAura
+	dragonAura2?: DragonAura
 	eggCount: number
 	frenzyMultiplier: number
 	goldenCookieDuration: number
@@ -1406,6 +1408,10 @@ class Simulator {
 		// Valentines day
 		this.heartCookieScale = 1;
 		this.heartCookieCount = 0;
+
+		// Dragon auras
+		this.dragonAura1 = null
+		this.dragonAura2 = null
 
 		// Price reductions
 		this.buildingPriceScale = 1;
@@ -1587,6 +1593,16 @@ class Simulator {
 			errMsg += "- Santa level \"" + this.santa.level + "\" does not match Game.santaLevel \"" + Game.santaLevel + "\"\n";
 		}
 
+		// Check the dragon auras match
+		let daindex: number = this.dragonAura1 ? this.dragonAura1.index : 0;
+		if (daindex != Game.dragonAura) {
+			errMsg += "- Dragon aura one " + daindex + " doesn't match Game.dragonAura " + Game.dragonAura + "\n";
+		}
+		daindex = this.dragonAura2 ? this.dragonAura2.index : 0;
+		if (daindex != Game.dragonAura2) {
+			errMsg += "- Dragon aura two " + daindex + " doesn't match Game.dragonAura2 " + Game.dragonAura2 + "\n";
+		}
+
 		if (errMsg != "") {
 			errMsg = "Simulator Mismatch:\n" + errMsg;
 			for (let key in Game.buffs) {
@@ -1664,7 +1680,15 @@ class Simulator {
 		this.seasonStack = [this.seasons[Game.season]];
 		this.santa.level = Game.santaLevel;
 		this.dragon.level = Game.dragonLevel;
-		this.dragonAuras[Game.dragonAura].apply();
+		if (Game.dragonAura > 0) {
+			this.dragonAura1 = this.dragonAuras[Game.dragonAura];
+			this.dragonAura1.apply();
+		}
+		if (Game.dragonAura2 > 0) {
+			this.dragonAura2 = this.dragonAuras[Game.dragonAura2];
+			this.dragonAura2.apply();
+		}
+
 		this.currentTime = new Date().getTime();
 		this.sessionStartTime = Game.startDate;
 	}

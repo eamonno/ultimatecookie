@@ -43,6 +43,7 @@ declare namespace Game {
     let prestige: number
     let santaLevel: number
     let dragonAura: number
+    let dragonAura2: number
     let dragonLevel: number
     let season: string
     let recalculateGains: number
