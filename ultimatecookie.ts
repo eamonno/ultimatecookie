@@ -98,11 +98,11 @@ class UltimateCookie {
 			purchases.push(this.sim.dragon.nextLevel);
 		}
 		// Add Dragon auras
-		for (let aura in this.sim.dragonAuras) {
-			if (this.sim.dragonAuras[aura].canBePurchased) {
-				purchases.push(this.sim.dragonAuras[aura]);
-			}
-		}
+		//for (let aura in this.sim.dragonAuras) {
+		//	if (this.sim.dragonAuras[aura].canBePurchased) {
+		//		purchases.push(this.sim.dragonAuras[aura]);
+		//	}
+		//}
 		
 		return purchases;
 	}
@@ -305,8 +305,8 @@ class Modifier {
 	}
 
 	apply(): void {
-		if (this.status == ModifierStatus.Applied)
-			console.log("Reapplying Modifier: " + this.name);
+		//if (this.status == ModifierStatus.Applied)
+		//	console.log("Reapplying Modifier: " + this.name);
 		for (let i = 0; i < this.appliers.length; ++i)
 			this.appliers[i](this.sim);
 		this.revokeStatus = this.status;
@@ -1122,7 +1122,7 @@ class Upgrade extends Purchase {
 	}
 
 	scalesProductionByAge(scale: number): this {
-		const GoldenCookieBirthday = new Date(2013, 7, 8).getMilliseconds();
+		const GoldenCookieBirthday = new Date(2013, 7, 8).getTime();
 		let age = Math.floor((Date.now() - GoldenCookieBirthday) / (365 * 24 * 60 * 60 * 1000));
 		this.addApplier(function(sim) { sim.productionScale *= (1 + scale * age); });
 		this.addRevoker(function(sim) { sim.productionScale /= (1 + scale * age); });
@@ -1575,9 +1575,14 @@ class Simulator {
 
 		// Check that all available upgrade costs match those of similar upgrade functions
 		for (let i = 0; i < Game.UpgradesInStore.length; ++i) {
-			let { match, error } = this.upgrades[Game.UpgradesInStore[i].name].matchesGame(equalityFunction);
-			if (match == false)
-				errMsg += error;
+			let upgrade = this.upgrades[Game.UpgradesInStore[i].name];
+			if (upgrade) {
+				let { match, error } = upgrade.matchesGame(equalityFunction);
+				if (match == false)
+					errMsg += error;
+			} else {
+				console.log("No matching upgrade for upgrade: " + Game.UpgradesInStore[i].name);
+			}
 		}
 
 		// Check that the season matches
@@ -1730,6 +1735,7 @@ function populate_simulator(sim: Simulator): void {
 		let season = new Season(sim, name, toggle);
 		if (season.toggle) {
 			sim.modifiers[toggle] = season.toggle;
+			sim.upgrades[toggle] = season.toggle;
 			sim.toggles[toggle] = season.toggle;
 		}
 		sim.seasons[name] = season;
@@ -1740,6 +1746,7 @@ function populate_simulator(sim: Simulator): void {
 	function toggle(name: string): Upgrade {
 		let toggle = new Upgrade(sim, name);
 		sim.modifiers[name] = toggle;
+		sim.upgrades[name] = toggle;
 		sim.toggles[name] = toggle;
 		return toggle;
 	}
