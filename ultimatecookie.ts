@@ -638,6 +638,26 @@ class DragonAura extends Purchase {
 		this.apply();
 	}
 
+	get benefit(): number {
+		return this.replaceBenefit(this.sim.dragonAura1);
+	}
+
+	replaceBenefit(aura: DragonAura): number {
+		if (aura == null) {
+			return super.benefit;
+		}
+		if (aura.status != ModifierStatus.Applied) {
+			console.log("Error: evaluating replaceBenefit for aura that isn't applied " + this.name + ", " + aura.name);
+		}
+		let cps: number = this.sim.effectiveCps();
+		aura.revoke();
+		this.apply();
+		let newCps: number = this.sim.effectiveCps();
+		this.revoke();
+		aura.apply();
+		return newCps - cps;
+	}
+
 	get value(): number {
 		// Override the minor benefit default for auras
 		return this.benefit;
