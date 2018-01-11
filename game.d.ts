@@ -53,6 +53,9 @@ declare namespace Game {
     let seasonUses: number
     let pledges: number
     let AchievementsOwned: number
+    let time: number
+    let lumpT: number
+    let lumpRipeAge: number
 
     let buffs: { [index: string]: Buff }
     let shimmers: Shimmer[]
@@ -62,6 +65,7 @@ declare namespace Game {
     let UpgradesById: Upgrade[]
     let ObjectsById: Object[]
 
+    function clickLump(): void
     function Has(string): number
     function ClickCookie(event?: any, amount?: number): void
     function mouseCps(): number

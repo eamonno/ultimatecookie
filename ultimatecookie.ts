@@ -215,6 +215,11 @@ class UltimateCookie {
 			Game.ClickCookie();
 		}
 
+		// Click the sugar lump
+		if (Game.time - Game.lumpT > Game.lumpRipeAge) {
+			Game.clickLump();
+		}
+
 		// Click any golden cookies
 		if (this.strategy.autoClickGoldenCookies) {
 			this.popShimmer("golden");
