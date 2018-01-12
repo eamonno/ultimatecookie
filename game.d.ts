@@ -12,10 +12,10 @@ declare namespace Game {
         free: number
         name: string
 
-        buy(number): void
-        sacrifice(number): void
+        buy(n: number): void
+        sacrifice(n: number): void
         getPrice(): number
-        cps(Object): number
+        cps(o: Object): number
     }
 
     class Upgrade {
@@ -66,11 +66,11 @@ declare namespace Game {
     let ObjectsById: Object[]
 
     function clickLump(): void
-    function Has(string): number
+    function Has(name: string): number
     function ClickCookie(event?: any, amount?: number): void
     function mouseCps(): number
     function WriteSave(type: number): string
-    function hasBuff(string): number | Buff
+    function hasBuff(name: string): number | Buff
     function UpgradeSanta(): void
     function UpgradeDragon(): void
 }

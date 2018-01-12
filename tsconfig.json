@@ -3,6 +3,8 @@
         "target": "es2015",
         "removeComments": true,
         "outDir": "./bin",
-        "outFile": "./bin/ult.js"
+        "outFile": "./bin/ult.js",
+        "noImplicitAny": false,
+        "watch": false
     }
 }

@@ -59,6 +59,7 @@ class UltimateCookie {
 	// Simulation and strategy
 	sim: Simulator = new Simulator();
 	strategy: Strategy = new Strategy("default");
+	auraTicker: Ticker = new Ticker(5000);
 
 	// Errors
 	errors: MatchError[] = []
@@ -97,13 +98,7 @@ class UltimateCookie {
 		if (this.sim.dragon.canBeLeveled) {
 			purchases.push(this.sim.dragon.nextLevel);
 		}
-		// Add Dragon auras
-		//for (let aura in this.sim.dragonAuras) {
-		//	if (this.sim.dragonAuras[aura].canBePurchased) {
-		//		purchases.push(this.sim.dragonAuras[aura]);
-		//	}
-		//}
-		
+
 		return purchases;
 	}
 
@@ -182,6 +177,15 @@ class UltimateCookie {
 		return purchases;
 	}
 
+	chooseAuras(): void {
+		// Add Dragon auras
+		//for (let aura in this.sim.dragonAuras) {
+		//	if (this.sim.dragonAuras[aura].canBePurchased) {
+		//		purchases.push(this.sim.dragonAuras[aura]);
+		//	}
+		//}
+	}
+
 	// reset(): void {
 	// 	var now = new Date().getTime();
 	// 	// if (upgradeFunctions.chocolateEgg.isAvailableToPurchase()) {
@@ -215,11 +219,6 @@ class UltimateCookie {
 			Game.ClickCookie();
 		}
 
-		// Click the sugar lump
-		if (Game.time - Game.lumpT > Game.lumpRipeAge) {
-			Game.clickLump();
-		}
-
 		// Click any golden cookies
 		if (this.strategy.autoClickGoldenCookies) {
 			this.popShimmer("golden");
@@ -228,6 +227,11 @@ class UltimateCookie {
 		// Click any reindeer
 		if (this.strategy.autoClickReindeer) {
 			this.popShimmer("reindeer");
+		}
+
+		// Click the sugar lump
+		if (Game.time - Game.lumpT > Game.lumpRipeAge) {
+			Game.clickLump();
 		}
 
 		// Update the click rate
@@ -251,7 +255,7 @@ class UltimateCookie {
 		// Resync to the game if needed 
 		if (Game.recalculateGains == 0 && (!floatEqual(this.sim.cps, Game.cookiesPs) || !floatEqual(this.sim.cpc, Game.mouseCps()))) {
 			this.sim.syncToGame();
-			// Log any errors errors if the sim doesnt match after resyncing 
+			// Log any errors if the sim doesnt match after resyncing 
 			if (!this.sim.matchesGame() && this.sim.errorMessage != "" && this.errors[this.sim.errorMessage] == undefined) {
 				this.errors[this.sim.errorMessage] = Game.WriteSave(1);
 				console.log(this.sim.errorMessage);
@@ -280,6 +284,11 @@ class UltimateCookie {
 				this.nextPurchase = this.rankPurchases()[0];
 				this.purchaseTicker.restart();
 			}
+		}
+
+		// Choose which auras to apply
+		if (this.auraTicker.ticked) {
+			this.chooseAuras();
 		}
 	}
 }
