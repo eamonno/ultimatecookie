@@ -357,6 +357,35 @@ class Modifier {
 		this.locks.push(modifier);
 	}
 
+	// The benefit is the exact amount of effective CpS that will be gained from applying this
+	// modifier
+	get benefit(): number {
+		let cps: number = this.sim.effectiveCps();
+		this.apply();
+		cps = this.sim.effectiveCps() - cps;
+		this.revoke();
+		return cps;
+	}
+
+	// Value is slightly different to benefit. It lets items that might not provide any direct
+	// benefit still be included in the purchase rankings and also provides a slight boost to
+	// the purchase order of things like discounts etc. Basically if a measurable benefit is 
+	// available it is used, if not, just treat it as a lump of coal.
+	get value(): number {
+		let ben: number = this.benefit;
+		if (ben > 0 || this.name == "Chocolate egg") 
+			return ben;
+		let cps: number = this.sim.effectiveCps();
+		this.sim.productionScale *= 1.01;
+		cps = this.sim.effectiveCps() - cps;
+		this.sim.productionScale /= 1.01;
+		return cps;
+	}
+
+	//
+	// Modification functions
+	//
+
 	isUnsupported(): void {
 		this.unsupported = true;
 	}
@@ -387,35 +416,46 @@ class Modifier {
 		return this;
 	}
 
+	scalesClicking(scale: number): this {
+		this.addApplier(function(sim) { sim.cpcMultiplier *= scale; });
+		this.addRevoker(function(sim) { sim.cpcMultiplier /= scale; });
+		return this;
+	}
+
+	scalesGoldenCookieEffectDuration(scale: number): this {
+		this.addApplier(function(sim) { sim.goldenCookieEffectDurationMultiplier *= scale; });
+		this.addRevoker(function(sim) { sim.goldenCookieEffectDurationMultiplier /= scale; });
+		return this;
+	}
+
+	scalesGoldenCookieFrequency(scale: number): this {
+		this.addApplier(function(sim) { sim.goldenCookieTime /= scale; });
+		this.addRevoker(function(sim) { sim.goldenCookieTime *= scale; });
+		return this;
+	}
+
 	scalesMilk(scale: number): this {
 		this.addApplier(function(sim) { sim.milkMultiplier *= scale; });
 		this.addRevoker(function(sim) { sim.milkMultiplier /= scale; });
 		return this;
 	}	
 	
-	// The benefit is the exact amount of effective CpS that will be gained from applying this
-	// modifier
-	get benefit(): number {
-		let cps: number = this.sim.effectiveCps();
-		this.apply();
-		cps = this.sim.effectiveCps() - cps;
-		this.revoke();
-		return cps;
+	scalesPrestige(scale: number): this {
+		this.addApplier(function(sim) { sim.prestigeScale *= scale; });
+		this.addRevoker(function(sim) { sim.prestigeScale /= scale; });
+		return this;
 	}
 
-	// Value is slightly different to benefit. It lets items that might not provide any direct
-	// benefit still be included in the purchase rankings and also provides a slight boost to
-	// the purchase order of things like discounts etc. Basically if a measurable benefit is 
-	// available it is used, if not, just treat it as a lump of coal.
-	get value(): number {
-		let ben: number = this.benefit;
-		if (ben > 0 || this.name == "Chocolate egg") 
-			return ben;
-		let cps: number = this.sim.effectiveCps();
-		this.sim.productionScale *= 1.01;
-		cps = this.sim.effectiveCps() - cps;
-		this.sim.productionScale /= 1.01;
-		return cps;
+	scalesProduction(scale: number): this {
+		this.addApplier(function(sim) { sim.productionScale *= scale; });
+		this.addRevoker(function(sim) { sim.productionScale /= scale; });
+		return this;
+	}
+
+	scalesUpgradePrice(scale: number): this {
+		this.addApplier(function(sim) { sim.upgradePriceScale *= scale; });
+		this.addRevoker(function(sim) { sim.upgradePriceScale /= scale; });
+		return this;
 	}
 }
 
@@ -1111,12 +1151,6 @@ class Upgrade extends Purchase {
 		return this;
 	}
 
-	scalesClicking(scale: number): this {
-		this.addApplier(function(sim) { sim.cpcMultiplier *= scale; });
-		this.addRevoker(function(sim) { sim.cpcMultiplier /= scale; });
-		return this;
-	}
-
 	scalesCookieUpgradePrice(scale: number): this {
 		this.addApplier(function(sim) { sim.cookieUpgradePriceMultiplier *= scale; });
 		this.addRevoker(function(sim) { sim.cookieUpgradePriceMultiplier /= scale; });
@@ -1129,33 +1163,9 @@ class Upgrade extends Purchase {
 		return this;
 	}
 
-	scalesGoldenCookieEffectDuration(scale: number): this {
-		this.addApplier(function(sim) { sim.goldenCookieEffectDurationMultiplier *= scale; });
-		this.addRevoker(function(sim) { sim.goldenCookieEffectDurationMultiplier /= scale; });
-		return this;
-	}
-
-	scalesGoldenCookieFrequency(scale: number): this {
-		this.addApplier(function(sim) { sim.goldenCookieTime /= scale; });
-		this.addRevoker(function(sim) { sim.goldenCookieTime *= scale; });
-		return this;
-	}
-
 	scalesHeartCookies(scale: number): this {
 		this.addApplier(function(sim) { sim.heartCookieScale *= scale; });
 		this.addRevoker(function(sim) { sim.heartCookieScale /= scale; });
-		return this;
-	}
-
-	scalesPrestige(scale: number): this {
-		this.addApplier(function(sim) { sim.prestigeScale *= scale; });
-		this.addRevoker(function(sim) { sim.prestigeScale /= scale; });
-		return this;
-	}
-
-	scalesProduction(scale: number): this {
-		this.addApplier(function(sim) { sim.productionScale *= scale; });
-		this.addRevoker(function(sim) { sim.productionScale /= scale; });
 		return this;
 	}
 
@@ -1198,12 +1208,6 @@ class Upgrade extends Purchase {
 	scalesSynergyUpgradePrice(scale: number): this {
 		this.addApplier(function(sim) { sim.synergyUpgradePriceMultiplier *= scale; });
 		this.addRevoker(function(sim) { sim.synergyUpgradePriceMultiplier /= scale; });
-		return this;
-	}
-
-	scalesUpgradePrice(scale: number): this {
-		this.addApplier(function(sim) { sim.upgradePriceScale *= scale; });
-		this.addRevoker(function(sim) { sim.upgradePriceScale /= scale; });
 		return this;
 	}
 
@@ -1826,8 +1830,25 @@ function populate_simulator(sim: Simulator): void {
 	// Create all the dragon auras
 	//
 
-	dragonAura(0, "Cancel Dragon Aura"	);	// Do nothing default dragon aura
-	dragonAura(1, "Breath of Milk"		).scalesMilk(1.05);
+	dragonAura( 0, "Cancel Dragon Aura"		);	// Do nothing default dragon aura
+	dragonAura( 1, "Breath of Milk"			).scalesMilk(1.05);
+	dragonAura( 2, "Dragon Cursor"			).scalesClicking(1.05);
+	dragonAura( 3, "Elder Battalion"		);	// Grandmas gain +1% cps for every non-grandma building
+	dragonAura( 4, "Reaper of Fields"		);	// Golden cookies may trigger a Dragon Harvest
+	dragonAura( 5, "Earth Shatterer"		);	// Buildings sell back for 85% instead of 50% of cost
+	dragonAura( 6, "Master of the Armory"	).scalesUpgradePrice(0.98);
+	dragonAura( 7, "Fierce Hoarder"			).scalesBuildingPrice(0.98);
+	dragonAura( 8, "Dragon God"				).scalesPrestige(1.05);
+	dragonAura( 9, "Arcane Aura"			).scalesGoldenCookieFrequency(1.05);
+	dragonAura(10, "Dragonflight"			);	// Golden cookies may trigger a dragonflight
+	dragonAura(11, "Ancestral Metamorphosis");	// Golden cookies give 10% more cookies
+	dragonAura(12, "Unholy Dominion"		);	// Wrath cookies give 10% more cookies
+	dragonAura(13, "Epoch Manipulator"		).scalesGoldenCookieEffectDuration(1.05);
+	dragonAura(14, "Mind Over Matter"		);	// +25% random drops
+	dragonAura(15, "Radiant Appetite"		).scalesProduction(2);
+	dragonAura(16, "Dragon's Fortune"		);	// +111% CpS per golden-cookie on screen
+	dragonAura(17, "Dragon Cookie"			);	// Unlocks the dragon cookie upgrade
+	dragonAura(18, "Secondary Aura"			);	// Unlocks second aura
 
 	//
 	// Create all the seasons
