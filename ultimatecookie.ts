@@ -56,6 +56,9 @@ class UltimateCookie {
 	nextPurchase: Purchase = null;
 	purchaseTicker: Ticker = new Ticker(1000);
 
+	// Sugar lump ticker
+	sugarTicker: Ticker = new Ticker(1000);
+
 	// Simulation and strategy
 	sim: Simulator = new Simulator();
 	strategy: Strategy = new Strategy("default");
@@ -229,8 +232,9 @@ class UltimateCookie {
 			this.popShimmer("reindeer");
 		}
 
-		// Click the sugar lump
-		if (Game.time - Game.lumpT > Game.lumpRipeAge) {
+		// Click the sugar lump - the ticker is needed as it is possible to get multiple lumps
+		// if you spam this just as it ripens.
+		if (this.sugarTicker.ticked && Game.time - Game.lumpT > Game.lumpRipeAge) {
 			Game.clickLump();
 		}
 
