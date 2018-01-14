@@ -20,6 +20,9 @@ class Strategy {
     unlockSeasonUpgrades: boolean = true
     preferredSeason: string = "fools"
 
+    dragonAura1: string = null
+    dragonAura2: string = null
+
 	constructor(name : string) {
 		this.name = name;
 	}

@@ -181,6 +181,16 @@ class UltimateCookie {
 	}
 
 	chooseAuras(): void {
+		if (this.strategy.dragonAura1 != null) {
+			if (this.sim.dragonAura1.name != this.strategy.dragonAura1) {
+				
+			}
+		}
+		if (this.strategy.dragonAura2 != null) {
+			if (this.sim.dragonAura2.name != this.strategy.dragonAura2) {
+				
+			}
+		}
 		// Add Dragon auras
 		//for (let aura in this.sim.dragonAuras) {
 		//	if (this.sim.dragonAuras[aura].canBePurchased) {
@@ -1830,7 +1840,7 @@ function populate_simulator(sim: Simulator): void {
 	// Create all the dragon auras
 	//
 
-	dragonAura( 0, "Cancel Dragon Aura"		);	// Do nothing default dragon aura
+	dragonAura( 0, "No Dragon Aura"			);	// Do nothing default dragon aura
 	dragonAura( 1, "Breath of Milk"			).scalesMilk(1.05);
 	dragonAura( 2, "Dragon Cursor"			).scalesClicking(1.05);
 	dragonAura( 3, "Elder Battalion"		);	// Grandmas gain +1% cps for every non-grandma building
@@ -1847,8 +1857,6 @@ function populate_simulator(sim: Simulator): void {
 	dragonAura(14, "Mind Over Matter"		);	// +25% random drops
 	dragonAura(15, "Radiant Appetite"		).scalesProduction(2);
 	dragonAura(16, "Dragon's Fortune"		);	// +111% CpS per golden-cookie on screen
-	dragonAura(17, "Dragon Cookie"			);	// Unlocks the dragon cookie upgrade
-	dragonAura(18, "Secondary Aura"			);	// Unlocks second aura
 
 	//
 	// Create all the seasons
