@@ -62,7 +62,10 @@ class UltimateCookie {
 	// Simulation and strategy
 	sim: Simulator = new Simulator();
 	strategy: Strategy = new Strategy("default");
+
+	// Timers for various complex calculations
 	auraTicker: Ticker = new Ticker(5000);
+	ascensionTicker: Ticker = new Ticker(5000);
 
 	// Errors
 	errors: MatchError[] = []
@@ -199,6 +202,10 @@ class UltimateCookie {
 		//}
 	}
 
+	considerAscending(): void {
+
+	}
+
 	// reset(): void {
 	// 	var now = new Date().getTime();
 	// 	// if (upgradeFunctions.chocolateEgg.isAvailableToPurchase()) {
@@ -303,6 +310,11 @@ class UltimateCookie {
 		// Choose which auras to apply
 		if (this.auraTicker.ticked) {
 			this.chooseAuras();
+		}
+
+		// Check if it is time to ascend
+		if (this.ascensionTicker.ticked) {
+			this.considerAscending();
 		}
 	}
 }
