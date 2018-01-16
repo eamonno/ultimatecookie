@@ -38,6 +38,8 @@ declare namespace Game {
     }
 
     let cookies: number
+    let cookiesEarned: number
+    let cookiesReset: number
     let cookieClicks: number
     let heavenlyChips: number
     let prestige: number
@@ -73,4 +75,5 @@ declare namespace Game {
     function hasBuff(name: string): number | Buff
     function UpgradeSanta(): void
     function UpgradeDragon(): void
+    function HowMuchPrestige(): number
 }

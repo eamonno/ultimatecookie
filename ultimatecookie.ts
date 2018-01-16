@@ -203,7 +203,12 @@ class UltimateCookie {
 	}
 
 	considerAscending(): void {
-
+		const LuckyDigitEnding = 7;
+		const LuckyNumberEnding = 777;
+		const LuckyPayoutEnding = 777777;
+		
+		let currentPrestige = Game.prestige;
+		let newPrestige = Math.floor(Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned))
 	}
 
 	// reset(): void {
