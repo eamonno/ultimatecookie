@@ -75,5 +75,5 @@ declare namespace Game {
     function hasBuff(name: string): number | Buff
     function UpgradeSanta(): void
     function UpgradeDragon(): void
-    function HowMuchPrestige(): number
+    function HowMuchPrestige(cookies: number): number
 }

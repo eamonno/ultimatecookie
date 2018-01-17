@@ -208,7 +208,7 @@ class UltimateCookie {
 		const LuckyPayoutEnding = 777777;
 		
 		let currentPrestige = Game.prestige;
-		let newPrestige = Math.floor(Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned))
+		let newPrestige = Math.floor(Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned));
 	}
 
 	// reset(): void {
