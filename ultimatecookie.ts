@@ -203,12 +203,29 @@ class UltimateCookie {
 	}
 
 	considerAscending(): void {
+		// Ascension stages
+		// 0 - Waiting for decision to ascend
+		// 1 - Decision made, waiting for right amount of prestige
+		// 2 - Prestige - buying prestige upgrades
+		// 3 - Prestige bought - waiting for counter to hit zero to avoid bugging out
+		// 0 - Back to zero again
+
 		const LuckyDigitEnding = 7;
 		const LuckyNumberEnding = 777;
 		const LuckyPayoutEnding = 777777;
+		const LuckyUnlockMultiplier = 20;
 		
 		let currentPrestige = Game.prestige;
 		let newPrestige = Math.floor(Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned));
+
+		let ending = 0;
+		if (this.sim.upgrades['Lucky payout'].status != ModifierStatus.Applied && newPrestige > LuckyPayoutEnding * LuckyUnlockMultiplier) {
+			ending = LuckyPayoutEnding;
+		} else if (this.sim.upgrades['Lucky number'].status != ModifierStatus.Applied && newPrestige > LuckyNumberEnding * LuckyUnlockMultiplier) {
+			ending = LuckyNumberEnding;
+		} else if (this.sim.upgrades['Lucky digit'].status != ModifierStatus.Applied && newPrestige > LuckyDigitEnding * LuckyUnlockMultiplier) {
+			ending = LuckyDigitEnding;
+		} 
 	}
 
 	// reset(): void {
