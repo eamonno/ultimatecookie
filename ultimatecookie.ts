@@ -203,6 +203,9 @@ class UltimateCookie {
 	}
 
 	considerAscending(): void {
+	}
+
+	ascend(): void {
 		// Ascension stages
 		// 0 - Waiting for decision to ascend
 		// 1 - Decision made, waiting for right amount of prestige
@@ -210,6 +213,13 @@ class UltimateCookie {
 		// 3 - Prestige bought - waiting for counter to hit zero to avoid bugging out
 		// 0 - Back to zero again
 
+		// Buy the dragon aura that refunds more cookies
+		if (this.sim.upgrades["Chocolate egg"].status = ModifierStatus.Available) {
+			if (this.sim.dragonAuras['Earth Shatterer'].isAvailableToPurchase) {
+				this.sim.dragonAuras['Earth Shatterer'].purchase();
+			}
+		}
+		
 		const LuckyDigitEnding = 7;
 		const LuckyNumberEnding = 777;
 		const LuckyPayoutEnding = 777777;
