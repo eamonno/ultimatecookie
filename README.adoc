@@ -15,14 +15,14 @@ Game.LoadMod('https://rawgithub.com/eamonno/ultimatecookie/master/ultimatecookie
 There are a bunch of features still missing. I have laid out below a road map of sorts for getting to completion. These are
 in rough order of priority.
 
-1. Revamp the update loop so everything is updated in a single loop. Should make it easier to debug occasional click rate
-   drops and see what's going on.
-2. Treat buffs as modifiers. This should allow for accurate valuation of things liks golden cookie duration and frequency
-   upgrades as well as laying necessary groundwork to correctly value a cookie bank.
+1. [line-through]#Revamp the update loop so everything is updated in a single loop. Should make it easier to debug occasional click rate
+   drops and see what's going on.#
+2. [line-through]#Treat buffs as modifiers. This should allow for accurate valuation of things liks golden cookie duration and frequency
+   upgrades as well as laying necessary groundwork to correctly value a cookie bank.#
 3. Cookie bank. Dynamically determine the optimal number of cookies to bank.
 4. Valuation for buffs that unlock other buffs.
-5. Prestige upgrades. Right now only the baseline Legacy upgrade is supported. It would be easy enough to add support for
-   the upgrades themselves but it relies on being able to accurately value buffs that unlock other buffs.
+5. [line-through]#Prestige upgrades. Right now only the baseline Legacy upgrade is supported. It would be easy enough to add support for
+   the upgrades themselves but it relies on being able to accurately value buffs that unlock other buffs.#
 6. Building levels and sugar. Decide how to spend sugar and when.
 7. Mini games. Play them passively and efficiently.
 8. GUI for addon. Allow for configuration and information without needing to use the javascript console.
