@@ -465,50 +465,56 @@ class Modifier {
 	}
 
 	scalesBuildingPrice(scale: number): this {
-		this.addApplier(function(sim) { sim.buildingPriceScale *= scale; });
-		this.addRevoker(function(sim) { sim.buildingPriceScale /= scale; });
+		this.addApplier(() => this.sim.buildingPriceScale *= scale);
+		this.addRevoker(() => this.sim.buildingPriceScale /= scale);
+		return this;
+	}
+
+	scalesBuildingRefundRate(scale: number): this {
+		this.addApplier(() => this.sim.buildingRefundRate *= scale);
+		this.addRevoker(() => this.sim.buildingRefundRate /= scale);
 		return this;
 	}
 
 	scalesClicking(scale: number): this {
-		this.addApplier(function(sim) { sim.cpcMultiplier *= scale; });
-		this.addRevoker(function(sim) { sim.cpcMultiplier /= scale; });
+		this.addApplier(() => this.sim.cpcMultiplier *= scale);
+		this.addRevoker(() => this.sim.cpcMultiplier /= scale);
 		return this;
 	}
 
 	scalesGoldenCookieEffectDuration(scale: number): this {
-		this.addApplier(function(sim) { sim.goldenCookieEffectDurationMultiplier *= scale; });
-		this.addRevoker(function(sim) { sim.goldenCookieEffectDurationMultiplier /= scale; });
+		this.addApplier(() => this.sim.goldenCookieEffectDurationMultiplier *= scale);
+		this.addRevoker(() => this.sim.goldenCookieEffectDurationMultiplier /= scale);
 		return this;
 	}
 
 	scalesGoldenCookieFrequency(scale: number): this {
-		this.addApplier(function(sim) { sim.goldenCookieTime /= scale; });
-		this.addRevoker(function(sim) { sim.goldenCookieTime *= scale; });
+		this.addApplier(() => this.sim.goldenCookieTime /= scale);
+		this.addRevoker(() => this.sim.goldenCookieTime *= scale);
 		return this;
 	}
 
 	scalesMilk(scale: number): this {
-		this.addApplier(function(sim) { sim.milkMultiplier *= scale; });
-		this.addRevoker(function(sim) { sim.milkMultiplier /= scale; });
+		this.addApplier(() => this.sim.milkMultiplier *= scale);
+		this.addRevoker(() => this.sim.milkMultiplier /= scale);
 		return this;
 	}	
 	
 	scalesPrestige(scale: number): this {
-		this.addApplier(function(sim) { sim.prestigeScale *= scale; });
-		this.addRevoker(function(sim) { sim.prestigeScale /= scale; });
+		this.addApplier(() => this.sim.prestigeScale *= scale);
+		this.addRevoker(() => this.sim.prestigeScale /= scale);
 		return this;
 	}
 
 	scalesProduction(scale: number): this {
-		this.addApplier(function(sim) { sim.productionScale *= scale; });
-		this.addRevoker(function(sim) { sim.productionScale /= scale; });
+		this.addApplier(() => this.sim.productionScale *= scale);
+		this.addRevoker(() => this.sim.productionScale /= scale);
 		return this;
 	}
 
 	scalesUpgradePrice(scale: number): this {
-		this.addApplier(function(sim) { sim.upgradePriceScale *= scale; });
-		this.addRevoker(function(sim) { sim.upgradePriceScale /= scale; });
+		this.addApplier(() => this.sim.upgradePriceScale *= scale);
+		this.addRevoker(() => this.sim.upgradePriceScale /= scale);
 		return this;
 	}
 }
@@ -1366,6 +1372,7 @@ class Simulator {
 	// State variables
 	baseCps: number
 	buildingPriceScale: number
+	buildingRefundRate: number
 	centuryMultiplier: number
 	clickFrenzyMultiplier: number
 	clickRate: number
@@ -1511,6 +1518,7 @@ class Simulator {
 
 		// Price reductions
 		this.buildingPriceScale = 1;
+		this.buildingRefundRate = 0.5;
 		this.upgradePriceScale = 1;
 		this.upgradePriceCursorScale = 1;
 		this.cookieUpgradePriceMultiplier = 1;
@@ -1889,7 +1897,7 @@ function populate_simulator(sim: Simulator): void {
 	dragonAura( 2, "Dragon Cursor"			).scalesClicking(1.05);
 	dragonAura( 3, "Elder Battalion"		);	// Grandmas gain +1% cps for every non-grandma building
 	dragonAura( 4, "Reaper of Fields"		);	// Golden cookies may trigger a Dragon Harvest
-	dragonAura( 5, "Earth Shatterer"		);	// Buildings sell back for 85% instead of 50% of cost
+	dragonAura( 5, "Earth Shatterer"		).scalesBuildingRefundRate(1.7);
 	dragonAura( 6, "Master of the Armory"	).scalesUpgradePrice(0.98);
 	dragonAura( 7, "Fierce Hoarder"			).scalesBuildingPrice(0.98);
 	dragonAura( 8, "Dragon God"				).scalesPrestige(1.05);
