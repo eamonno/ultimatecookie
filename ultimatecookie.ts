@@ -702,6 +702,17 @@ class Building extends Purchase {
 		}
 	}
 
+	refundValue(index: number | void): number {
+		if (index) {
+			return this.nthPrice(index) * this.sim.buildingRefundRate;
+		} else {
+			let total: number = 0;
+			for (let i = 0; i < this.quantity; ++i) 
+				total += this.nthPrice(i);
+			return total * this.sim.buildingRefundRate;
+		}
+	}
+
 	matchesGame(equalityFunction): MatchError {
 		let error: string = "";
 
