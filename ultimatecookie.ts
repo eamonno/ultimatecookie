@@ -89,13 +89,18 @@ class UltimateCookie {
 			purchases.push(this.sim.buildings[i]);
 		}
 		// Add the upgrades
-		for (let i = 0; i < Game.UpgradesInStore.length; ++i) {
-			let modifier = this.sim.getModifier(Game.UpgradesInStore[i].name);
-			if (this.sim.toggles[modifier.name] == undefined) {
-				// Dont consider toggles
-				purchases.push(this.sim.getModifier(Game.UpgradesInStore[i].name));
+		for (let key in this.sim.upgrades) {
+			if (this.sim.upgrades[key].status == ModifierStatus.Available) {
+				purchases.push(this.sim.upgrades[key]);
 			}
 		}
+		// for (let i = 0; i < Game.UpgradesInStore.length; ++i) {
+		// 	let modifier = this.sim.getModifier(Game.UpgradesInStore[i].name);
+		// 	if (this.sim.toggles[modifier.name] == undefined) {
+		// 		// Dont consider toggles
+		// 		purchases.push(this.sim.getModifier(Game.UpgradesInStore[i].name));
+		// 	}
+		// }
 		// Add Santa
 		if (this.sim.santa.canBeLeveled) {
 			purchases.push(this.sim.santa.nextLevel);
