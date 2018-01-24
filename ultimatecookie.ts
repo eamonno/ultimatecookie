@@ -311,10 +311,10 @@ class UltimateCookie {
 		}
 
 		// Resync to the game if needed 
-		if (Game.recalculateGains == 0 && (!floatEqual(this.sim.cps, Game.cookiesPs) || !floatEqual(this.sim.cpc, Game.mouseCps()))) {
+		if (Game.recalculateGains == 0 && !this.sim.matchesGameShallow) {
 			this.sim.syncToGame();
 			// Log any errors if the sim doesnt match after resyncing 
-			if (!this.sim.matchesGame() && this.sim.errorMessage != "" && this.errors[this.sim.errorMessage] == undefined) {
+			if (!this.sim.matchesGameDeep && this.sim.errorMessage != "" && this.errors[this.sim.errorMessage] == undefined) {
 				this.errors[this.sim.errorMessage] = Game.WriteSave(1);
 				console.log(this.sim.errorMessage);
 			}
@@ -1666,6 +1666,14 @@ class Simulator {
 
 		let cookies: number = this.cps * ReindeerCpsSeconds * this.reindeerBuffMultiplier;
 		return Math.max(ReindeerMinCookies, cookies) * this.reindeerMultiplier;
+	}
+
+	get matchesGameShallow(): boolean {
+		return floatEqual(this.cps, Game.cookiesPs) && floatEqual(this.cpc, Game.mouseCps());
+	}
+
+	get matchesGameDeep(): boolean {
+		return this.matchesGame(floatEqual);
 	}
 
 	// Check that the values in the Simulator match those of the game, for debugging use
