@@ -109,10 +109,19 @@ class UltimateCookie {
 		}
 	}
 	
-	rankPurchases(): Purchase[] {
+	rankPurchases(excess: number = Game.cookies): Purchase[] {
 		// First pass, find the upgrade that offers the best price-benefit ratio
 		let purchases: Purchase[] = this.createPurchaseList();
+		
 		purchases.sort(function(a, b) { return b.pvr - a.pvr; });
+
+		// If there is a sufficient cookies to instantly purchase the next best purchase
+		// then see if there are enough cookies could to buy something better instead
+		if (excess > purchases[0].price) {
+			let filtered = purchases.filter((p) => p.price < excess);
+			filtered.sort((a, b) => { return b.benefit - a.benefit; });
+			return filtered;
+		}
 		
 		// Second pass, find the fastest path to buying that upgrade
 		let purchaseChains: PurchaseChain[] = [];
