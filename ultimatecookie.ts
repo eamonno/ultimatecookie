@@ -27,18 +27,11 @@ enum ModifierStatus {
 	Applied = 2
 }
 
-//
-// MatchError 
-//
-// Simple interface for match errors. Contains a boolean indicating if a match occurred and
-// a string describing the error if that happene. If there is an error a save can be added
-// too for easier replication later.
-//
-
-interface MatchError {
-	match: boolean
-	error?: string
-	save?: string
+enum UltimateCookieState {
+	Farming = 0,
+	AscendWait = 1,
+	AscendPurchase = 2,
+	AscendReset = 3,
 }
 
 //
@@ -60,21 +53,22 @@ class UltimateCookie {
 	sugarTicker: Ticker = new Ticker(1000);
 
 	// Simulation and strategy
-	sim: Simulator = new Simulator();
 	strategy: Strategy = new Strategy("default");
+	sim: Simulator = new Simulator(this.strategy);
 
 	// Timers for various complex calculations
 	auraTicker: Ticker = new Ticker(5000);
 	ascensionTicker: Ticker = new Ticker(5000);
 
-	// Errors
-	errors: MatchError[] = []
+	// Errors and State
+	state: UltimateCookieState = UltimateCookieState.Farming;
+	errors: string[] = []
 
 	constructor() {
 		const AutoUpdateInterval = 1;
 
+		this.strategy.logSyncs = true;
 		this.sim.syncToGame();
-		this.sim.strategy = this.strategy;
 
 		this.nextPurchase = this.rankPurchases()[0];
 
@@ -90,17 +84,10 @@ class UltimateCookie {
 		}
 		// Add the upgrades
 		for (let key in this.sim.upgrades) {
-			if (this.sim.upgrades[key].status == ModifierStatus.Available) {
+			if (this.sim.upgrades[key].status == ModifierStatus.Available && this.sim.toggles[key] == undefined) {
 				purchases.push(this.sim.upgrades[key]);
 			}
 		}
-		// for (let i = 0; i < Game.UpgradesInStore.length; ++i) {
-		// 	let modifier = this.sim.getModifier(Game.UpgradesInStore[i].name);
-		// 	if (this.sim.toggles[modifier.name] == undefined) {
-		// 		// Dont consider toggles
-		// 		purchases.push(this.sim.getModifier(Game.UpgradesInStore[i].name));
-		// 	}
-		// }
 		// Add Santa
 		if (this.sim.santa.canBeLeveled) {
 			purchases.push(this.sim.santa.nextLevel);
@@ -210,6 +197,10 @@ class UltimateCookie {
 	considerAscending(): void {
 	}
 
+	startAscend(): void {
+		this.state = UltimateCookieState.AscendWait;
+	}
+
 	ascend(): void {
 		// Ascension stages
 		// 0 - Waiting for decision to ascend
@@ -310,13 +301,18 @@ class UltimateCookie {
 			this.sim.clickRate = this.strategy.clickRateOverride == -1 ? this.clickRate : this.strategy.clickRateOverride;
 		}
 
-		// Resync to the game if needed 
-		if (Game.recalculateGains == 0 && !this.sim.matchesGameShallow) {
-			this.sim.syncToGame();
-			// Log any errors if the sim doesnt match after resyncing 
-			if (!this.sim.matchesGameDeep && this.sim.errorMessage != "" && this.errors[this.sim.errorMessage] == undefined) {
-				this.errors[this.sim.errorMessage] = Game.WriteSave(1);
-				console.log(this.sim.errorMessage);
+		// Resync to the game if needed
+		if (Game.recalculateGains == 0) {
+			let errors: string[] = this.sim.matchErrors;
+			if (errors.length > 0) {
+				this.sim.syncToGame();
+				// Log any errors if the sim doesnt match after resyncing 
+				errors = this.sim.matchErrors;
+				if (errors.length > 0) {
+					let errorMessage = errors.join("\n");
+					this.errors[errorMessage] = Game.WriteSave(1);
+					console.log(errorMessage);
+				}
 			}
 		}
 
@@ -718,23 +714,23 @@ class Building extends Purchase {
 		}
 	}
 
-	matchesGame(equalityFunction): MatchError {
-		let error: string = "";
+	get matchErrors(): string[] {
+		let errors: string[] = [];
 
 		let gameObj = Game.ObjectsById[this.index];
 		if (gameObj) {
 			if (this.name != gameObj.name)
-				error += "Building Name " + this.name + " does not match " + gameObj.name + ".\n";			
+				errors.push("Building Name " + this.name + " does not match " + gameObj.name);			
 			if (this.level != gameObj.level)
-				error += "Building Level " + this.level + " does not match " + gameObj.level + ".\n";			
-			if (!equalityFunction(this.price, gameObj.getPrice()))
-				error += "Building Cost " + this.name + " - Predicted: " + this.price + ", Actual: " + gameObj.getPrice() + ".\n";
-			if (!equalityFunction(this.individualCps, gameObj.cps(gameObj)))
-				error += "Building CpS " + this.name + " - Predicted: " + this.individualCps + ", Actual: " + gameObj.cps(gameObj) + ".\n";
+				errors.push("Building Level " + this.level + " does not match " + gameObj.level);
+			if (!this.sim.equalityFunction(this.price, gameObj.getPrice()))
+				errors.push("Building Cost " + this.name + " - Predicted: " + this.price + ", Actual: " + gameObj.getPrice());
+			if (!this.sim.equalityFunction(this.individualCps, gameObj.cps(gameObj)))
+				errors.push("Building CpS " + this.name + " - Predicted: " + this.individualCps + ", Actual: " + gameObj.cps(gameObj));
 		} else {
-			error += "Building Index " + this.index + " doesn't match any building.\n";
+			errors.push("Building Index " + this.index + " doesn't match any building.");
 		}
-		return { match: error == "" ? true : false, error: error };
+		return errors;
 	}
 }
 
@@ -1104,15 +1100,23 @@ class Upgrade extends Purchase {
 		return Math.ceil(p * this.sim.upgradePriceScale * this.sim.upgradePriceCursorScale);
 	}
 
-	matchesGame(equalityFunction): MatchError {
+	get matchErrors(): string[] {
 		if (!this.unsupported) {
 			let gameObj = Game.Upgrades[this.name];
 			if (!gameObj)
-				return { match: false, error: "Upgrade Name " + this.name + " has no corresponding match in store.\n" };
-			if (!equalityFunction(this.price, gameObj.getPrice()))
-				return { match: false, error: "Upgrade Cost " + this.name + " - Predicted: " + this.price + ", Actual: " + gameObj.getPrice() + ".\n" };
+				return ["Upgrade Name " + this.name + " has no corresponding match in store."];
+			if (!this.sim.equalityFunction(this.price, gameObj.getPrice()))
+				return ["Upgrade Cost " + this.name + " - Predicted: " + this.price + ", Actual: " + gameObj.getPrice()];
+			if (this.status == ModifierStatus.Applied && gameObj.bought != 1)
+				return ["Upgrade " + this.name + " bought in sim but not bought in game."];
+			if (this.status != ModifierStatus.Applied && gameObj.bought == 1)
+				return ["Upgrade " + this.name + " not bought in sim but bought in game."];
+			if (this.status == ModifierStatus.Locked && gameObj.unlocked == 1)
+				return ["Upgrade " + this.name + " locked but not locked in game."];
+			if (this.status != ModifierStatus.Locked && gameObj.unlocked == 0)
+				return ["Upgrade " + this.name + " not locked but locked in game."];
 		}
-		return { match: true, error: "" };
+		return [];
 	}
 
 	//
@@ -1433,7 +1437,7 @@ class Simulator {
 	currentTime: number
 	sessionStartTime: number
 
-	errorMessage: string = ""
+	equalityFunction = floatEqual
 
 	// Representations of Game entities
 	buildings: Building[] = []
@@ -1447,7 +1451,8 @@ class Simulator {
 	santa: Santa = new Santa(this)
 	dragon: Dragon = new Dragon(this)
 
-	constructor() {
+	constructor(strategy: Strategy) {
+		this.strategy = strategy;
 		populate_simulator(this);
 		this.reset();
 	}
@@ -1544,8 +1549,6 @@ class Simulator {
 		// Current season
 		this.seasonChanges = 0;
 		this.seasonStack = [this.seasons[""]];	// Default to no season
-
-		this.errorMessage = "";
 	}
 
 	get cpc(): number {
@@ -1668,83 +1671,65 @@ class Simulator {
 		return Math.max(ReindeerMinCookies, cookies) * this.reindeerMultiplier;
 	}
 
-	get matchesGameShallow(): boolean {
-		return floatEqual(this.cps, Game.cookiesPs) && floatEqual(this.cpc, Game.mouseCps());
-	}
-
-	get matchesGameDeep(): boolean {
-		return this.matchesGame(floatEqual);
-	}
-
 	// Check that the values in the Simulator match those of the game, for debugging use
-	matchesGame(equalityFunction=floatEqual): boolean {
-		let errMsg: string = "";
+	get matchErrors(): string[] {
+		let errors: string[] = [];
 		// Check that Cps matches the game
 		let cps: number = this.cps;
-		if (!equalityFunction(cps, Game.cookiesPs)) {
-			errMsg += "- CpS - Predicted: " + cps + ", Actual: " + Game.cookiesPs + "\n";
+		if (!this.equalityFunction(cps, Game.cookiesPs)) {
+			errors.push("CpS - Predicted: " + cps + ", Actual: " + Game.cookiesPs);
 		}
 		// Check the Cpc matches the game
 		let cpc: number = this.cpc;
 		let gcpc: number = Game.mouseCps();
-		if (!equalityFunction(cpc, gcpc)) {
-			errMsg += "- CpC - Predicted: " + cpc + ", Actual: " + gcpc + "\n";
+		if (!this.equalityFunction(cpc, gcpc)) {
+			errors.push("CpC - Predicted: " + cpc + ", Actual: " + gcpc);
 		}
 		// Check the building costs match the game
 		for (let i = 0; i < this.buildings.length; ++i) {
-			let { match, error } = this.buildings[i].matchesGame(equalityFunction);
-			if (match == false) 
-				errMsg += error;
+			errors = errors.concat(this.buildings[i].matchErrors)
 		}
 
 		// Check that all buildings are supported
-		if (this.buildings.length != Game.ObjectsById.length)
-			errMsg += "- Building getCount " + this.buildings.length + " does not match " + Game.ObjectsById.length + "\n";
+		if (this.buildings.length != Game.ObjectsById.length) {
+			errors.push("Building getCount " + this.buildings.length + " does not match " + Game.ObjectsById.length);
+		}
 
 		// Check that all available upgrade costs match those of similar upgrade functions
-		for (let i = 0; i < Game.UpgradesInStore.length; ++i) {
-			let upgrade = this.upgrades[Game.UpgradesInStore[i].name];
-			if (upgrade) {
-				let { match, error } = upgrade.matchesGame(equalityFunction);
-				if (match == false)
-					errMsg += error;
-			} else {
-				console.log("No matching upgrade for upgrade: " + Game.UpgradesInStore[i].name);
-			}
+		for (let i in this.upgrades) {
+			errors = errors.concat(this.upgrades[i].matchErrors);
 		}
 
 		// Check that the season matches
 		if (this.season.name != Game.season) {
-			errMsg += "- Simulator season \"" + this.season.name + "\" does not match Game.season \"" + Game.season + "\"\n";
+			errors.push("Simulator season \"" + this.season.name + "\" does not match Game.season \"" + Game.season);
 		}
 
 		// Check that dragon and santa levels
 		if (this.dragon.level != Game.dragonLevel) {
-			errMsg += "- Dragon level \"" + this.dragon.level + "\" does not match Game.dragonLevel \"" + Game.dragonLevel + "\"\n";
+			errors.push("Dragon level \"" + this.dragon.level + "\" does not match Game.dragonLevel \"" + Game.dragonLevel);
 		}
 		if (this.santa.level != Game.santaLevel) {
-			errMsg += "- Santa level \"" + this.santa.level + "\" does not match Game.santaLevel \"" + Game.santaLevel + "\"\n";
+			errors.push("Santa level \"" + this.santa.level + "\" does not match Game.santaLevel \"" + Game.santaLevel);
 		}
 
 		// Check the dragon auras match
 		let daindex: number = this.dragonAura1 ? this.dragonAura1.index : 0;
 		if (daindex != Game.dragonAura) {
-			errMsg += "- Dragon aura one " + daindex + " doesn't match Game.dragonAura " + Game.dragonAura + "\n";
+			errors.push("Dragon aura one " + daindex + " doesn't match Game.dragonAura " + Game.dragonAura);
 		}
 		daindex = this.dragonAura2 ? this.dragonAura2.index : 0;
 		if (daindex != Game.dragonAura2) {
-			errMsg += "- Dragon aura two " + daindex + " doesn't match Game.dragonAura2 " + Game.dragonAura2 + "\n";
+			errors.push("Dragon aura two " + daindex + " doesn't match Game.dragonAura2 " + Game.dragonAura2);
 		}
 
-		if (errMsg != "") {
-			errMsg = "Simulator Mismatch:\n" + errMsg;
+		if (errors.length != 0) {
 			for (let key in Game.buffs) {
-				errMsg += "- Buff Active: " + key + "\n";
+				errors.push("Buff Active: " + key);
 			}
 		}
-		this.errorMessage = errMsg;
 
-		return this.errorMessage == "";
+		return errors;
 	}
 
 	// REFACTOR: THIS DOESNT WORK
@@ -1784,6 +1769,14 @@ class Simulator {
 	syncToGame(): void {
 		const AchievementsPerMilk = 25;
 
+		if (this.strategy.logSyncs) {
+			let errors = this.matchErrors;
+			if (errors.length > 0) {
+				console.log("Syncing:\n - " + errors.join("\n - ") + "\n");
+			} else {
+				console.log("Syncing - No errors detected.");
+			}
+		}
 		this.reset();
 		for (let i = 0; i < Game.ObjectsById.length && i < this.buildings.length; ++i) {
 			this.buildings[i].quantity = Game.ObjectsById[i].amount;

@@ -23,6 +23,9 @@ class Strategy {
     dragonAura1: string = null
     dragonAura2: string = null
 
+    // Debugging stuff
+    logSyncs: boolean = false
+
 	constructor(name : string) {
 		this.name = name;
 	}
