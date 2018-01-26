@@ -7,8 +7,6 @@
 //
 
 class Strategy {
-    name: string
-
     autoBuy: boolean = true
     autoClick: boolean = true
     autoClickGoldenCookies : boolean = true
@@ -26,7 +24,6 @@ class Strategy {
     // Debugging stuff
     logSyncs: boolean = false
 
-	constructor(name : string) {
-		this.name = name;
+	constructor(public name: string) {
 	}
 }

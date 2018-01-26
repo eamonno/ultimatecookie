@@ -371,8 +371,6 @@ class UltimateCookie {
 type ModifierCallback = (sim: Simulator) => void;
 
 class Modifier {
-	sim: Simulator
-	name: string
 	status: ModifierStatus
 	revokeStatus: ModifierStatus
 	unsupported: boolean
@@ -380,9 +378,7 @@ class Modifier {
 	revokers: ModifierCallback[] = []
 	locks: Modifier[]
 
-	constructor(sim: Simulator, name: string) {
-		this.sim = sim;
-		this.name = name;
+	constructor(public sim: Simulator, public name: string) {
 		this.reset();
 	}
 
@@ -537,11 +533,8 @@ class Modifier {
 //
 
 class Buff extends Modifier {
-	duration: number
-
-	constructor(sim: Simulator, name: string, duration: number) {
+	constructor(sim: Simulator, name: string, public duration: number) {
 		super(sim, name);
-		this.duration = duration;
 	}
 
 	cursesFinger(): this {
@@ -623,9 +616,6 @@ class Building extends Purchase {
 	quantity: number
 	level: number
 	free: number
-	index: BuildingIndex
-	basePrice: number
-	baseCps: number
 	multiplier: number
 	synergies: BuildingSynergy[]
 	perBuildingFlatCpcBoostCounter: BuildingCounter
@@ -633,11 +623,8 @@ class Building extends Purchase {
 	buildingScaler: BuildingCounter
 	scaleCounter: BuildingCounter
 
-	constructor(sim: Simulator, index: BuildingIndex, name: string, basePrice: number, baseCps: number) {
+	constructor(sim: Simulator, public index: BuildingIndex, name: string, public basePrice: number, public baseCps: number) {
 		super(sim, name);
-		this.index = index;
-		this.basePrice = basePrice;
-		this.baseCps = baseCps;
 		// REFACTOR: This causes "reapplying modifier" errors. Building probably shouldn't be a modifier 
 		// but since it needs to be a purchase that change will take some refactoring
 		if (this.index == BuildingIndex.Cursor) {
@@ -748,11 +735,8 @@ class Building extends Purchase {
 //
 
 class DragonAura extends Purchase {
-	index: number
-
-	constructor(sim: Simulator, index: number, name: string) {
+	constructor(sim: Simulator, public index: number, name: string) {
 		super(sim, name);
-		this.index = index;
 	}
 
 	get sacrificialBuildingIndex(): BuildingIndex {
@@ -808,13 +792,8 @@ class DragonAura extends Purchase {
 }
 
 class DragonLevel extends Purchase {
-	dragon: Dragon
-	num: number
-
-	constructor(dragon: Dragon, num: number, name: string) {
+	constructor(public dragon: Dragon, public num: number, name: string) {
 		super(dragon.sim, name);
-		this.dragon = dragon;
-		this.num = num;
 		this.addApplier(function(sim) { sim.dragon.level++; });
 		this.addRevoker(function(sim) { sim.dragon.level--; });
 	}
@@ -857,12 +836,10 @@ class DragonLevel extends Purchase {
 }
 
 class Dragon {
-	sim: Simulator
 	level: number
 	levels: DragonLevel[] = []
 
-	constructor(sim) {
-		this.sim = sim;
+	constructor(public sim: Simulator) {
 		this.levels = [];
 
 		let dragon = this;
@@ -880,6 +857,8 @@ class Dragon {
 			level(i, "Krumblor, cookie hatchling");
 		for (let i = 7; i < 22; ++i)
 			level(i, "Krumblor, cookie dragon");
+		
+		this.reset();
 	}
 
 	get canBeLeveled(): boolean {
@@ -905,13 +884,8 @@ class Dragon {
 //
 
 class SantaLevel extends Purchase {
-	santa: Santa
-	num: number
-
-	constructor(santa: Santa, num: number, name: string) {
+	constructor(public santa: Santa, public num: number, name: string) {
 		super(santa.sim, name);
-		this.santa = santa;
-		this.num = num;
 		this.addApplier(function(sim) { sim.santa.level++; });
 		this.addRevoker(function(sim) { sim.santa.level--; });
 	}
@@ -934,14 +908,12 @@ class SantaLevel extends Purchase {
 //
 
 class Santa {
-	sim: Simulator
 	level: number
 	levels: SantaLevel[]
 	randomRewards: Upgrade[]
 	power: number
 
-	constructor(sim: Simulator) {
-		this.sim = sim;
+	constructor(public sim: Simulator) {
 		this.levels = [];
 		this.randomRewards = [];
 
@@ -999,11 +971,8 @@ class Santa {
 //
 
 class PurchaseChain extends Purchase {
-	purchases: Purchase[]
-
-	constructor(sim: Simulator, purchases: Purchase[]) {
+	constructor(sim: Simulator, public purchases: Purchase[]) {
 		super(sim, purchases.map(p => p.name).join(" -> "));
-		this.purchases = purchases;
 	}
 
 	apply(): void {
@@ -1395,9 +1364,6 @@ class Season extends Modifier {
 //
 
 class Simulator {
-	// Current active strategy
-	strategy: Strategy
-
 	// State variables
 	baseCps: number
 	buildingPriceScale: number
@@ -1460,8 +1426,7 @@ class Simulator {
 	santa: Santa = new Santa(this)
 	dragon: Dragon = new Dragon(this)
 
-	constructor(strategy: Strategy) {
-		this.strategy = strategy;
+	constructor(public strategy: Strategy) {
 		populate_simulator(this);
 		this.reset();
 	}

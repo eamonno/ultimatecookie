@@ -10,10 +10,8 @@
 
 class Ticker {
 	last: number = 0
-	span: number
 
-	constructor(span: number) {
-		this.span = span;
+	constructor(public span: number) {
 	}
 
 	get ticked(): boolean {
