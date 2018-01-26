@@ -35,6 +35,7 @@ declare namespace Game {
     }
 
     class Buff {
+        multCpS: number
     }
 
     let cookies: number

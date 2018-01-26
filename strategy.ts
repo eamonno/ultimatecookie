@@ -57,6 +57,6 @@ class Strategy {
         autoClickReindeer: false, 
         autoPledge: false, 
         unlockSeasonUpgrades: false, 
-        preferredSeason: null, 
+        preferredSeason: "", 
         logSyncs: false });
 }
