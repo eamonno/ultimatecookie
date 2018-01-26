@@ -53,8 +53,7 @@ class UltimateCookie {
 	sugarTicker: Ticker = new Ticker(1000);
 
 	// Simulation and strategy
-	strategy: Strategy = new Strategy("default");
-	sim: Simulator = new Simulator(this.strategy);
+	sim: Simulator = new Simulator(Strategy.Debug);
 
 	// Timers for various complex calculations
 	auraTicker: Ticker = new Ticker(5000);
@@ -67,7 +66,6 @@ class UltimateCookie {
 	constructor() {
 		const AutoUpdateInterval = 1;
 
-		this.strategy.logSyncs = true;
 		this.sim.syncToGame();
 
 		this.nextPurchase = this.rankPurchases()[0];
@@ -137,9 +135,9 @@ class UltimateCookie {
 		// Accomodate season strategy		
 		if (this.sim.season.lockedUpgrades == 0) {
 			// Default to whatever the strategy prefers
-			let seasonPref: string = this.strategy.preferredSeason;
+			let seasonPref: string = this.sim.strategy.preferredSeason;
 			// Override for unlocking, unlock in the order valentines, christmas, halloween, easter
-			if (this.strategy.unlockSeasonUpgrades) {
+			if (this.sim.strategy.unlockSeasonUpgrades) {
 				if (this.sim.seasons["valentines"].lockedUpgrades > 0) {
 					seasonPref = "valentines";
 				} else if (this.sim.seasons["christmas"].lockedUpgrades > 0) {
@@ -159,9 +157,9 @@ class UltimateCookie {
 		}
 
 		// Move Elder Pledge to the front if the current strategy calls for it
-		let pledge: boolean = this.strategy.autoPledge;
+		let pledge: boolean = this.sim.strategy.autoPledge;
 		if (this.sim.season.name == "halloween") {
-			if (this.strategy.unlockSeasonUpgrades && this.sim.season.lockedUpgrades != 0) {
+			if (this.sim.strategy.unlockSeasonUpgrades && this.sim.season.lockedUpgrades != 0) {
 				// Cant unlock halloween upgrades without popping wrinklers so dont pledge
 				pledge = false;
 			}
@@ -185,13 +183,13 @@ class UltimateCookie {
 	}
 
 	chooseAuras(): void {
-		if (this.strategy.dragonAura1 != null) {
-			if (this.sim.dragonAura1.name != this.strategy.dragonAura1) {
+		if (this.sim.strategy.dragonAura1 != null) {
+			if (this.sim.dragonAura1.name != this.sim.strategy.dragonAura1) {
 				
 			}
 		}
-		if (this.strategy.dragonAura2 != null) {
-			if (this.sim.dragonAura2.name != this.strategy.dragonAura2) {
+		if (this.sim.strategy.dragonAura2 != null) {
+			if (this.sim.dragonAura2.name != this.sim.strategy.dragonAura2) {
 				
 			}
 		}
@@ -272,17 +270,17 @@ class UltimateCookie {
 
 	update(): void {
 		// Click the cookie
-		if (this.strategy.autoClick) {
+		if (this.sim.strategy.autoClick) {
 			Game.ClickCookie();
 		}
 
 		// Click any golden cookies
-		if (this.strategy.autoClickGoldenCookies) {
+		if (this.sim.strategy.autoClickGoldenCookies) {
 			this.popShimmer("golden");
 		}
 
 		// Click any reindeer
-		if (this.strategy.autoClickReindeer) {
+		if (this.sim.strategy.autoClickReindeer) {
 			this.popShimmer("reindeer");
 		}
 
@@ -307,7 +305,7 @@ class UltimateCookie {
 			let sum: number = this.clickRates.reduce((a, b) => a + b);
 			this.clickRate = Math.floor(sum / this.clickRates.length);
 			this.clickCount = Game.cookieClicks;
-			this.sim.clickRate = this.strategy.clickRateOverride == -1 ? this.clickRate : this.strategy.clickRateOverride;
+			this.sim.clickRate = this.sim.strategy.clickRateOverride == -1 ? this.clickRate : this.sim.strategy.clickRateOverride;
 		}
 
 		// Resync to the game if needed
@@ -326,7 +324,7 @@ class UltimateCookie {
 		}
 
 		// Pop wrinklers during halloween if upgrades need unlocking
-		if (this.sim.season.name == "halloween" && this.strategy.unlockSeasonUpgrades) {
+		if (this.sim.season.name == "halloween" && this.sim.strategy.unlockSeasonUpgrades) {
 			for (let w in Game.wrinklers) {
 				if (Game.wrinklers[w].sucked > 0) {
 					Game.wrinklers[w].hp = 0;
@@ -340,7 +338,7 @@ class UltimateCookie {
 		}
 
 		// Do any purchasing. Dont purchase during 'Cursed finger'. The game freezes its CpS numbers while it is active so it will just desync
-		if (this.strategy.autoBuy && !Game.hasBuff('Cursed finger')) {
+		if (this.sim.strategy.autoBuy && !Game.hasBuff('Cursed finger')) {
 			if (Game.cookies >= this.nextPurchase.price || this.nextPurchase instanceof DragonAura) {
 				console.log("Purchasing: " + this.nextPurchase.name);
 				this.nextPurchase.purchase();

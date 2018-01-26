@@ -7,23 +7,56 @@
 //
 
 class Strategy {
-    autoBuy: boolean = true
-    autoClick: boolean = true
-    autoClickGoldenCookies : boolean = true
-    autoClickReindeer : boolean = true
-    autoPledge: boolean = true
+    autoBuy: boolean
+    autoClick: boolean
+    autoClickGoldenCookies : boolean
+    autoClickReindeer : boolean
+    autoPledge: boolean
+    logSyncs: boolean
+    unlockSeasonUpgrades: boolean
 
-    clickRateOverride: number = -1;
+    clickRateOverride: number
 
-    unlockSeasonUpgrades: boolean = true
-    preferredSeason: string = "fools"
+    preferredSeason: string
+    dragonAura1: string
+    dragonAura2: string
 
-    dragonAura1: string = null
-    dragonAura2: string = null
+	constructor(public name: string, {
+        autoBuy = true,
+        autoClick = true,
+        autoClickGoldenCookies = true,
+        autoClickReindeer = true,
+        autoPledge = true,
+        unlockSeasonUpgrades = true,
+        logSyncs = false,
+        clickRateOverride = -1,
+        preferredSeason = "fools",
+        dragonAura1 = null,
+        dragonAura2 = null, 
+    } = {}) {
+        this.autoBuy = autoBuy;
+        this.autoClick = autoClick;
+        this.autoClickGoldenCookies = autoClickGoldenCookies;
+        this.autoClickReindeer = autoClickReindeer;
+        this.autoPledge = autoPledge;
+        this.logSyncs = logSyncs;
+        this.unlockSeasonUpgrades = unlockSeasonUpgrades;
+        this.clickRateOverride = clickRateOverride;
+        this.preferredSeason = preferredSeason;
+        this.dragonAura1 = dragonAura1;
+        this.dragonAura2 = dragonAura2;
+    }
 
-    // Debugging stuff
-    logSyncs: boolean = false
-
-	constructor(public name: string) {
-	}
+    static Debug: Strategy = new Strategy("debug", { 
+        logSyncs: true });
+    static Default: Strategy = new Strategy("default");
+    static Passive: Strategy = new Strategy("passive", { 
+        autoBuy: false, 
+        autoClick: false, 
+        autoClickGoldenCookies: false, 
+        autoClickReindeer: false, 
+        autoPledge: false, 
+        unlockSeasonUpgrades: false, 
+        preferredSeason: null, 
+        logSyncs: false });
 }
