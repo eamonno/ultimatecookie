@@ -34,7 +34,7 @@ enum UltimateCookieState {
 	AscendReset = 3,
 }
 
-class MatchError {
+class SyncError {
 	count: number
 	message: string
 
@@ -43,7 +43,7 @@ class MatchError {
 		const Separator = "\n - ";
 
 		this.count = 1;
-		this.message = "Errors:" + Separator
+		this.message = "Error:" + Separator
 			+ matchErrors.join(Separator) + "\n"
 			+ "Previous Purchases:" + Separator
 			+ uc.purchaseOrder.slice(-PurchasesToLog).join(Separator);
@@ -77,17 +77,15 @@ class UltimateCookie {
 
 	// Errors and State
 	state: UltimateCookieState = UltimateCookieState.Farming;
-	errorArray: MatchError[] = [];
-	errorDict: { [index: string]: MatchError } = {};
+	errorArray: SyncError[] = [];
+	errorDict: { [index: string]: SyncError } = {};
 	purchaseOrder: string[] = []
 
 	constructor() {
 		const AutoUpdateInterval = 1;
 
-		this.sim.sync();
-
+		this.sync();
 		this.nextPurchase = this.rankPurchases()[0];
-
 		setInterval(() => this.update(), AutoUpdateInterval);
 	}
 
@@ -338,17 +336,17 @@ class UltimateCookie {
 
 		// Resync to the game if needed
 		if (Game.recalculateGains == 0) {
-			this.sim.syncBuffs();
-			let errors: string[] = this.sim.matchErrors;
+			this.syncBuffs();
+			let errors: string[] = this.syncErrors;
 			if (errors.length > 0) {
-				let error = new MatchError(this, errors, Game.WriteSave(1));
+				let error = new SyncError(this, errors, Game.WriteSave(1));
 				if (this.errorDict[error.message]) {
 					this.errorDict[error.message].count++;
 				} else {
 					this.errorDict[error.message] = error;
 					this.errorArray.push(error);
 				}
-				this.sim.sync();
+				this.sync();
 			}
 		}
 
@@ -386,6 +384,138 @@ class UltimateCookie {
 			this.considerAscending();
 		}
 	}
+
+	//
+	// Syncronisation functions
+	//
+
+	sync(): void {
+		const AchievementsPerMilk = 25;
+
+		// Sync without any logging
+		this.sim.reset();
+		for (let i = 0; i < Game.ObjectsById.length && i < this.sim.buildings.length; ++i) {
+			this.sim.buildings[i].quantity = Game.ObjectsById[i].amount;
+			this.sim.buildings[i].free = Game.ObjectsById[i].free;
+			this.sim.buildings[i].level = Game.ObjectsById[i].level;
+		}
+		for (let i = 0; i < Game.UpgradesById.length; ++i) {
+			if (Game.UpgradesById[i].bought == 1) {
+				this.sim.getModifier(Game.UpgradesById[i].name).apply();
+			} else if (Game.UpgradesById[i].unlocked == 1) {
+				this.sim.getModifier(Game.UpgradesById[i].name).status = ModifierStatus.Available;
+			}
+		}
+		this.sim.heavenlyChips = Game.heavenlyChips;
+		this.sim.prestige = Game.prestige;
+		this.sim.milkAmount = Game.AchievementsOwned / AchievementsPerMilk;
+		this.sim.frenzyMultiplier = 1;
+		this.sim.clickFrenzyMultiplier = 1;
+		this.sim.seasonChanges = Game.seasonUses;
+		this.syncBuffs();
+		this.sim.seasonStack = [this.sim.seasons[Game.season]];
+		this.sim.santa.level = Game.santaLevel;
+		this.sim.dragon.level = Game.dragonLevel;
+		if (Game.dragonAura > 0) {
+			this.sim.dragonAura1 = this.sim.dragonAuras[Game.dragonAura];
+			this.sim.dragonAura1.apply();
+		}
+		if (Game.dragonAura2 > 0) {
+			this.sim.dragonAura2 = this.sim.dragonAuras[Game.dragonAura2];
+			this.sim.dragonAura2.apply();
+		}
+		this.sim.sessionStartTime = Game.startDate;
+		this.sim.updateCenturyMultiplier();
+	}
+
+	syncBuffs(): void {
+		// Sync the games buffs
+		if (Object.keys(Game.buffs).length != this.sim.buffCount) {
+			for (let key in this.sim.buffs) {
+				if (this.sim.buffs[key].status == ModifierStatus.Applied) {
+					this.sim.buffs[key].revoke();
+				}
+				this.sim.buffs[key].reset();
+			}
+			for (let key in Game.buffs) {
+				if (this.sim.buffs[key]) {
+					this.sim.buffs[key].cachedScale = Game.buffs[key].multCpS;
+					this.sim.buffs[key].apply();
+				} else {
+					console.log("Unknown buff: " + key);
+				}
+			}
+		}
+	}
+
+	get syncErrors(): string[] {
+		let errors: string[] = [];
+		// Check that Cps matches the game
+		let cps: number = this.sim.cps;
+		if (!floatEqual(cps, Game.cookiesPs)) {
+			// The century multiplier gets out of sync once every 10 seconds, fix it here since
+			// it can often save a full resync and avoids a whole bunch of error spam when
+			// running for a long time
+			if (this.sim.centuryMultiplier != 1) {
+				this.sim.updateCenturyMultiplier();
+				cps = this.sim.cps;
+			}
+			if (!floatEqual(cps, Game.cookiesPs)) {
+				errors.push("CpS - Predicted: " + cps + ", Actual: " + Game.cookiesPs);
+			}
+		}
+		// Check the Cpc matches the game
+		let cpc: number = this.sim.cpc;
+		let gcpc: number = Game.mouseCps();
+		if (!floatEqual(cpc, gcpc)) {
+			errors.push("CpC - Predicted: " + cpc + ", Actual: " + gcpc);
+		}
+		// Check the building costs match the game
+		for (let i = 0; i < this.sim.buildings.length; ++i) {
+			errors = errors.concat(this.sim.buildings[i].matchErrors)
+		}
+
+		// Check that all buildings are supported
+		if (this.sim.buildings.length != Game.ObjectsById.length) {
+			errors.push("Building getCount " + this.sim.buildings.length + " does not match " + Game.ObjectsById.length);
+		}
+
+		// Check that all available upgrade costs match those of similar upgrade functions
+		for (let i in this.sim.upgrades) {
+			errors = errors.concat(this.sim.upgrades[i].matchErrors);
+		}
+
+		// Check that the season matches
+		if (this.sim.season.name != Game.season) {
+			errors.push("Simulator season \"" + this.sim.season.name + "\" does not match Game.season \"" + Game.season + '"');
+		}
+
+		// Check that dragon and santa levels
+		if (this.sim.dragon.level != Game.dragonLevel) {
+			errors.push("Dragon level \"" + this.sim.dragon.level + "\" does not match Game.dragonLevel \"" + Game.dragonLevel + '"');
+		}
+		if (this.sim.santa.level != Game.santaLevel) {
+			errors.push("Santa level \"" + this.sim.santa.level + "\" does not match Game.santaLevel \"" + Game.santaLevel + '"');
+		}
+
+		// Check the dragon auras match
+		let daindex: number = this.sim.dragonAura1 ? this.sim.dragonAura1.index : 0;
+		if (daindex != Game.dragonAura) {
+			errors.push("Dragon aura one " + daindex + " doesn't match Game.dragonAura " + Game.dragonAura);
+		}
+		daindex = this.sim.dragonAura2 ? this.sim.dragonAura2.index : 0;
+		if (daindex != Game.dragonAura2) {
+			errors.push("Dragon aura two " + daindex + " doesn't match Game.dragonAura2 " + Game.dragonAura2);
+		}
+
+		if (errors.length != 0) {
+			for (let key in Game.buffs) {
+				errors.push("Buff Active: " + key);
+			}
+		}
+
+		return errors;
+	}
 }
 
 //
@@ -398,7 +528,7 @@ class UltimateCookie {
 type ModifierCallback = (sim: Simulator) => void;
 
 class Modifier {
-	status: ModifierStatus
+	status: ModifierStatus = ModifierStatus.Locked;
 	revokeStatus: ModifierStatus
 	unsupported: boolean
 	appliers: ModifierCallback[] = []
@@ -406,7 +536,6 @@ class Modifier {
 	locks: Modifier[]
 
 	constructor(public sim: Simulator, public name: string) {
-		this.reset();
 	}
 
 	apply(): void {
@@ -456,7 +585,7 @@ class Modifier {
 
 	// A longer name that can contain extra information about the modifier used for logging etc.
 	get longName(): string {
-		return name;
+		return this.name;
 	}
 
 	// Value is slightly different to benefit. It lets items that might not provide any direct
@@ -670,15 +799,13 @@ class Building extends Purchase {
 	free: number
 	multiplier: number
 	synergies: BuildingSynergy[]
-	perBuildingFlatCpcBoostCounter: BuildingCounter
-	perBuildingFlatCpsBoostCounter: BuildingCounter
-	buildingScaler: BuildingCounter
-	scaleCounter: BuildingCounter
+	perBuildingFlatCpcBoostCounter: BuildingCounter = new BuildingCounter();
+	perBuildingFlatCpsBoostCounter: BuildingCounter = new BuildingCounter();
+	buildingScaler: BuildingCounter = new BuildingCounter();
+	scaleCounter: BuildingCounter = new BuildingCounter();
 
 	constructor(sim: Simulator, public index: BuildingIndex, name: string, public basePrice: number, public baseCps: number) {
 		super(sim, name);
-		// REFACTOR: This causes "reapplying modifier" errors. Building probably shouldn't be a modifier 
-		// but since it needs to be a purchase that change will take some refactoring
 		if (this.index == BuildingIndex.Cursor) {
 			this.addApplier(() => { sim.buildings[index].quantity += 1; sim.recalculateUpgradePriceCursorScale(); });
 			this.addRevoker(() => { sim.buildings[index].quantity -= 1; sim.recalculateUpgradePriceCursorScale(); });
@@ -697,16 +824,16 @@ class Building extends Purchase {
 	}
 
 	reset(): void {
-		super.reset();
 		this.quantity = 0;
 		this.level = 0;
 		this.free = 0;
 		this.multiplier = 1;
 		this.synergies = [];
-		this.perBuildingFlatCpcBoostCounter = new BuildingCounter();
-		this.perBuildingFlatCpsBoostCounter = new BuildingCounter();
-		this.buildingScaler = new BuildingCounter();
-		this.scaleCounter = new BuildingCounter();
+		this.perBuildingFlatCpcBoostCounter.clear();
+		this.perBuildingFlatCpsBoostCounter.clear();
+		this.buildingScaler.clear();
+		this.scaleCounter.clear();
+		super.reset();
 	}
 
 	nthPrice(n: number): number {
@@ -748,7 +875,7 @@ class Building extends Purchase {
 
 	removeSynergy(index, scale): void {
 		for (let i = this.synergies.length - 1; i >= 0; --i) {
-			if (this.synergies[i][0] == index && this.synergies[i][1] == scale) {
+			if (this.synergies[i].index == index && this.synergies[i].scale == scale) {
 				this.synergies.splice(i, 1);
 				return;
 			}
@@ -1456,7 +1583,7 @@ class Simulator {
 	milkAmount: number
 	milkMultiplier: number
 	milkUnlocks: number[][]
-	perBuildingFlatCpcBoostCounter: BuildingCounter
+	perBuildingFlatCpcBoostCounter: BuildingCounter = new BuildingCounter();
 	prestige: number
 	prestigeScale: number
 	prestigeUnlocked: number
@@ -1527,7 +1654,7 @@ class Simulator {
 		this.cpcMultiplier = 1;
 		this.cpcBaseMultiplier = 1;
 		this.cpcCpsMultiplier = 0;
-		this.perBuildingFlatCpcBoostCounter = new BuildingCounter();
+		this.perBuildingFlatCpcBoostCounter.clear();
 
 		// Production multiplier
 		this.baseCps = 0;
@@ -1715,76 +1842,6 @@ class Simulator {
 		return Math.max(ReindeerMinCookies, cookies) * this.reindeerMultiplier;
 	}
 
-	// Check that the values in the Simulator match those of the game, for debugging use
-	get matchErrors(): string[] {
-		let errors: string[] = [];
-		// Check that Cps matches the game
-		let cps: number = this.cps;
-		if (!this.equalityFunction(cps, Game.cookiesPs)) {
-			// The century multiplier gets out of sync once every 10 seconds, fix it here since
-			// it can often save a full resync and avoids a whole bunch of error spam when
-			// running for a long time
-			if (this.centuryMultiplier != 1) {
-				this.updateCenturyMultiplier();
-				cps = this.cps;
-			}
-			if (!this.equalityFunction(cps, Game.cookiesPs)) {
-				errors.push("CpS - Predicted: " + cps + ", Actual: " + Game.cookiesPs);
-			}
-		}
-		// Check the Cpc matches the game
-		let cpc: number = this.cpc;
-		let gcpc: number = Game.mouseCps();
-		if (!this.equalityFunction(cpc, gcpc)) {
-			errors.push("CpC - Predicted: " + cpc + ", Actual: " + gcpc);
-		}
-		// Check the building costs match the game
-		for (let i = 0; i < this.buildings.length; ++i) {
-			errors = errors.concat(this.buildings[i].matchErrors)
-		}
-
-		// Check that all buildings are supported
-		if (this.buildings.length != Game.ObjectsById.length) {
-			errors.push("Building getCount " + this.buildings.length + " does not match " + Game.ObjectsById.length);
-		}
-
-		// Check that all available upgrade costs match those of similar upgrade functions
-		for (let i in this.upgrades) {
-			errors = errors.concat(this.upgrades[i].matchErrors);
-		}
-
-		// Check that the season matches
-		if (this.season.name != Game.season) {
-			errors.push("Simulator season \"" + this.season.name + "\" does not match Game.season \"" + Game.season + '"');
-		}
-
-		// Check that dragon and santa levels
-		if (this.dragon.level != Game.dragonLevel) {
-			errors.push("Dragon level \"" + this.dragon.level + "\" does not match Game.dragonLevel \"" + Game.dragonLevel + '"');
-		}
-		if (this.santa.level != Game.santaLevel) {
-			errors.push("Santa level \"" + this.santa.level + "\" does not match Game.santaLevel \"" + Game.santaLevel + '"');
-		}
-
-		// Check the dragon auras match
-		let daindex: number = this.dragonAura1 ? this.dragonAura1.index : 0;
-		if (daindex != Game.dragonAura) {
-			errors.push("Dragon aura one " + daindex + " doesn't match Game.dragonAura " + Game.dragonAura);
-		}
-		daindex = this.dragonAura2 ? this.dragonAura2.index : 0;
-		if (daindex != Game.dragonAura2) {
-			errors.push("Dragon aura two " + daindex + " doesn't match Game.dragonAura2 " + Game.dragonAura2);
-		}
-
-		if (errors.length != 0) {
-			for (let key in Game.buffs) {
-				errors.push("Buff Active: " + key);
-			}
-		}
-
-		return errors;
-	}
-
 	// REFACTOR: THIS DOESNT WORK
 	cookiesPerLuckyWithBuffs(buffs: string[]): number {
 		return this.cookiesPerLucky();
@@ -1817,65 +1874,6 @@ class Simulator {
 			this.modifiers[name] = upgrade;
 		}
 		return upgrade;
-	}
-
-	sync(): void {
-		const AchievementsPerMilk = 25;
-
-		// Sync without any logging
-		this.reset();
-		for (let i = 0; i < Game.ObjectsById.length && i < this.buildings.length; ++i) {
-			this.buildings[i].quantity = Game.ObjectsById[i].amount;
-			this.buildings[i].free = Game.ObjectsById[i].free;
-			this.buildings[i].level = Game.ObjectsById[i].level;
-		}
-		for (let i = 0; i < Game.UpgradesById.length; ++i) {
-			if (Game.UpgradesById[i].bought == 1) {
-				this.getModifier(Game.UpgradesById[i].name).apply();
-			} else if (Game.UpgradesById[i].unlocked == 1) {
-				this.getModifier(Game.UpgradesById[i].name).status = ModifierStatus.Available;
-			}
-		}
-		this.heavenlyChips = Game.heavenlyChips;
-		this.prestige = Game.prestige;
-		this.milkAmount = Game.AchievementsOwned / AchievementsPerMilk;
-		this.frenzyMultiplier = 1;
-		this.clickFrenzyMultiplier = 1;
-		this.seasonChanges = Game.seasonUses;
-		this.syncBuffs();
-		this.seasonStack = [this.seasons[Game.season]];
-		this.santa.level = Game.santaLevel;
-		this.dragon.level = Game.dragonLevel;
-		if (Game.dragonAura > 0) {
-			this.dragonAura1 = this.dragonAuras[Game.dragonAura];
-			this.dragonAura1.apply();
-		}
-		if (Game.dragonAura2 > 0) {
-			this.dragonAura2 = this.dragonAuras[Game.dragonAura2];
-			this.dragonAura2.apply();
-		}
-		this.sessionStartTime = Game.startDate;
-		this.updateCenturyMultiplier();
-	}
-
-	syncBuffs(): void {
-		// Sync the games buffs
-		if (Object.keys(Game.buffs).length != this.buffCount) {
-			for (let key in this.buffs) {
-				if (this.buffs[key].status == ModifierStatus.Applied) {
-					this.buffs[key].revoke();
-				}
-				this.buffs[key].reset();
-			}
-			for (let key in Game.buffs) {
-				if (this.buffs[key]) {
-					this.buffs[key].cachedScale = Game.buffs[key].multCpS;
-					this.buffs[key].apply();
-				} else {
-					console.log("Unknown buff: " + key);
-				}
-			}
-		}
 	}
 }
 

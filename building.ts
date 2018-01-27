@@ -29,6 +29,10 @@ enum BuildingIndex {
 class BuildingCounter {
 	scales: number[] = new Array(BuildingIndex.NumBuildings).fill(0)
 
+	clear() { 
+		this.scales.fill(0);
+	}
+
 	getCount(buildings: Building[]): number {
 		let count = 0;
 		for (let i = 0; i < this.scales.length; ++i) {
