@@ -34,6 +34,22 @@ enum UltimateCookieState {
 	AscendReset = 3,
 }
 
+class MatchError {
+	count: number
+	message: string
+
+	constructor(uc: UltimateCookie, matchErrors: string[], public save: string) {
+		const PurchasesToLog = 5;
+		const Separator = "\n - ";
+
+		this.count = 1;
+		this.message = "Errors:" + Separator
+			+ matchErrors.join(Separator) + "\n"
+			+ "Previous Purchases:" + Separator
+			+ uc.purchaseOrder.slice(-PurchasesToLog).join(Separator);
+	}
+}
+
 //
 // UltimateCookie represents the app itself
 //
@@ -53,7 +69,7 @@ class UltimateCookie {
 	sugarTicker: Ticker = new Ticker(1000);
 
 	// Simulation and strategy
-	sim: Simulator = new Simulator(Strategy.Debug);
+	sim: Simulator = new Simulator(Strategy.Default);
 
 	// Timers for various complex calculations
 	auraTicker: Ticker = new Ticker(5000);
@@ -61,16 +77,28 @@ class UltimateCookie {
 
 	// Errors and State
 	state: UltimateCookieState = UltimateCookieState.Farming;
-	errors: string[] = []
+	errorArray: MatchError[] = [];
+	errorDict: { [index: string]: MatchError } = {};
+	purchaseOrder: string[] = []
 
 	constructor() {
 		const AutoUpdateInterval = 1;
 
-		this.sim.syncSilent();
+		this.sim.sync();
 
 		this.nextPurchase = this.rankPurchases()[0];
 
 		setInterval(() => this.update(), AutoUpdateInterval);
+	}
+
+	dumpErrors(start = 0): void {
+		const Divider = "==================================================\n";
+		
+		let errors = this.errorArray.slice(start);
+		console.log(Divider);
+		for (let error of errors)
+			console.log(error.message + '\n' + Divider);
+		console.log("Listed " + errors.length + " of " + this.errorArray.length + " total errors.\n" + Divider);
 	}
 
 	createPurchaseList(): Purchase[] {
@@ -264,7 +292,7 @@ class UltimateCookie {
 		let purchases = this.rankPurchases();
 		
 		for (let i = 0; i < purchases.length; ++i) {
-			console.log("" + (purchases[i].pvr).toFixed(20) + ": " + purchases[i].name);
+			console.log("PVR: " + (purchases[i].pvr).toExponential(8) + ", B: " + (purchases[i].benefit).toExponential(8) + " :: " + purchases[i].name);
 		}	
 	}
 
@@ -313,14 +341,14 @@ class UltimateCookie {
 			this.sim.syncBuffs();
 			let errors: string[] = this.sim.matchErrors;
 			if (errors.length > 0) {
-				this.sim.sync();
-				// Log any errors if the sim doesnt match after resyncing 
-				errors = this.sim.matchErrors;
-				if (errors.length > 0) {
-					let errorMessage = errors.join("\n");
-					this.errors[errorMessage] = Game.WriteSave(1);
-					console.log(errorMessage);
+				let error = new MatchError(this, errors, Game.WriteSave(1));
+				if (this.errorDict[error.message]) {
+					this.errorDict[error.message].count++;
+				} else {
+					this.errorDict[error.message] = error;
+					this.errorArray.push(error);
 				}
+				this.sim.sync();
 			}
 		}
 
@@ -341,7 +369,7 @@ class UltimateCookie {
 		// Do any purchasing. Dont purchase during 'Cursed finger'. The game freezes its CpS numbers while it is active so it will just desync
 		if (this.sim.strategy.autoBuy && !Game.hasBuff('Cursed finger')) {
 			if (Game.cookies >= this.nextPurchase.price) {
-				console.log("Purchasing: " + this.nextPurchase.name);
+				this.purchaseOrder.push(this.nextPurchase.longName);
 				this.nextPurchase.purchase();
 				this.nextPurchase = this.rankPurchases()[0];
 				this.purchaseTicker.restart();
@@ -424,6 +452,11 @@ class Modifier {
 		cps = this.sim.effectiveCps() - cps;
 		this.revoke();
 		return cps;
+	}
+
+	// A longer name that can contain extra information about the modifier used for logging etc.
+	get longName(): string {
+		return name;
 	}
 
 	// Value is slightly different to benefit. It lets items that might not provide any direct
@@ -697,6 +730,10 @@ class Building extends Purchase {
 		return 1 + (this.level * 0.01);
 	}
 
+	get longName(): string {
+		return this.name + " " + (this.quantity + 1);
+	}
+
 	get synergyMultiplier(): number {
 		let scale = 1;
 		for (let i = 0; i < this.synergies.length; ++i) {
@@ -845,6 +882,10 @@ class DragonLevel extends Purchase {
 			console.log("Invalid dragon level " + this.num + " " + this.name);
 			return 0;
 		}
+	}
+
+	get longName(): string {
+		return "Dragon level " + this.num + " " + this.name;
 	}
 
 	purchase(): void {
@@ -1004,6 +1045,10 @@ class PurchaseChain extends Purchase {
 		for (let i = this.purchases.length - 1; i >= 0; --i) {
 			this.purchases[i].revoke();
 		}
+	}
+
+	get longName(): string {
+		return this.purchases.map(p => p.longName).join(" -> ");
 	}
 
 	get purchaseTime(): number {
@@ -1710,15 +1755,15 @@ class Simulator {
 
 		// Check that the season matches
 		if (this.season.name != Game.season) {
-			errors.push("Simulator season \"" + this.season.name + "\" does not match Game.season \"" + Game.season);
+			errors.push("Simulator season \"" + this.season.name + "\" does not match Game.season \"" + Game.season + '"');
 		}
 
 		// Check that dragon and santa levels
 		if (this.dragon.level != Game.dragonLevel) {
-			errors.push("Dragon level \"" + this.dragon.level + "\" does not match Game.dragonLevel \"" + Game.dragonLevel);
+			errors.push("Dragon level \"" + this.dragon.level + "\" does not match Game.dragonLevel \"" + Game.dragonLevel + '"');
 		}
 		if (this.santa.level != Game.santaLevel) {
-			errors.push("Santa level \"" + this.santa.level + "\" does not match Game.santaLevel \"" + Game.santaLevel);
+			errors.push("Santa level \"" + this.santa.level + "\" does not match Game.santaLevel \"" + Game.santaLevel + '"');
 		}
 
 		// Check the dragon auras match
@@ -1775,38 +1820,6 @@ class Simulator {
 	}
 
 	sync(): void {
-		if (this.strategy.logSyncs) {
-			let errors = this.matchErrors;
-			if (errors.length > 0) {
-				console.log("Syncing:\n - " + errors.join("\n - ") + "\n");
-			} else {
-				console.log("Syncing - No errors detected.");
-			}
-		}
-		this.syncSilent();
-	}
-
-	syncBuffs(): void {
-		// Sync the games buffs
-		if (Object.keys(Game.buffs).length != this.buffCount) {
-			for (let key in this.buffs) {
-				if (this.buffs[key].status == ModifierStatus.Applied) {
-					this.buffs[key].revoke();
-				}
-				this.buffs[key].reset();
-			}
-			for (let key in Game.buffs) {
-				if (this.buffs[key]) {
-					this.buffs[key].cachedScale = Game.buffs[key].multCpS;
-					this.buffs[key].apply();
-				} else {
-					console.log("Unknown buff: " + key);
-				}
-			}
-		}
-	}
-
-	syncSilent(): void {
 		const AchievementsPerMilk = 25;
 
 		// Sync without any logging
@@ -1843,6 +1856,26 @@ class Simulator {
 		}
 		this.sessionStartTime = Game.startDate;
 		this.updateCenturyMultiplier();
+	}
+
+	syncBuffs(): void {
+		// Sync the games buffs
+		if (Object.keys(Game.buffs).length != this.buffCount) {
+			for (let key in this.buffs) {
+				if (this.buffs[key].status == ModifierStatus.Applied) {
+					this.buffs[key].revoke();
+				}
+				this.buffs[key].reset();
+			}
+			for (let key in Game.buffs) {
+				if (this.buffs[key]) {
+					this.buffs[key].cachedScale = Game.buffs[key].multCpS;
+					this.buffs[key].apply();
+				} else {
+					console.log("Unknown buff: " + key);
+				}
+			}
+		}
 	}
 }
 

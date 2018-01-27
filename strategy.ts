@@ -12,7 +12,6 @@ class Strategy {
     autoClickGoldenCookies : boolean
     autoClickReindeer : boolean
     autoPledge: boolean
-    logSyncs: boolean
     unlockSeasonUpgrades: boolean
 
     clickRateOverride: number
@@ -28,7 +27,6 @@ class Strategy {
         autoClickReindeer = true,
         autoPledge = true,
         unlockSeasonUpgrades = true,
-        logSyncs = false,
         clickRateOverride = -1,
         preferredSeason = "fools",
         dragonAura1 = null,
@@ -39,7 +37,6 @@ class Strategy {
         this.autoClickGoldenCookies = autoClickGoldenCookies;
         this.autoClickReindeer = autoClickReindeer;
         this.autoPledge = autoPledge;
-        this.logSyncs = logSyncs;
         this.unlockSeasonUpgrades = unlockSeasonUpgrades;
         this.clickRateOverride = clickRateOverride;
         this.preferredSeason = preferredSeason;
@@ -47,8 +44,6 @@ class Strategy {
         this.dragonAura2 = dragonAura2;
     }
 
-    static Debug: Strategy = new Strategy("debug", { 
-        logSyncs: true });
     static Default: Strategy = new Strategy("default");
     static Passive: Strategy = new Strategy("passive", { 
         autoBuy: false, 
@@ -57,6 +52,5 @@ class Strategy {
         autoClickReindeer: false, 
         autoPledge: false, 
         unlockSeasonUpgrades: false, 
-        preferredSeason: "", 
-        logSyncs: false });
+        preferredSeason: ""});
 }
