@@ -945,6 +945,7 @@ class DragonAura extends Purchase {
 		let index: BuildingIndex = this.sacrificialBuildingIndex;
 		if (index != -1) {
 			Game.ObjectsById[index].sacrifice(1);
+			this.sim.buildings[index].quantity--;
 		}
 		this.apply();
 	}
@@ -1023,6 +1024,20 @@ class DragonLevel extends Purchase {
 	purchase(): void {
 		Game.specialTab = "dragon";
 		Game.UpgradeDragon();
+		if (this.num > 4) {
+			if (this.num <= 4 + BuildingIndex.NumBuildings) {
+				// Cost of 100 of a given building
+				this.sim.buildings[this.num - 5].quantity -= 100;
+			} else if (this.num == 5 + BuildingIndex.NumBuildings) {
+				// 50 of each building 
+				for (let building of this.sim.buildings)
+					building.quantity -= 50;
+			} else if (this.num == 6 + BuildingIndex.NumBuildings) {
+				// 100 of each building 
+				for (let building of this.sim.buildings)
+					building.quantity -= 100;
+			}
+		}
 		this.apply();
 	}
 }
@@ -1477,8 +1492,20 @@ class Upgrade extends Purchase {
 
 	setsSeason(name: string): this {
 		this.isSeasonChanger = true;
-		this.addApplier(() => { this.sim.pushSeason(this.sim.seasons[name]); this.sim.seasons[name].apply(); this.sim.seasonChanges++; });
-		this.addRevoker(() => { this.sim.seasons[name].revoke(); this.sim.popSeason(); this.sim.seasonChanges--; });
+		this.addApplier(() => { 
+			if (this.sim.season.toggle)
+				this.sim.season.toggle.isApplied = false;
+			this.sim.pushSeason(this.sim.seasons[name]);
+			this.sim.seasons[name].apply();
+			this.sim.seasonChanges++; 
+		});
+		this.addRevoker(() => {
+			this.sim.seasons[name].revoke();
+			this.sim.popSeason();
+			if (this.sim.season.toggle)
+				this.sim.season.toggle.isApplied = true;
+			this.sim.seasonChanges--; 
+		});
 		return this;
 	}
 
@@ -1808,7 +1835,7 @@ class Simulator {
 	}
 
 	get season(): Season {
-		return this.seasonStack[0];
+		return this.seasonStack[this.seasonStack.length - 1];
 	}
 
 	//
