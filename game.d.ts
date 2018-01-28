@@ -22,6 +22,7 @@ declare namespace Game {
         name: string
         bought: number
         unlocked: number
+        pool: string
     }
 
     class Shimmer {

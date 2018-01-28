@@ -21,12 +21,6 @@ enum GrandmatriarchLevel {
 	Angered = 3,
 }
 
-enum ModifierStatus {
-	Locked = 0,
-	Available = 1,
-	Applied = 2
-}
-
 enum UltimateCookieState {
 	Farming = 0,
 	AscendWait = 1,
@@ -95,7 +89,7 @@ class UltimateCookie {
 		let errors = this.errorArray.slice(start);
 		console.log(Divider);
 		for (let error of errors)
-			console.log(error.message + '\n' + Divider);
+			console.log(error.message + '\nThis error occured ' + error.count + ' times.\n' + Divider);
 		console.log("Listed " + errors.length + " of " + this.errorArray.length + " total errors.\n" + Divider);
 	}
 
@@ -108,7 +102,7 @@ class UltimateCookie {
 		}
 		// Add the upgrades
 		for (let key in this.sim.upgrades) {
-			if (this.sim.upgrades[key].status == ModifierStatus.Available && this.sim.toggles[key] == undefined) {
+			if (this.sim.upgrades[key].isAvailable && this.sim.toggles[key] == undefined) {
 				purchases.push(this.sim.upgrades[key]);
 			}
 		}
@@ -243,7 +237,7 @@ class UltimateCookie {
 		// 0 - Back to zero again
 
 		// Buy the dragon aura that refunds more cookies
-		if (this.sim.upgrades["Chocolate egg"].status = ModifierStatus.Available) {
+		if (this.sim.upgrades["Chocolate egg"].isAvailable) {
 			if (this.sim.dragonAuras['Earth Shatterer'].isAvailableToPurchase) {
 				this.sim.dragonAuras['Earth Shatterer'].purchase();
 			}
@@ -258,11 +252,11 @@ class UltimateCookie {
 		let newPrestige = Math.floor(Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned));
 
 		let ending = 0;
-		if (this.sim.upgrades['Lucky payout'].status != ModifierStatus.Applied && newPrestige > LuckyPayoutEnding * LuckyUnlockMultiplier) {
+		if (!this.sim.upgrades['Lucky payout'].isApplied && newPrestige > LuckyPayoutEnding * LuckyUnlockMultiplier) {
 			ending = LuckyPayoutEnding;
-		} else if (this.sim.upgrades['Lucky number'].status != ModifierStatus.Applied && newPrestige > LuckyNumberEnding * LuckyUnlockMultiplier) {
+		} else if (!this.sim.upgrades['Lucky number'].isApplied && newPrestige > LuckyNumberEnding * LuckyUnlockMultiplier) {
 			ending = LuckyNumberEnding;
-		} else if (this.sim.upgrades['Lucky digit'].status != ModifierStatus.Applied && newPrestige > LuckyDigitEnding * LuckyUnlockMultiplier) {
+		} else if (!this.sim.upgrades['Lucky digit'].isApplied && newPrestige > LuckyDigitEnding * LuckyUnlockMultiplier) {
 			ending = LuckyDigitEnding;
 		} 
 	}
@@ -337,6 +331,7 @@ class UltimateCookie {
 		// Resync to the game if needed
 		if (Game.recalculateGains == 0) {
 			this.syncBuffs();
+			this.syncStore();
 			let errors: string[] = this.syncErrors;
 			if (errors.length > 0) {
 				let error = new SyncError(this, errors, Game.WriteSave(1));
@@ -399,13 +394,7 @@ class UltimateCookie {
 			this.sim.buildings[i].free = Game.ObjectsById[i].free;
 			this.sim.buildings[i].level = Game.ObjectsById[i].level;
 		}
-		for (let i = 0; i < Game.UpgradesById.length; ++i) {
-			if (Game.UpgradesById[i].bought == 1) {
-				this.sim.getModifier(Game.UpgradesById[i].name).apply();
-			} else if (Game.UpgradesById[i].unlocked == 1) {
-				this.sim.getModifier(Game.UpgradesById[i].name).status = ModifierStatus.Available;
-			}
-		}
+		this.syncUpgrades();
 		this.sim.heavenlyChips = Game.heavenlyChips;
 		this.sim.prestige = Game.prestige;
 		this.sim.milkAmount = Game.AchievementsOwned / AchievementsPerMilk;
@@ -432,7 +421,7 @@ class UltimateCookie {
 		// Sync the games buffs
 		if (Object.keys(Game.buffs).length != this.sim.buffCount) {
 			for (let key in this.sim.buffs) {
-				if (this.sim.buffs[key].status == ModifierStatus.Applied) {
+				if (this.sim.buffs[key].isApplied) {
 					this.sim.buffs[key].revoke();
 				}
 				this.sim.buffs[key].reset();
@@ -445,6 +434,34 @@ class UltimateCookie {
 					console.log("Unknown buff: " + key);
 				}
 			}
+		}
+	}
+
+	syncStore(): void {
+		// Like syncUpgrades but only checkes upgrades that are in the store, used to 
+		// quickly spot new upgrades as they unlock for purchase
+		for (let gameUpgrade of Game.UpgradesInStore) {
+			this.syncUpgrade(gameUpgrade);
+		}
+	}
+
+	syncUpgrade(gameUpgrade: Game.Upgrade) {
+		if (gameUpgrade.pool != "debug") {
+			let upgrade = this.sim.upgrades[gameUpgrade.name] || this.sim.toggles[gameUpgrade.name] || this.sim.prestiges[gameUpgrade.name];
+			if (upgrade) {
+				if (gameUpgrade.unlocked != 0)
+					upgrade.isUnlocked = true;
+				if (gameUpgrade.bought != 0 && !upgrade.isApplied)
+					upgrade.apply();
+			} else {
+				console.log("Can't find upgrade " + gameUpgrade.name + " to apply.")
+			}
+		}
+	}
+
+	syncUpgrades(): void {
+		for (let gameUpgrade of Game.UpgradesById) {
+			this.syncUpgrade(gameUpgrade);
 		}
 	}
 
@@ -528,35 +545,32 @@ class UltimateCookie {
 type ModifierCallback = (sim: Simulator) => void;
 
 class Modifier {
-	status: ModifierStatus = ModifierStatus.Locked;
-	revokeStatus: ModifierStatus
+	isApplied: boolean = false;
 	unsupported: boolean
 	appliers: ModifierCallback[] = []
 	revokers: ModifierCallback[] = []
-	locks: Modifier[]
 
 	constructor(public sim: Simulator, public name: string) {
 	}
 
 	apply(): void {
-		//if (this.status == ModifierStatus.Applied)
-		//	console.log("Reapplying Modifier: " + this.name);
+		if (this.isApplied)
+			console.log("Reapplying Modifier: " + this.name);
 		for (let i = 0; i < this.appliers.length; ++i)
 			this.appliers[i](this.sim);
-		this.revokeStatus = this.status;
-		this.status = ModifierStatus.Applied;
+		this.isApplied = true;
 	}
 
 	reset(): void {
-		this.status = ModifierStatus.Locked;
+		this.isApplied = false;
 	}
 
 	revoke(): void {
-		if (this.status != ModifierStatus.Applied)
+		if (!this.isApplied)
 			console.log("Revoking unapplied Modifier: " + this.name);
 		for (let i = this.revokers.length - 1; i >= 0; --i)
 			this.revokers[i](this.sim);
-		this.status = this.revokeStatus;
+		this.isApplied = false;
 	}
 
 	addApplier(func: ModifierCallback): void {
@@ -565,12 +579,6 @@ class Modifier {
 
 	addRevoker(func: ModifierCallback): void {
 		this.revokers.push(func);
-	}
-
-	private addLock(modifier: Modifier): void {
-		if (this.locks == undefined)
-			this.locks = [];
-		this.locks.push(modifier);
 	}
 
 	// The benefit is the exact amount of effective CpS that will be gained from applying this
@@ -611,24 +619,9 @@ class Modifier {
 		this.unsupported = true;
 	}
 
-	requires(name: string): this {
-		let required: Modifier = this.sim.modifiers[name];
-		if (!required) {
-			console.log("Missing requirement for " + this.name + ": " + name);
-		} else {
-			required.addLock(this);
-		}
-		return this;
-	}
-
-	requiresSeason(name: string): this {
-		let season: Season = this.sim.seasons[name];
-		if (!season) {
-			console.log("Missing season for " + this.name + ": " + name);
-		} else {
-			season.addLock(this);
-		}
-		return this;
+	requires(name: string): this { 
+		// Just a documentation thing really for now, does nothing
+		return this; 
 	}
 
 	scalesBuildingPrice(scale: number): this {
@@ -763,12 +756,18 @@ class Buff extends Modifier {
 //
 
 abstract class Purchase extends Modifier {
+	isUnlocked: boolean = false;
+
 	constructor(sim: Simulator, name: string) {
 		super(sim, name);
 	}
 
 	abstract get price(): number;
 	abstract purchase(): void;
+
+	get isAvailable(): boolean {
+		return this.isUnlocked && !this.isApplied;
+	}
 
 	get purchaseTime(): number {
 		return this.price / this.sim.effectiveCps();
@@ -806,13 +805,6 @@ class Building extends Purchase {
 
 	constructor(sim: Simulator, public index: BuildingIndex, name: string, public basePrice: number, public baseCps: number) {
 		super(sim, name);
-		if (this.index == BuildingIndex.Cursor) {
-			this.addApplier(() => { sim.buildings[index].quantity += 1; sim.recalculateUpgradePriceCursorScale(); });
-			this.addRevoker(() => { sim.buildings[index].quantity -= 1; sim.recalculateUpgradePriceCursorScale(); });
-		} else {
-			this.addApplier(() => { sim.buildings[index].quantity += 1; });
-			this.addRevoker(() => { sim.buildings[index].quantity -= 1; });				
-		}
 		this.reset();
 	}
 
@@ -821,6 +813,20 @@ class Building extends Purchase {
 			Game.ObjectsById[this.index].buy(1);
 			this.apply();
 		//} while (this.price <= Game.cookies && this.price <= this.sim.cps);
+	}
+
+	apply() {
+		this.sim.buildings[this.index].quantity++;
+		if (this.index == BuildingIndex.Cursor) {
+			this.sim.recalculateUpgradePriceCursorScale(); 
+		}
+	}
+
+	revoke() {
+		this.sim.buildings[this.index].quantity--;
+		if (this.index == BuildingIndex.Cursor) {
+			this.sim.recalculateUpgradePriceCursorScale(); 
+		}
 	}
 
 	reset(): void {
@@ -833,7 +839,6 @@ class Building extends Purchase {
 		this.perBuildingFlatCpsBoostCounter.clear();
 		this.buildingScaler.clear();
 		this.scaleCounter.clear();
-		super.reset();
 	}
 
 	nthPrice(n: number): number {
@@ -952,7 +957,7 @@ class DragonAura extends Purchase {
 		if (aura == null) {
 			return super.benefit;
 		}
-		if (aura.status != ModifierStatus.Applied) {
+		if (!this.isApplied) {
 			console.log("Error: evaluating replaceBenefit for aura that isn't applied " + this.name + ", " + aura.name);
 		}
 		let cps: number = this.sim.effectiveCps();
@@ -970,7 +975,7 @@ class DragonAura extends Purchase {
 	}
 
 	get canBePurchased(): boolean {
-		return this.index + 4 <= this.sim.dragon.level && this.status != ModifierStatus.Applied;
+		return this.index + 4 <= this.sim.dragon.level && !this.isApplied;
 	}
 }
 
@@ -1276,14 +1281,14 @@ class Upgrade extends Purchase {
 				return ["Upgrade Name " + this.name + " has no corresponding match in store."];
 			if (!this.sim.equalityFunction(this.price, gameObj.getPrice()))
 				return ["Upgrade Cost " + this.name + " - Predicted: " + this.price + ", Actual: " + gameObj.getPrice()];
-			if (this.status == ModifierStatus.Applied && gameObj.bought != 1)
+			if (this.isApplied && gameObj.bought == 0)
 				return ["Upgrade " + this.name + " bought in sim but not bought in game."];
-			if (this.status != ModifierStatus.Applied && gameObj.bought == 1)
+			if (!this.isApplied && gameObj.bought == 1)
 				return ["Upgrade " + this.name + " not bought in sim but bought in game."];
-			if (this.status == ModifierStatus.Locked && gameObj.unlocked == 1)
+			if (this.isUnlocked && gameObj.unlocked == 0)
+				return ["Upgrade " + this.name + " unlocked but not unlocked in game."];
+			if (!this.isUnlocked && gameObj.unlocked == 1)
 				return ["Upgrade " + this.name + " locked but not locked in game."];
-			if (this.status != ModifierStatus.Locked && gameObj.unlocked == 0)
-				return ["Upgrade " + this.name + " not locked but locked in game."];
 		}
 		return [];
 	}
@@ -1388,6 +1393,16 @@ class Upgrade extends Purchase {
 		this.apply();
 	}
 
+	requiresSeason(name: string): this {
+		let season: Season = this.sim.seasons[name];
+		if (!season) {
+			console.log("Missing season for " + this.name + ": " + name);
+		} else {
+			season.addLock(this);
+		}
+		return this;
+	}
+
 	scalesBaseClicking(scale: number): this {
 		this.addApplier(() => { this.sim.cpcBaseMultiplier *= scale; });
 		this.addRevoker(() => { this.sim.cpcBaseMultiplier /= scale; });
@@ -1462,8 +1477,8 @@ class Upgrade extends Purchase {
 
 	setsSeason(name: string): this {
 		this.isSeasonChanger = true;
-		this.addApplier(() => { this.sim.pushSeason(this.sim.seasons[name]); this.sim.seasons[name].apply(); });
-		this.addRevoker(() => { this.sim.seasons[name].revoke(); this.sim.popSeason(); });
+		this.addApplier(() => { this.sim.pushSeason(this.sim.seasons[name]); this.sim.seasons[name].apply(); this.sim.seasonChanges++; });
+		this.addRevoker(() => { this.sim.seasons[name].revoke(); this.sim.popSeason(); this.sim.seasonChanges--; });
 		return this;
 	}
 
@@ -1518,6 +1533,7 @@ class Upgrade extends Purchase {
 class Season extends Modifier {
 	toggle?: Upgrade
 	goldenCookieFrequencyScale: number
+	locks: Upgrade[]
 
 	constructor(sim: Simulator, name: string, toggleName?: string) {
 		super(sim, name);
@@ -1533,11 +1549,17 @@ class Season extends Modifier {
 		this.goldenCookieFrequencyScale = 1;
 	}
 
+	addLock(upgrade: Upgrade): void {
+		if (this.locks == undefined)
+			this.locks = [];
+		this.locks.push(upgrade);
+	}
+
 	get lockedUpgrades(): number {
 		if (this.locks) {
 			let  locked = 0;
 			for (let i = 0; i < this.locks.length; ++i)
-				if (this.locks[i].status == ModifierStatus.Locked)
+				if (!this.locks[i].isUnlocked)
 					locked++
 			return locked;
 		}
