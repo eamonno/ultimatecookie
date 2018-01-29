@@ -288,6 +288,22 @@ class UltimateCookie {
 		}	
 	}
 
+	spendSugar(): void {
+		let sugarPurchases = [];
+		for (let i = 0; i < BuildingIndex.NumBuildings; ++i)
+			if (this.sim.buildings[i].level < 10)
+				sugarPurchases.push(new BuildingLevel(this.sim, i));
+		if (sugarPurchases.length == 0)
+			for (let i = 0; i < BuildingIndex.NumBuildings; ++i)
+				sugarPurchases.push(new BuildingLevel(this.sim, i));
+				
+		sugarPurchases.sort((a, b) => b.pvr - a.pvr);
+
+		if (sugarPurchases[0].price <= Game.lumps) {
+			sugarPurchases[0].purchase();
+		}
+	}
+
 	update(): void {
 		// Click the cookie
 		if (this.sim.strategy.autoClick) {
@@ -1549,6 +1565,27 @@ class Upgrade extends Purchase {
 		this.addApplier(() => { this.sim.prestigeUnlocked += amount; });
 		this.addRevoker(() => { this.sim.prestigeUnlocked -= amount; });
 		return this;		
+	}
+}
+
+class BuildingLevel extends Purchase {
+	constructor(sim: Simulator, public index: BuildingIndex) {
+		super(sim, sim.buildings[index].name);
+		this.addApplier(() => this.sim.buildings[this.index].level++);
+		this.addRevoker(() => this.sim.buildings[this.index].level--);
+	}
+
+	get longName() {
+		return this.name + " level " + (this.sim.buildings[this.index].level + 1);
+	}
+
+	get price() {
+		return this.sim.buildings[this.index].level + 1;
+	}
+
+	purchase() {
+		Game.ObjectsById[this.index].levelUp();
+		this.apply();
 	}
 }
 

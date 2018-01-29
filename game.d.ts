@@ -16,6 +16,7 @@ declare namespace Game {
         sacrifice(n: number): void
         getPrice(): number
         cps(o: Object): number
+        levelUp(): void
     }
 
     class Upgrade {
@@ -58,6 +59,7 @@ declare namespace Game {
     let pledges: number
     let AchievementsOwned: number
     let time: number
+    let lumps: number
     let lumpT: number
     let lumpRipeAge: number
 
