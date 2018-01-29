@@ -453,6 +453,8 @@ class UltimateCookie {
 					upgrade.isUnlocked = true;
 				if (gameUpgrade.bought != 0 && !upgrade.isApplied)
 					upgrade.apply();
+				if (gameUpgrade.bought == 0 && upgrade.isApplied)
+					upgrade.revoke();
 			} else {
 				console.log("Can't find upgrade " + gameUpgrade.name + " to apply.")
 			}
@@ -907,9 +909,9 @@ class Building extends Purchase {
 				errors.push("Building Name " + this.name + " does not match " + gameObj.name);			
 			if (this.level != gameObj.level)
 				errors.push("Building Level " + this.level + " does not match " + gameObj.level);
-			if (!this.sim.equalityFunction(this.price, gameObj.getPrice()))
+			if (!floatEqual(this.price, gameObj.getPrice()))
 				errors.push("Building Cost " + this.name + " - Predicted: " + this.price + ", Actual: " + gameObj.getPrice());
-			if (!this.sim.equalityFunction(this.individualCps, gameObj.cps(gameObj)))
+			if (!floatEqual(this.individualCps, gameObj.cps(gameObj)))
 				errors.push("Building CpS " + this.name + " - Predicted: " + this.individualCps + ", Actual: " + gameObj.cps(gameObj));
 		} else {
 			errors.push("Building Index " + this.index + " doesn't match any building.");
@@ -1294,7 +1296,7 @@ class Upgrade extends Purchase {
 			let gameObj = Game.Upgrades[this.name];
 			if (!gameObj)
 				return ["Upgrade Name " + this.name + " has no corresponding match in store."];
-			if (!this.sim.equalityFunction(this.price, gameObj.getPrice()))
+			if (!floatEqual(this.price, gameObj.getPrice()))
 				return ["Upgrade Cost " + this.name + " - Predicted: " + this.price + ", Actual: " + gameObj.getPrice()];
 			if (this.isApplied && gameObj.bought == 0)
 				return ["Upgrade " + this.name + " bought in sim but not bought in game."];
@@ -1654,8 +1656,6 @@ class Simulator {
 	sessionStartTime: number
 	cachedCenturyMultiplier: number
 
-	equalityFunction = floatEqual
-
 	// Representations of Game entities
 	buildings: Building[] = []
 	dragonAuras: { [index: number]: DragonAura } = {}
@@ -1913,17 +1913,6 @@ class Simulator {
 	// 	const CookieChainMultiplier = 60 * 60 * 3;	// Verify this
 	// 	return this.preCurseCps * CookieChainMultiplier;
 	// }
-	
-	getModifier(name: string): Modifier {
-		let upgrade = this.modifiers[name];
-		if (!upgrade) {
-			console.log("Unsupported upgrade: " + name);
-			upgrade = new Upgrade(this, name); 
-			upgrade.isUnsupported();
-			this.modifiers[name] = upgrade;
-		}
-		return upgrade;
-	}
 }
 
 function populate_simulator(sim: Simulator): void {
@@ -2584,10 +2573,11 @@ function populate_simulator(sim: Simulator): void {
 	toggle("Golden switch [off]"			).isAGoldenSwitch();
 	
 	// Just query all upgrades, gives a dump of those not supported
-	let ukeys = Object.keys(Game.Upgrades);
-	for (let key in ukeys) {
-		if (Game.Upgrades[ukeys[key]].pool != "debug")
-			sim.getModifier(ukeys[key]);
+	for (let gameUpgrade of Game.Upgrades) {
+		if (Game.Upgrades[gameUpgrade.name].pool != "debug") {
+			console.log("Unsupported upgrade: " + gameUpgrade.name);
+			upgrade(gameUpgrade.name).isUnsupported();
+		}
 	}
 }
 
