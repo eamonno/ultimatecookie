@@ -83,6 +83,11 @@ class UltimateCookie {
 		setInterval(() => this.update(), AutoUpdateInterval);
 	}
 
+	clearErrors(): void {
+		this.errorArray = [];
+		this.errorDict = {};
+	}
+
 	dumpErrors(start = 0): void {
 		const Divider = "==================================================\n";
 		
@@ -291,15 +296,22 @@ class UltimateCookie {
 	spendSugar(): void {
 		const SugarAchievementLevel = 10;
 
+		// Unlock the minigames first, then level all buildings to 10 to unlock the
+		// achievements, beyond that just level based on best return
 		let sugarPurchases = [];
-		for (let i = 0; i < BuildingIndex.NumBuildings; ++i)
-			if (this.sim.buildings[i].level < SugarAchievementLevel)
-				sugarPurchases.push(new BuildingLevel(this.sim, i));
-		if (sugarPurchases.length == 0)
+		if (this.sim.buildings[BuildingIndex.Temple].level == 0) {
+			sugarPurchases.push(new BuildingLevel(this.sim, BuildingIndex.Temple));
+		} else if (this.sim.buildings[BuildingIndex.WizardTower].level == 0) {
+			sugarPurchases.push(new BuildingLevel(this.sim, BuildingIndex.WizardTower));			
+		} else {
 			for (let i = 0; i < BuildingIndex.NumBuildings; ++i)
-				sugarPurchases.push(new BuildingLevel(this.sim, i));
-				
-		sugarPurchases.sort((a, b) => b.pvr - a.pvr);
+				if (this.sim.buildings[i].level < SugarAchievementLevel)
+					sugarPurchases.push(new BuildingLevel(this.sim, i));
+			if (sugarPurchases.length == 0)
+				for (let i = 0; i < BuildingIndex.NumBuildings; ++i)
+					sugarPurchases.push(new BuildingLevel(this.sim, i));			
+			sugarPurchases.sort((a, b) => b.pvr - a.pvr);
+		}
 
 		if (sugarPurchases[0].price <= Game.lumps) {
 			this.purchaseOrder.push(sugarPurchases[0].longName);
