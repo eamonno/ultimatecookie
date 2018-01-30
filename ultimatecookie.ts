@@ -289,9 +289,11 @@ class UltimateCookie {
 	}
 
 	spendSugar(): void {
+		const SugarAchievementLevel = 10;
+
 		let sugarPurchases = [];
 		for (let i = 0; i < BuildingIndex.NumBuildings; ++i)
-			if (this.sim.buildings[i].level < 10)
+			if (this.sim.buildings[i].level < SugarAchievementLevel)
 				sugarPurchases.push(new BuildingLevel(this.sim, i));
 		if (sugarPurchases.length == 0)
 			for (let i = 0; i < BuildingIndex.NumBuildings; ++i)
@@ -300,6 +302,7 @@ class UltimateCookie {
 		sugarPurchases.sort((a, b) => b.pvr - a.pvr);
 
 		if (sugarPurchases[0].price <= Game.lumps) {
+			this.purchaseOrder.push(sugarPurchases[0].longName);
 			sugarPurchases[0].purchase();
 		}
 	}
@@ -1570,13 +1573,13 @@ class Upgrade extends Purchase {
 
 class BuildingLevel extends Purchase {
 	constructor(sim: Simulator, public index: BuildingIndex) {
-		super(sim, sim.buildings[index].name);
+		super(sim, sim.buildings[index].name + " level");
 		this.addApplier(() => this.sim.buildings[this.index].level++);
 		this.addRevoker(() => this.sim.buildings[this.index].level--);
 	}
 
 	get longName() {
-		return this.name + " level " + (this.sim.buildings[this.index].level + 1);
+		return this.name + " " + (this.sim.buildings[this.index].level + 1);
 	}
 
 	get price() {
