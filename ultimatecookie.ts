@@ -299,10 +299,10 @@ class UltimateCookie {
 		// Unlock the minigames first, then level all buildings to 10 to unlock the
 		// achievements, beyond that just level based on best return
 		let sugarPurchases = [];
-		if (this.sim.buildings[BuildingIndex.Temple].level == 0) {
-			sugarPurchases.push(new BuildingLevel(this.sim, BuildingIndex.Temple));
-		} else if (this.sim.buildings[BuildingIndex.WizardTower].level == 0) {
+		if (this.sim.buildings[BuildingIndex.WizardTower].level == 0) {
 			sugarPurchases.push(new BuildingLevel(this.sim, BuildingIndex.WizardTower));			
+		} else if (this.sim.buildings[BuildingIndex.Temple].level == 0) {
+			sugarPurchases.push(new BuildingLevel(this.sim, BuildingIndex.Temple));
 		} else {
 			for (let i = 0; i < BuildingIndex.NumBuildings; ++i)
 				if (this.sim.buildings[i].level < SugarAchievementLevel)
@@ -599,11 +599,13 @@ class Modifier {
 	}
 
 	revoke(): void {
-		if (!this.isApplied)
+		if (!this.isApplied) {
 			console.log("Revoking unapplied Modifier: " + this.name);
-		for (let i = this.revokers.length - 1; i >= 0; --i)
-			this.revokers[i](this.sim);
-		this.isApplied = false;
+		} else {
+			for (let i = this.revokers.length - 1; i >= 0; --i)
+				this.revokers[i](this.sim);
+			this.isApplied = false;
+		}
 	}
 
 	addApplier(func: ModifierCallback): void {
