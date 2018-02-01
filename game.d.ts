@@ -6,11 +6,21 @@
 // just the bare minimum it takes to make the typescript compiler stop complaining.
 
 declare namespace Game {
+    class Spell {
+        name: string
+    }
+    
+    class MiniGame {
+        spells: Spell[]
+        castSpell(spell, obj): void
+    }
+
     class Object {
         level: number
         amount: number
         free: number
         name: string
+        minigame: MiniGame
 
         buy(n: number): void
         sacrifice(n: number): void

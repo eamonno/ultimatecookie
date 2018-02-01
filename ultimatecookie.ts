@@ -44,6 +44,16 @@ class SyncError {
 	}
 }
 
+class Spell {
+    constructor(public name: string) {
+        
+	}
+	
+	cast(): void {
+		Game.ObjectsById[BuildingIndex.WizardTower].minigame.castSpell(Game.ObjectsById[BuildingIndex.WizardTower].minigame.spells[this.name], null);
+	}
+}
+
 //
 // UltimateCookie represents the app itself
 //
@@ -291,6 +301,13 @@ class UltimateCookie {
 		for (let i = 0; i < purchases.length; ++i) {
 			console.log("PVR: " + (purchases[i].pvr).toExponential(8) + ", B: " + (purchases[i].benefit).toExponential(8) + " :: " + purchases[i].name);
 		}	
+	}
+
+	spendMagic(): void {
+		const handOfFate: Spell = new Spell("Force the Hand of Fate");
+
+		if (false) {
+		}
 	}
 
 	spendSugar(): void {
