@@ -46,7 +46,6 @@ class SyncError {
 
 class Spell {
     constructor(public name: string) {
-        
 	}
 	
 	cast(): void {
@@ -304,9 +303,16 @@ class UltimateCookie {
 	}
 
 	spendMagic(): void {
-		const handOfFate: Spell = new Spell("Force the Hand of Fate");
+		const handOfFate: Spell = new Spell("hand of fate");
 
-		if (false) {
+		let hasFrenzy = Game.hasBuff("Frenzy");
+		let hasBuildingBuff = false;
+		for (let buff in Game.buffs) {
+			if (Game.buffs[buff].type.name == "building buff")
+				hasBuildingBuff = true;
+		}
+		if (hasFrenzy && hasBuildingBuff) {
+			handOfFate.cast();
 		}
 	}
 
@@ -2142,6 +2148,8 @@ function populate_simulator(sim: Simulator): void {
 	buff('Predictable tragedy',	30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.AntimatterCondenser);
 	buff('Eclipse',				30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Prism);
 	buff('Dry spell',			30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Chancemaker);
+	buff("Haggler's Luck",		30).scalesUpgradePrice(0.98);
+	buff("Haggler's Misery",	30).scalesUpgradePrice(1.02);
 	buff('Cursed finger', 		10).cursesFinger();	
 	buff('Dragonflight', 		10).scalesClickFrenzyMultiplier(1111);	
 	buff('Dragon harvest', 		60).scalesFrenzyMultiplier(15);	

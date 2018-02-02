@@ -46,8 +46,13 @@ declare namespace Game {
         hp: number
     }
 
+    class BuffType {
+        name: string
+    }
+
     class Buff {
         multCpS: number
+        type: BuffType
     }
 
     let cookies: number
