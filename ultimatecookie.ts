@@ -77,6 +77,7 @@ class UltimateCookie {
 	// Timers for various complex calculations
 	auraTicker: Ticker = new Ticker(5000);
 	ascensionTicker: Ticker = new Ticker(5000);
+	spellTicker: Ticker = new Ticker(1000);
 
 	// Errors and State
 	state: UltimateCookieState = UltimateCookieState.Farming;
@@ -426,6 +427,11 @@ class UltimateCookie {
 		// Choose which auras to apply
 		if (this.auraTicker.ticked) {
 			this.chooseAuras();
+		}
+
+		// Cast spells
+		if (this.spellTicker.ticked) {
+			this.spendMagic();
 		}
 
 		// Check if it is time to ascend
