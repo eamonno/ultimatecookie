@@ -2154,14 +2154,19 @@ function populate_simulator(sim: Simulator): void {
 	buff('Predictable tragedy',	30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.AntimatterCondenser);
 	buff('Eclipse',				30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Prism);
 	buff('Dry spell',			30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Chancemaker);
-	buff("Haggler's Luck",		30).scalesUpgradePrice(0.98);
-	buff("Haggler's Misery",	30).scalesUpgradePrice(1.02);
 	buff('Cursed finger', 		10).cursesFinger();	
 	buff('Dragonflight', 		10).scalesClickFrenzyMultiplier(1111);	
 	buff('Dragon harvest', 		60).scalesFrenzyMultiplier(15);	
 	buff('Everything must go',	 8).scalesBuildingPrice(0.95);
 	buff('Cookie storm',		 7);		// Spawns a lot of golden cookies
-	
+
+	// Grimoire spell buffs - the duration of these doesn't scale
+	buff("Crafty pixies",		 30).scalesBuildingPrice(0.98);
+	buff("Nasty goblins",		 30).scalesBuildingPrice(1.02);
+	buff("Haggler's Luck",		 30).scalesUpgradePrice(0.98);
+	buff("Haggler's Misery",	 30).scalesUpgradePrice(1.02);
+	buff("Magic adept",			300);		// Spells backfire 10 times less for five minutes
+
 	//
 	// Create all the prestige upgrades
 	//
