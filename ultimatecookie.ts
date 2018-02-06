@@ -386,6 +386,7 @@ class UltimateCookie {
 		// Resync to the game if needed
 		if (Game.recalculateGains == 0) {
 			this.syncBuffs();
+			this.syncSeason();
 			this.syncStore();
 			let errors: string[] = this.syncErrors;
 			if (errors.length > 0) {
@@ -460,9 +461,8 @@ class UltimateCookie {
 		this.sim.milkAmount = Game.AchievementsOwned / AchievementsPerMilk;
 		this.sim.frenzyMultiplier = 1;
 		this.sim.clickFrenzyMultiplier = 1;
-		this.sim.seasonChanges = Game.seasonUses;
 		this.syncBuffs();
-		this.sim.seasonStack = [this.sim.seasons[Game.season]];
+		this.syncSeason();
 		this.sim.santa.level = Game.santaLevel;
 		this.sim.dragon.level = Game.dragonLevel;
 		if (Game.dragonAura > 0) {
@@ -495,6 +495,12 @@ class UltimateCookie {
 				}
 			}
 		}
+	}
+
+	syncSeason(): void {
+		// Sync the season, needs to be done because the season buffs expire eventually
+		this.sim.seasonChanges = Game.seasonUses;
+		this.sim.seasonStack = [this.sim.seasons[Game.season]];
 	}
 
 	syncStore(): void {
