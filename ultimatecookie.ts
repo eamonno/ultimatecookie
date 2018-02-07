@@ -76,9 +76,12 @@ class UltimateCookie {
 
 	// Timers for various complex calculations
 	auraTicker: Ticker = new Ticker(5000);
-	ascensionTicker: Ticker = new Ticker(5000);
 	spellTicker: Ticker = new Ticker(1000);
 
+	// Ascension stuff
+	ascensionFlag: boolean = false;
+	ascensionTicker: Ticker = new Ticker(5000);
+	
 	// Errors and State
 	state: UltimateCookieState = UltimateCookieState.Farming;
 	errorArray: SyncError[] = [];
@@ -237,6 +240,10 @@ class UltimateCookie {
 	}
 
 	considerAscending(): void {
+		let currentPrestige = Game.prestige;
+		let newPrestige = Math.floor(Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned));
+		let remainPrestige = Math.floor(Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned * 2));
+		let ascendPrestige = Math.floor(Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned * 2));
 	}
 
 	startAscend(): void {
@@ -263,8 +270,6 @@ class UltimateCookie {
 		const LuckyPayoutEnding = 777777;
 		const LuckyUnlockMultiplier = 20;
 		
-		let currentPrestige = Game.prestige;
-		let newPrestige = Math.floor(Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned));
 
 		let ending = 0;
 		if (!this.sim.upgrades['Lucky payout'].isApplied && newPrestige > LuckyPayoutEnding * LuckyUnlockMultiplier) {
@@ -436,7 +441,7 @@ class UltimateCookie {
 		}
 
 		// Check if it is time to ascend
-		if (this.ascensionTicker.ticked) {
+		if (this.ascensionFlag || this.ascensionTicker.ticked) {
 			this.considerAscending();
 		}
 	}
