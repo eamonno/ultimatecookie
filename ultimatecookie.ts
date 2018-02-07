@@ -1562,18 +1562,12 @@ class Upgrade extends Purchase {
 
 	setsSeason(name: string): this {
 		this.isSeasonChanger = true;
-		this.addApplier(() => { 
-			if (this.sim.season && this.sim.season.toggle)
-				this.sim.season.toggle.isApplied = false;
+		this.addApplier(() => {
 			this.sim.pushSeason(this.sim.seasons[name]);
-			this.sim.seasons[name].apply();
 			this.sim.seasonChanges++; 
 		});
 		this.addRevoker(() => {
-			this.sim.seasons[name].revoke();
 			this.sim.popSeason();
-			if (this.sim.season.toggle)
-				this.sim.season.toggle.isApplied = true;
 			this.sim.seasonChanges--; 
 		});
 		return this;
