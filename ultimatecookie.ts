@@ -505,7 +505,7 @@ class UltimateCookie {
 	syncSeason(): void {
 		// Sync the season, needs to be done because the season buffs expire eventually
 		this.sim.seasonChanges = Game.seasonUses;
-		this.sim.seasonStack = [this.sim.seasons[Game.season]];
+		this.sim.seasonStack = [this.sim.seasons[Game.season], this.sim.seasons[""]];
 	}
 
 	syncStore(): void {
