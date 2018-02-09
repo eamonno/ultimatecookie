@@ -244,10 +244,9 @@ class UltimateCookie {
 		let newPrestige = Math.floor(Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned));
 		let remainPrestige = Math.floor(Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned * 2));
 		let ascendPrestige = Math.floor(Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned * 2));
-	}
 
-	startAscend(): void {
-		this.state = UltimateCookieState.AscendWait;
+		if (newPrestige > remainPrestige)
+			this.state = UltimateCookieState.AscendWait;
 	}
 
 	ascend(): void {
@@ -271,14 +270,14 @@ class UltimateCookie {
 		const LuckyUnlockMultiplier = 20;
 		
 
-		let ending = 0;
-		if (!this.sim.upgrades['Lucky payout'].isApplied && newPrestige > LuckyPayoutEnding * LuckyUnlockMultiplier) {
-			ending = LuckyPayoutEnding;
-		} else if (!this.sim.upgrades['Lucky number'].isApplied && newPrestige > LuckyNumberEnding * LuckyUnlockMultiplier) {
-			ending = LuckyNumberEnding;
-		} else if (!this.sim.upgrades['Lucky digit'].isApplied && newPrestige > LuckyDigitEnding * LuckyUnlockMultiplier) {
-			ending = LuckyDigitEnding;
-		} 
+		// let ending = 0;
+		// if (!this.sim.upgrades['Lucky payout'].isApplied && newPrestige > LuckyPayoutEnding * LuckyUnlockMultiplier) {
+		// 	ending = LuckyPayoutEnding;
+		// } else if (!this.sim.upgrades['Lucky number'].isApplied && newPrestige > LuckyNumberEnding * LuckyUnlockMultiplier) {
+		// 	ending = LuckyNumberEnding;
+		// } else if (!this.sim.upgrades['Lucky digit'].isApplied && newPrestige > LuckyDigitEnding * LuckyUnlockMultiplier) {
+		// 	ending = LuckyDigitEnding;
+		// } 
 	}
 
 	// reset(): void {
@@ -505,7 +504,7 @@ class UltimateCookie {
 	syncSeason(): void {
 		// Sync the season, needs to be done because the season buffs expire eventually
 		this.sim.seasonChanges = Game.seasonUses;
-		this.sim.seasonStack = [this.sim.seasons[Game.season], this.sim.seasons[""]];
+		this.sim.seasonStack = [this.sim.seasons[""], this.sim.seasons[Game.season]];
 	}
 
 	syncStore(): void {
