@@ -245,8 +245,14 @@ class UltimateCookie {
 		let remainPrestige = Math.floor(Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned * 2));
 		let ascendPrestige = Math.floor(Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned * 2));
 
-		if (newPrestige > remainPrestige)
-			this.state = UltimateCookieState.AscendWait;
+		if (this.state == UltimateCookieState.Farming) {
+			if (newPrestige > remainPrestige)
+				this.state = UltimateCookieState.AscendWait;
+		} else if (this.state == UltimateCookieState.AscendWait) {
+			this.state = UltimateCookieState.AscendPurchase;
+		} else if (this.state == UltimateCookieState.AscendReset) {
+			this.state = UltimateCookieState.Farming;
+		}
 	}
 
 	ascend(): void {
