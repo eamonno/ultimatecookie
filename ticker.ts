@@ -19,6 +19,9 @@ class Ticker {
 		if (this.last + this.span <= now) {
 			this.last = now;
 			return true;
+		} else if (this.last > now) {
+			// Fix bug where you put the system clock back
+			this.last = now;
 		}
 		return false;
     }
