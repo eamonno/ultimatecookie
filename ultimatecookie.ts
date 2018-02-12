@@ -305,6 +305,22 @@ class UltimateCookie {
 	// 	Game.Reset(1, 0);
 	// }
 
+	allBuildingRefundValue(): number {
+		let earthShatterer = this.sim.dragonAuras["Earth Shatterer"];	// Buildings refund 85% of price
+
+		let refund = 0;
+		for (let i = 0; i < BuildingIndex.NumBuildings; ++i) {
+			refund += this.sim.buildings[i].rangeRefundValue(1, this.sim.buildings[i].quantity + 1);
+		}
+		return refund;
+	}
+
+	sellAllBuildings(): void {
+		for (let i = 0; i < BuildingIndex.NumBuildings; ++i) {
+			Game.ObjectsById[i].sell(Game.ObjectsById[i].amount);
+		}
+	}
+
 	sortTest(): void {
 		let purchases = this.rankPurchases();
 		
@@ -338,12 +354,20 @@ class UltimateCookie {
 		} else if (this.sim.buildings[BuildingIndex.Temple].level == 0) {
 			sugarPurchases.push(new BuildingLevel(this.sim, BuildingIndex.Temple));
 		} else {
+			// If any building is at the point where the next level gives an achievement, get that
 			for (let i = 0; i < BuildingIndex.NumBuildings; ++i)
-				if (this.sim.buildings[i].level < SugarAchievementLevel)
+				if (this.sim.buildings[i].level == SugarAchievementLevel - 1)
 					sugarPurchases.push(new BuildingLevel(this.sim, i));
-			if (sugarPurchases.length == 0)
+			if (sugarPurchases.length == 0) {
+				// Consider only buildings with locked achievements
 				for (let i = 0; i < BuildingIndex.NumBuildings; ++i)
-					sugarPurchases.push(new BuildingLevel(this.sim, i));			
+					if (this.sim.buildings[i].level < SugarAchievementLevel)
+						sugarPurchases.push(new BuildingLevel(this.sim, i));
+				// Finally consider all buildings
+				if (sugarPurchases.length == 0)
+					for (let i = 0; i < BuildingIndex.NumBuildings; ++i)
+						sugarPurchases.push(new BuildingLevel(this.sim, i));
+			}
 			sugarPurchases.sort((a, b) => b.pvr - a.pvr);
 		}
 
@@ -353,7 +377,7 @@ class UltimateCookie {
 		}
 	}
 
-	update(): void {
+	doClicking() {
 		// Click the cookie
 		if (this.sim.strategy.autoClick) {
 			Game.ClickCookie();
@@ -375,6 +399,15 @@ class UltimateCookie {
 			Game.clickLump();
 		}
 
+		// Pop wrinklers during halloween if upgrades need unlocking
+		if (this.sim.season.name == "halloween" && this.sim.strategy.unlockSeasonUpgrades) {
+			for (let w in Game.wrinklers) {
+				if (Game.wrinklers[w].sucked > 0) {
+					Game.wrinklers[w].hp = 0;
+				}
+			}
+		}
+
 		// Update the click rate
 		if (this.clickRateTicker.ticked) {
 			const MinClicksPerSecond = 0;
@@ -392,7 +425,9 @@ class UltimateCookie {
 			this.clickCount = Game.cookieClicks;
 			this.sim.clickRate = this.sim.strategy.clickRateOverride == -1 ? this.clickRate : this.sim.strategy.clickRateOverride;
 		}
+	}
 
+	doSyncing(): void {
 		// Resync to the game if needed
 		if (Game.recalculateGains == 0) {
 			this.syncBuffs();
@@ -410,16 +445,9 @@ class UltimateCookie {
 				this.sync();
 			}
 		}
+	}
 
-		// Pop wrinklers during halloween if upgrades need unlocking
-		if (this.sim.season.name == "halloween" && this.sim.strategy.unlockSeasonUpgrades) {
-			for (let w in Game.wrinklers) {
-				if (Game.wrinklers[w].sucked > 0) {
-					Game.wrinklers[w].hp = 0;
-				}
-			}
-		}
-
+	doPurchasing(): void {
 		// Recheck the best purchase if purchaseTicker has ticked
 		if (this.purchaseTicker.ticked) {
 			this.nextPurchase = this.rankPurchases()[0];
@@ -434,6 +462,12 @@ class UltimateCookie {
 				this.purchaseTicker.restart();
 			}
 		}
+	}
+
+	update(): void {
+		this.doClicking();
+		this.doSyncing();
+		this.doPurchasing();
 
 		// Choose which auras to apply
 		if (this.auraTicker.ticked) {
@@ -770,8 +804,9 @@ class Buff extends Modifier {
 	shrink: boolean
 	buildingIndex: number
 	cachedScale?: number
+	isAGoldenCookieBuff?: boolean
 
-	constructor(sim: Simulator, name: string, public duration: number) {
+	constructor(sim: Simulator, name: string, public baseDuration: number) {
 		super(sim, name);
 		this.addApplier(() => { this.sim.buffCount++; })
 		this.addRevoker(() => { this.sim.buffCount--; })
@@ -784,9 +819,21 @@ class Buff extends Modifier {
 		return this.shrink ? 1 / scale : scale;
 	}
 
+	get duration(): number {
+		if (this.isAGoldenCookieBuff) {
+			return this.baseDuration * this.sim.goldenCookieEffectDurationMultiplier;
+		}
+		return this.duration;
+	}
+
 	cursesFinger(): this {
 		this.addApplier(() => { this.sim.cursedFinger = true; });
 		this.addRevoker(() => { this.sim.cursedFinger = false; });
+		return this;
+	}
+
+	isGoldenCookieBuff(): this {
+		this.isAGoldenCookieBuff = true;
 		return this;
 	}
 
@@ -925,6 +972,10 @@ class Building extends Purchase {
 		return Math.ceil(this.sim.buildingPriceScale * this.basePrice * Math.pow(1.15, Math.max(0, n - this.free)));
 	}
 
+	nthRefundValue(n: number): number {
+		return Math.floor(this.nthPrice(n) * this.sim.buildingRefundRate);
+	}
+
 	get price(): number {
 		return this.nthPrice(this.quantity);
 	}
@@ -967,15 +1018,11 @@ class Building extends Purchase {
 		}
 	}
 
-	refundValue(index: number | void): number {
-		if (index) {
-			return this.nthPrice(index) * this.sim.buildingRefundRate;
-		} else {
-			let total: number = 0;
-			for (let i = 0; i < this.quantity; ++i) 
-				total += this.nthPrice(i);
-			return total * this.sim.buildingRefundRate;
-		}
+	rangeRefundValue(start: number, end: number): number {
+		let total: number = 0;
+		for (let i = start; i < end; ++i) 
+			total += this.nthRefundValue(i);
+		return total;
 	}
 
 	get matchErrors(): string[] {
@@ -2130,46 +2177,46 @@ function populate_simulator(sim: Simulator): void {
 	// Create all the buffs
 	//
 
-	buff('Clot',				66).scalesFrenzyMultiplier(0.5);
-	buff('Frenzy',				77).scalesFrenzyMultiplier(7).scalesReindeerBuffMultiplier(0.75);
-	buff('Elder frenzy',		 6).scalesFrenzyMultiplier(666).scalesReindeerBuffMultiplier(0.5);
-	buff('Click frenzy',		13).scalesClickFrenzyMultiplier(777);
-	buff('High-five',			30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Cursor);
-	buff('Congregation',		30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Grandma);
-	buff('Luxuriant harvest',	30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Farm);
-	buff('Ore vein',			30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Mine);
-	buff('Oiled-up',			30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Factory);
-	buff('Juicy profits',		30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Bank);
-	buff('Fervent adoration',	30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Temple);
-	buff('Manabloom',			30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.WizardTower);
-	buff('Delicious lifeforms',	30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Shipment);
-	buff('Breakthrough',		30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.AlchemyLab);
-	buff('Righteous cataclysm',	30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Portal);
-	buff('Golden ages',			30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.TimeMachine);
-	buff('Extra cycles',		30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.AntimatterCondenser);
-	buff('Solar flare',			30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Prism);
-	buff('Winning streak',		30).scalesFrenzyMultiplierPerBuilding(BuildingIndex.Chancemaker);
-	buff('Slap to the face',	30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Cursor);
-	buff('Senility',			30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Grandma);
-	buff('Locusts',				30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Farm);
-	buff('Cave-in',				30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Mine);
-	buff('Jammed machinery',	30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Factory);
-	buff('Recession',			30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Bank);
-	buff('Crisis of faith',		30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Temple);
-	buff('Magivores',			30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.WizardTower);
-	buff('Black holes',			30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Shipment);
-	buff('Lab disaster',		30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.AlchemyLab);
-	buff('Dimensional calamity',30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Portal);
-	buff('Time jam',			30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.TimeMachine);
-	buff('Predictable tragedy',	30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.AntimatterCondenser);
-	buff('Eclipse',				30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Prism);
-	buff('Dry spell',			30).shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Chancemaker);
-	buff('Cursed finger', 		10).cursesFinger();	
-	buff('Dragonflight', 		10).scalesClickFrenzyMultiplier(1111);	
-	buff('Dragon harvest', 		60).scalesFrenzyMultiplier(15);	
-	buff('Everything must go',	 8).scalesBuildingPrice(0.95);
-	buff('Cookie storm',		 7);		// Spawns a lot of golden cookies
-
+	buff('Clot',					   66).isGoldenCookieBuff().scalesFrenzyMultiplier(0.5);
+	buff('Frenzy',					   77).isGoldenCookieBuff().scalesFrenzyMultiplier(7).scalesReindeerBuffMultiplier(0.75);
+	buff('Elder frenzy',		 	    6).isGoldenCookieBuff().scalesFrenzyMultiplier(666).scalesReindeerBuffMultiplier(0.5);
+	buff('Click frenzy',			   13).isGoldenCookieBuff().scalesClickFrenzyMultiplier(777);
+	buff('High-five',				   30).isGoldenCookieBuff().scalesFrenzyMultiplierPerBuilding(BuildingIndex.Cursor);
+	buff('Congregation',			   30).isGoldenCookieBuff().scalesFrenzyMultiplierPerBuilding(BuildingIndex.Grandma);
+	buff('Luxuriant harvest',		   30).isGoldenCookieBuff().scalesFrenzyMultiplierPerBuilding(BuildingIndex.Farm);
+	buff('Ore vein',				   30).isGoldenCookieBuff().scalesFrenzyMultiplierPerBuilding(BuildingIndex.Mine);
+	buff('Oiled-up',				   30).isGoldenCookieBuff().scalesFrenzyMultiplierPerBuilding(BuildingIndex.Factory);
+	buff('Juicy profits',			   30).isGoldenCookieBuff().scalesFrenzyMultiplierPerBuilding(BuildingIndex.Bank);
+	buff('Fervent adoration',		   30).isGoldenCookieBuff().scalesFrenzyMultiplierPerBuilding(BuildingIndex.Temple);
+	buff('Manabloom',				   30).isGoldenCookieBuff().scalesFrenzyMultiplierPerBuilding(BuildingIndex.WizardTower);
+	buff('Delicious lifeforms',		   30).isGoldenCookieBuff().scalesFrenzyMultiplierPerBuilding(BuildingIndex.Shipment);
+	buff('Breakthrough',			   30).isGoldenCookieBuff().scalesFrenzyMultiplierPerBuilding(BuildingIndex.AlchemyLab);
+	buff('Righteous cataclysm',		   30).isGoldenCookieBuff().scalesFrenzyMultiplierPerBuilding(BuildingIndex.Portal);
+	buff('Golden ages',				   30).isGoldenCookieBuff().scalesFrenzyMultiplierPerBuilding(BuildingIndex.TimeMachine);
+	buff('Extra cycles',			   30).isGoldenCookieBuff().scalesFrenzyMultiplierPerBuilding(BuildingIndex.AntimatterCondenser);
+	buff('Solar flare',				   30).isGoldenCookieBuff().scalesFrenzyMultiplierPerBuilding(BuildingIndex.Prism);
+	buff('Winning streak',			   30).isGoldenCookieBuff().scalesFrenzyMultiplierPerBuilding(BuildingIndex.Chancemaker);
+	buff('Slap to the face',		   30).isGoldenCookieBuff().shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Cursor);
+	buff('Senility',				   30).isGoldenCookieBuff().shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Grandma);
+	buff('Locusts',					   30).isGoldenCookieBuff().shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Farm);
+	buff('Cave-in',					   30).isGoldenCookieBuff().shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Mine);
+	buff('Jammed machinery',		   30).isGoldenCookieBuff().shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Factory);
+	buff('Recession',				   30).isGoldenCookieBuff().shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Bank);
+	buff('Crisis of faith',			   30).isGoldenCookieBuff().shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Temple);
+	buff('Magivores',				   30).isGoldenCookieBuff().shrinksFrenzyMultiplierPerBuilding(BuildingIndex.WizardTower);
+	buff('Black holes',				   30).isGoldenCookieBuff().shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Shipment);
+	buff('Lab disaster',			   30).isGoldenCookieBuff().shrinksFrenzyMultiplierPerBuilding(BuildingIndex.AlchemyLab);
+	buff('Dimensional calamity',	   30).isGoldenCookieBuff().shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Portal);
+	buff('Time jam',				   30).isGoldenCookieBuff().shrinksFrenzyMultiplierPerBuilding(BuildingIndex.TimeMachine);
+	buff('Predictable tragedy',		   30).isGoldenCookieBuff().shrinksFrenzyMultiplierPerBuilding(BuildingIndex.AntimatterCondenser);
+	buff('Eclipse',					   30).isGoldenCookieBuff().shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Prism);
+	buff('Dry spell',				   30).isGoldenCookieBuff().shrinksFrenzyMultiplierPerBuilding(BuildingIndex.Chancemaker);
+	buff('Cursed finger', 			   10).isGoldenCookieBuff().cursesFinger();	
+	buff('Cookie storm',				7).isGoldenCookieBuff();		// Spawns a lot of golden cookies
+	buff('Dragonflight', 			   10).scalesClickFrenzyMultiplier(1111);	
+	buff('Dragon harvest', 			   60).scalesFrenzyMultiplier(15);	
+	buff('Everything must go',		    8).scalesBuildingPrice(0.95);
+	buff('Sugar blessing',	 24 * 60 * 60).scalesGoldenCookieFrequency(1.1);
 	// Grimoire spell buffs - the duration of these doesn't scale
 	buff("Crafty pixies",		 30).scalesBuildingPrice(0.98);
 	buff("Nasty goblins",		 30).scalesBuildingPrice(1.02);

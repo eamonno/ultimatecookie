@@ -27,6 +27,7 @@ declare namespace Game {
         getPrice(): number
         cps(o: Object): number
         levelUp(): void
+        sell(amount: number): void
     }
 
     class Upgrade {
