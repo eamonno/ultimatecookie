@@ -310,7 +310,7 @@ class UltimateCookie {
 
 		let refund = 0;
 		for (let i = 0; i < BuildingIndex.NumBuildings; ++i) {
-			refund += this.sim.buildings[i].rangeRefundValue(1, this.sim.buildings[i].quantity + 1);
+			refund += this.sim.buildings[i].refundValue();
 		}
 		return refund;
 	}
@@ -972,10 +972,6 @@ class Building extends Purchase {
 		return Math.ceil(this.sim.buildingPriceScale * this.basePrice * Math.pow(1.15, Math.max(0, n - this.free)));
 	}
 
-	nthRefundValue(n: number): number {
-		return Math.floor(this.nthPrice(n) * this.sim.buildingRefundRate);
-	}
-
 	get price(): number {
 		return this.nthPrice(this.quantity);
 	}
@@ -1018,10 +1014,17 @@ class Building extends Purchase {
 		}
 	}
 
-	rangeRefundValue(start: number, end: number): number {
+	refundValue(index?: number): number {
+		function refundAmount(n: number): number { 
+			return Math.floor(this.nthPrice(n) * this.sim.buildingRefundRate); 
+		}
+	
+		if (index) {
+			return refundAmount(index);
+		}
 		let total: number = 0;
-		for (let i = start; i < end; ++i) 
-			total += this.nthRefundValue(i);
+		for (let i = 0; i < this.quantity; ++i) 
+			total += refundAmount(i);
 		return total;
 	}
 
