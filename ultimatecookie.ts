@@ -496,6 +496,7 @@ class UltimateCookie {
 		this.sim.reset();
 		for (let i = 0; i < Game.ObjectsById.length && i < this.sim.buildings.length; ++i) {
 			this.sim.buildings[i].quantity = Game.ObjectsById[i].amount;
+			this.sim.buildings[i].applicationCount = Game.ObjectsById[i].amount;
 			this.sim.buildings[i].free = Game.ObjectsById[i].free;
 			this.sim.buildings[i].level = Game.ObjectsById[i].level;
 		}
@@ -654,36 +655,40 @@ class UltimateCookie {
 // modifier can be applied to or revoked from a Simulation.
 //
 
-type ModifierCallback = (sim: Simulator) => void;
+type ModifierCallback = () => void;
 
 class Modifier {
-	isApplied: boolean = false;
+	applicationCount: number = 0
 	unsupported: boolean
 	appliers: ModifierCallback[] = []
 	revokers: ModifierCallback[] = []
 
-	constructor(public sim: Simulator, public name: string) {
+	constructor(public sim: Simulator, public name: string, public isUnique: boolean = false) {
+	}
+
+	get isApplied(): boolean {
+		return this.applicationCount > 0;
 	}
 
 	apply(): void {
-		if (this.isApplied)
+		if (!this.isUnique && this.applicationCount > 0)
 			console.log("Reapplying Modifier: " + this.name);
 		for (let i = 0; i < this.appliers.length; ++i)
-			this.appliers[i](this.sim);
-		this.isApplied = true;
+			this.appliers[i]();
+		this.applicationCount++;
 	}
 
 	reset(): void {
-		this.isApplied = false;
+		this.applicationCount = 0;
 	}
 
 	revoke(): void {
-		if (!this.isApplied) {
+		if (this.applicationCount <= 0) {
 			console.log("Revoking unapplied Modifier: " + this.name);
 		} else {
 			for (let i = this.revokers.length - 1; i >= 0; --i)
-				this.revokers[i](this.sim);
-			this.isApplied = false;
+				this.revokers[i]();
+			this.applicationCount--;
 		}
 	}
 
@@ -827,8 +832,8 @@ class Buff extends Modifier {
 	}
 
 	cursesFinger(): this {
-		this.addApplier(() => { this.sim.cursedFinger = true; });
-		this.addRevoker(() => { this.sim.cursedFinger = false; });
+		this.addApplier(() => { this.sim.cursedFingerCount++; });
+		this.addRevoker(() => { this.sim.cursedFingerCount--; });
 		return this;
 	}
 
@@ -1740,15 +1745,14 @@ class Season extends Modifier {
 }
 
 //
-// Simulator
+// BaseSimulator
 //
-// Simulates the cookie clicker Game allowing for the calculations of the CpS values etc. of the
-// game. Simulation is not compete, this doesn't actually generate cookies or act over time but
-// it does accurately simulate the effects any upgrades, building purchases, buffs etc have and 
-// as such can be used to calculate the optimal purchase strategy
+// The BaseSimulator class is the foundation for all simulators. It knows nothing about the various
+// upgrades, buffs etc. but contains all the various state variables that would be required to perform
+// the necessary CpC and CpS calculations
 //
 
-class Simulator {
+class BaseSimulator {
 	// State variables
 	baseCps: number
 	buffCount: number
@@ -1761,7 +1765,7 @@ class Simulator {
 	cpcBaseMultiplier: number
 	cpcCpsMultiplier: number
 	cpcMultiplier: number
-	cursedFinger: boolean
+	cursedFingerCount: number
 	dragonAura1?: DragonAura
 	dragonAura2?: DragonAura
 	eggCount: number
@@ -1868,7 +1872,7 @@ class Simulator {
 
 		// Game status indicators
 		this.clickFrenzyMultiplier = 1;
-		this.cursedFinger = false;
+		this.cursedFingerCount = 0;
 
 		// Golden cookie stuff information
 		this.goldenCookieTime = GOLDEN_COOKIE_AVG_INTERVAL;
@@ -1912,14 +1916,14 @@ class Simulator {
 	}
 
 	get cpc(): number {
-		if (this.cursedFinger) {
+		if (this.cursedFingerCount > 0) {
 			return this.preCurseCps * this.buffs['Cursed finger'].duration * this.goldenCookieEffectDurationMultiplier;
 		}
 		return this.preCurseCpc;
 	}
 
 	get cps(): number {
-		return this.cursedFinger ? 0 : this.preCurseCps;
+		return this.cursedFingerCount > 0 ? 0 : this.preCurseCps;
 	}
 
 	// Get the current cookies per click amount
@@ -2057,6 +2061,21 @@ class Simulator {
 	// 	return this.preCurseCps * CookieChainMultiplier;
 	// }
 }
+
+//
+// Simulator
+//
+// The Simulator class extends on the BaseSimulator by containing definitions for all of the
+// various upgrades that exist in the cookie clicker game. 
+//
+
+class Simulator extends BaseSimulator {
+	constructor(strategy: Strategy) {
+		super(strategy);
+	}
+}
+
+//class SyncedSimulator extends Simulator
 
 function populate_simulator(sim: Simulator): void {
 	// Add a new Buff to the Simulation
