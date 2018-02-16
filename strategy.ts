@@ -1,9 +1,9 @@
 //
 // Strategies
 //
-// The strategy involves any details about how the game is played, should Elder Pledge be used, what
-// spells and toggles should be active etc, auto clicking, auto buying and so on are all part of a 
-// strategy.
+// The strategy involves any details about how the game is played, should Elder
+// Pledge be used, what spells and toggles should be active etc, auto clicking,
+// auto buying and so on are all part of a strategy.
 //
 
 class Strategy {
