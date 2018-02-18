@@ -57,17 +57,7 @@ module NewModifier {
 	}
 	
 	//
-	// Scaler components multiply a BaseSimulator field by a given value when applied
-	//
-	export class Scaler implements Component {
-		constructor(public field: string, public scale: number) {}
-	
-		apply(sim: BaseSimulator): void		{ sim[this.field] *= this.scale; }
-		revoke(sim: BaseSimulator): void	{ sim[this.field] /= this.scale; }
-	}
-	
-	//
-	// Booster components add a value to a given BaseSimulator field when applied
+	// Booster components add a value to a given BaseSimulator field.
 	//
 	export class Booster implements Component {
 		constructor(public field: string, public amount: number = 1) {}
@@ -75,6 +65,32 @@ module NewModifier {
 		apply(sim: BaseSimulator): void		{ sim[this.field] += this.amount; }
 		revoke(sim: BaseSimulator): void	{ sim[this.field] -= this.amount; }
 	}
+
+	//
+	// Pusher components push a value to a given BaseSimulator array.
+	//
+	export class Pusher implements Component {
+		constructor(public field: string, public value: string | number) {}
+	
+		apply(sim: BaseSimulator): void		{ sim[this.field].push(this.value); }
+		revoke(sim: BaseSimulator): void	{ 
+			if (sim[this.field].length == 0)
+				throw new Error("Can't pop " + this.field + " as length is 0.");
+			if (sim[this.field][0] != this.value)
+				throw new Error("Popping " + this.field + " expected " + this.value + " got " + sim[this.field][0] + ".");
+			sim[this.field].pop(); 
+		}
+	}	
+
+	//
+	// Scaler components multiply a BaseSimulator field by a given value.
+	//
+	export class Scaler implements Component {
+		constructor(public field: string, public scale: number) {}
+	
+		apply(sim: BaseSimulator): void		{ sim[this.field] *= this.scale; }
+		revoke(sim: BaseSimulator): void	{ sim[this.field] /= this.scale; }
+	}	
 }
 
 //
@@ -89,10 +105,6 @@ function scales(field: string, scale: number): NewModifier.Scaler {
 function boosts(field: string, amount: number = 1): NewModifier.Booster {
 	return new NewModifier.Booster(field, amount);
 }
-
-prestige("Lucky digit"					).requires("Heavenly luck").scalesPrestige(1.01).scalesGoldenCookieDuration(1.01).scalesGoldenCookieEffectDuration(1.01);
-
-Upgrade("Lucky digit", [scales("prestigeScale", 1.01), scales("goldenCookieDurationScale", 1.01), scales("goldenCookieEffectDurationScale", 1.01)]);
 
 class OldModifier {
 
