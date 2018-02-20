@@ -45,6 +45,21 @@ class NewModifier {
 			this.applicationCount--;
 		}
 	}
+
+	protected addComponent(component: NewModifier.Component): this {
+		this.components.push(component);
+		return this;
+	}
+
+	scalesBuildingPrice(scale: number): this				{ return this.addComponent(new NewModifier.Scaler("buildingPriceScale", scale)); }
+	scalesBuildingRefundRate(scale: number): this			{ return this.addComponent(new NewModifier.Scaler("buildingRefundRate", scale)); }
+	scalesClicking(scale: number): this						{ return this.addComponent(new NewModifier.Scaler("cpcMultiplier", scale)); }
+	scalesGoldenCookieEffectDuration(scale: number): this 	{ return this.addComponent(new NewModifier.Scaler("goldenCookieEffectDurationMultiplier", scale)); }
+	scalesGoldenCookieFrequency(scale: number): this 		{ return this.addComponent(new NewModifier.Scaler("goldenCookieTime", 1 / scale)); }
+	scalesMilk(scale: number): this 						{ return this.addComponent(new NewModifier.Scaler("milkMultiplier", scale)); }
+	scalesPrestige(scale: number): this 					{ return this.addComponent(new NewModifier.Scaler("prestigeScale", scale)); }
+	scalesProduction(scale: number): this 					{ return this.addComponent(new NewModifier.Scaler("productionScale", scale)); }
+	scalesUpgradePrice(scale: number): this					{ return this.addComponent(new NewModifier.Scaler("upgradePriceScale", scale)); }
 }
 
 module NewModifier {
@@ -116,14 +131,4 @@ class OldModifier {
 		// Just a documentation thing really for now, does nothing
 		return this; 
 	}
-
-	scalesBuildingPrice(scale: number): this				{ return this.addComponent(new NewModifier.Scaler("buildingPriceScale", scale)); }
-	scalesBuildingRefundRate(scale: number): this			{ return this.addComponent(new NewModifier.Scaler("buildingRefundRate", scale)); }
-	scalesClicking(scale: number): this						{ return this.addComponent(new NewModifier.Scaler("cpcMultiplier", scale)); }
-	scalesGoldenCookieEffectDuration(scale: number): this 	{ return this.addComponent(new NewModifier.Scaler("goldenCookieEffectDurationMultiplier", scale)); }
-	scalesGoldenCookieFrequency(scale: number): this 		{ return this.addComponent(new NewModifier.Scaler("goldenCookieTime", 1 / scale)); }
-	scalesMilk(scale: number): this 						{ return this.addComponent(new NewModifier.Scaler("milkMultiplier", scale)); }
-	scalesPrestige(scale: number): this 					{ return this.addComponent(new NewModifier.Scaler("prestigeScale", scale)); }
-	scalesProduction(scale: number): this 					{ return this.addComponent(new NewModifier.Scaler("productionScale", scale)); }
-	scalesUpgradePrice(scale: number): this					{ return this.addComponent(new NewModifier.Scaler("upgradePriceScale", scale)); }
 }
