@@ -5,7 +5,154 @@
 // of the games various upgrades, buildings, buffs etc. 
 //
 
-class NewModifier {
+//type ModifierCallback = () => void;
+
+class LegacyModifier {
+	applicationCount: number = 0
+	unsupported: boolean
+	appliers: ModifierCallback[] = []
+	revokers: ModifierCallback[] = []
+
+	constructor(public sim: Simulator, public name: string, public isUnique: boolean = false) {
+	}
+
+	get isApplied(): boolean {
+		return this.applicationCount > 0;
+	}
+
+	apply(): void {
+		if (!this.isUnique && this.applicationCount > 0)
+			console.log("Reapplying Modifier: " + this.name);
+		for (let i = 0; i < this.appliers.length; ++i)
+			this.appliers[i]();
+		this.applicationCount++;
+	}
+
+	reset(): void {
+		this.applicationCount = 0;
+	}
+
+	revoke(): void {
+		if (this.applicationCount <= 0) {
+			console.log("Revoking unapplied Modifier: " + this.name);
+		} else {
+			for (let i = this.revokers.length - 1; i >= 0; --i)
+				this.revokers[i]();
+			this.applicationCount--;
+		}
+	}
+
+	addApplier(func: ModifierCallback): void {
+		this.appliers.push(func);
+	}
+
+	addRevoker(func: ModifierCallback): void {
+		this.revokers.push(func);
+	}
+
+	// The benefit is the exact amount of effective CpS that will be gained from applying this
+	// modifier
+	get benefit(): number {
+		let cps: number = this.sim.effectiveCps();
+		this.apply();
+		cps = this.sim.effectiveCps() - cps;
+		this.revoke();
+		return cps;
+	}
+
+	// A longer name that can contain extra information about the modifier used for logging etc.
+	get longName(): string {
+		return this.name;
+	}
+
+	// Value is slightly different to benefit. It lets items that might not provide any direct
+	// benefit still be included in the purchase rankings and also provides a slight boost to
+	// the purchase order of things like discounts etc. Basically if a measurable benefit is 
+	// available it is used, if not, just treat it as a lump of coal.
+	get value(): number {
+		let ben: number = this.benefit;
+		if (ben > 0 || this.name == "Chocolate egg") 
+			return ben;
+		let cps: number = this.sim.effectiveCps();
+		this.sim.productionScale *= 1.01;
+		cps = this.sim.effectiveCps() - cps;
+		this.sim.productionScale /= 1.01;
+		return cps;
+	}
+
+	//
+	// Modification functions
+	//
+
+	isUnsupported(): void {
+		this.unsupported = true;
+	}
+
+	requires(name: string): this { 
+		// Just a documentation thing really for now, does nothing
+		return this; 
+	}
+
+	scalesBuildingPrice(scale: number): this {
+		this.addApplier(() => this.sim.buildingPriceScale *= scale);
+		this.addRevoker(() => this.sim.buildingPriceScale /= scale);
+		return this;
+	}
+
+	scalesBuildingRefundRate(scale: number): this {
+		this.addApplier(() => this.sim.buildingRefundRate *= scale);
+		this.addRevoker(() => this.sim.buildingRefundRate /= scale);
+		return this;
+	}
+
+	scalesClicking(scale: number): this {
+		this.addApplier(() => this.sim.cpcMultiplier *= scale);
+		this.addRevoker(() => this.sim.cpcMultiplier /= scale);
+		return this;
+	}
+
+	scalesGoldenCookieEffectDuration(scale: number): this {
+		this.addApplier(() => this.sim.goldenCookieEffectDurationMultiplier *= scale);
+		this.addRevoker(() => this.sim.goldenCookieEffectDurationMultiplier /= scale);
+		return this;
+	}
+
+	scalesGoldenCookieFrequency(scale: number): this {
+		this.addApplier(() => this.sim.goldenCookieTime /= scale);
+		this.addRevoker(() => this.sim.goldenCookieTime *= scale);
+		return this;
+	}
+
+	scalesMilk(scale: number): this {
+		this.addApplier(() => this.sim.milkMultiplier *= scale);
+		this.addRevoker(() => this.sim.milkMultiplier /= scale);
+		return this;
+	}	
+	
+	scalesPrestige(scale: number): this {
+		this.addApplier(() => this.sim.prestigeScale *= scale);
+		this.addRevoker(() => this.sim.prestigeScale /= scale);
+		return this;
+	}
+
+	scalesProduction(scale: number): this {
+		this.addApplier(() => this.sim.productionScale *= scale);
+		this.addRevoker(() => this.sim.productionScale /= scale);
+		return this;
+	}
+
+	scalesUpgradePrice(scale: number): this {
+		this.addApplier(() => this.sim.upgradePriceScale *= scale);
+		this.addRevoker(() => this.sim.upgradePriceScale /= scale);
+		return this;
+	}
+}
+
+
+// LegacyModifier is the old Modifier class 
+//
+
+class NewModifier extends LegacyModifier {
 	applicationCount: number = 0
 
 	constructor(public sim: BaseSimulator, public components: NewModifier.Component[], public readonly isUnique = false) {}
@@ -51,15 +198,19 @@ class NewModifier {
 		return this;
 	}
 
-	scalesBuildingPrice(scale: number): this				{ return this.addComponent(new NewModifier.Scaler("buildingPriceScale", scale)); }
-	scalesBuildingRefundRate(scale: number): this			{ return this.addComponent(new NewModifier.Scaler("buildingRefundRate", scale)); }
-	scalesClicking(scale: number): this						{ return this.addComponent(new NewModifier.Scaler("cpcMultiplier", scale)); }
-	scalesGoldenCookieEffectDuration(scale: number): this 	{ return this.addComponent(new NewModifier.Scaler("goldenCookieEffectDurationMultiplier", scale)); }
-	scalesGoldenCookieFrequency(scale: number): this 		{ return this.addComponent(new NewModifier.Scaler("goldenCookieTime", 1 / scale)); }
-	scalesMilk(scale: number): this 						{ return this.addComponent(new NewModifier.Scaler("milkMultiplier", scale)); }
-	scalesPrestige(scale: number): this 					{ return this.addComponent(new NewModifier.Scaler("prestigeScale", scale)); }
-	scalesProduction(scale: number): this 					{ return this.addComponent(new NewModifier.Scaler("productionScale", scale)); }
-	scalesUpgradePrice(scale: number): this					{ return this.addComponent(new NewModifier.Scaler("upgradePriceScale", scale)); }
+	protected addScaler(field: string, scale: number): this {
+		return this.addComponent(new NewModifier.Scaler(field, scale));
+	}
+
+	scalesBuildingPrice(scale: number): this				{ return this.addScaler("buildingPriceScale", scale); }
+	scalesBuildingRefundRate(scale: number): this			{ return this.addScaler("buildingRefundRate", scale); }
+	scalesClicking(scale: number): this						{ return this.addScaler("cpcMultiplier", scale); }
+	scalesGoldenCookieEffectDuration(scale: number): this 	{ return this.addScaler("goldenCookieEffectDurationMultiplier", scale); }
+	scalesGoldenCookieFrequency(scale: number): this 		{ return this.addScaler("goldenCookieTime", 1 / scale); }
+	scalesMilk(scale: number): this 						{ return this.addScaler("milkMultiplier", scale); }
+	scalesPrestige(scale: number): this 					{ return this.addScaler("prestigeScale", scale); }
+	scalesProduction(scale: number): this 					{ return this.addScaler("productionScale", scale); }
+	scalesUpgradePrice(scale: number): this					{ return this.addScaler("upgradePriceScale", scale); }
 }
 
 module NewModifier {
@@ -105,7 +256,7 @@ module NewModifier {
 	
 		apply(sim: BaseSimulator): void		{ sim[this.field] *= this.scale; }
 		revoke(sim: BaseSimulator): void	{ sim[this.field] /= this.scale; }
-	}	
+	}
 }
 
 //
