@@ -13,7 +13,7 @@ class LegacyModifier {
 	appliers: ModifierCallback[] = []
 	revokers: ModifierCallback[] = []
 
-	constructor(public sim: Simulator, public name: string, public isUnique: boolean = false) {
+	constructor(public sim: BaseSimulator, public name: string, public isUnique: boolean = false) {
 	}
 
 	get isApplied(): boolean {
@@ -155,7 +155,9 @@ class LegacyModifier {
 class NewModifier extends LegacyModifier {
 	applicationCount: number = 0
 
-	constructor(public sim: BaseSimulator, public components: NewModifier.Component[], public readonly isUnique = false) {}
+	constructor(sim: BaseSimulator, public components: NewModifier.Component[], name: string, isUnique = false) {
+		super(sim, name, isUnique);
+	}
 	
 	get isApplied(): boolean {
 		return this.applicationCount > 0;
