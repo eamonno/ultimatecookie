@@ -204,6 +204,10 @@ class NewModifier extends LegacyModifier {
 		return this.addComponent(new NewModifier.Scaler(field, scale));
 	}
 
+	protected addBooster(field: string, amount: number): this {
+		return this.addComponent(new NewModifier.Booster(field, amount));
+	}
+
 	scalesBuildingPrice(scale: number): this				{ return this.addScaler("buildingPriceScale", scale); }
 	scalesBuildingRefundRate(scale: number): this			{ return this.addScaler("buildingRefundRate", scale); }
 	scalesClicking(scale: number): this						{ return this.addScaler("cpcMultiplier", scale); }
