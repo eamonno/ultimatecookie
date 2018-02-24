@@ -279,7 +279,8 @@ function boosts(field: string, amount: number = 1): NewModifier.Booster {
 }
 
 class OldModifier {
-
+	unsupported: boolean
+	
 	isUnsupported(): void {
 		this.unsupported = true;
 	}
