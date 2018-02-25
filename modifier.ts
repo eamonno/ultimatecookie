@@ -280,7 +280,7 @@ function boosts(field: string, amount: number = 1): NewModifier.Booster {
 
 class OldModifier {
 	unsupported: boolean
-	
+
 	isUnsupported(): void {
 		this.unsupported = true;
 	}
@@ -289,4 +289,8 @@ class OldModifier {
 		// Just a documentation thing really for now, does nothing
 		return this; 
 	}
+}
+
+interface ModifiesBaseSimulator {
+	modifier: NewModifier;
 }
