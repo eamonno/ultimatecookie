@@ -5,7 +5,7 @@
 // of the games various upgrades, buildings, buffs etc. 
 //
 
-//type ModifierCallback = () => void;
+type ModifierCallback = () => void;
 
 class LegacyModifier {
 	applicationCount: number = 0
@@ -21,11 +21,8 @@ class LegacyModifier {
 	}
 
 	apply(): void {
-		if (!this.isUnique && this.applicationCount > 0)
-			console.log("Reapplying Modifier: " + this.name);
 		for (let i = 0; i < this.appliers.length; ++i)
 			this.appliers[i]();
-		this.applicationCount++;
 	}
 
 	reset(): void {
@@ -33,13 +30,8 @@ class LegacyModifier {
 	}
 
 	revoke(): void {
-		if (this.applicationCount <= 0) {
-			console.log("Revoking unapplied Modifier: " + this.name);
-		} else {
-			for (let i = this.revokers.length - 1; i >= 0; --i)
-				this.revokers[i]();
-			this.applicationCount--;
-		}
+		for (let i = this.revokers.length - 1; i >= 0; --i)
+			this.revokers[i]();
 	}
 
 	addApplier(func: ModifierCallback): void {
@@ -92,71 +84,14 @@ class LegacyModifier {
 		// Just a documentation thing really for now, does nothing
 		return this; 
 	}
-
-	scalesBuildingPrice(scale: number): this {
-		this.addApplier(() => this.sim.buildingPriceScale *= scale);
-		this.addRevoker(() => this.sim.buildingPriceScale /= scale);
-		return this;
-	}
-
-	scalesBuildingRefundRate(scale: number): this {
-		this.addApplier(() => this.sim.buildingRefundRate *= scale);
-		this.addRevoker(() => this.sim.buildingRefundRate /= scale);
-		return this;
-	}
-
-	scalesClicking(scale: number): this {
-		this.addApplier(() => this.sim.cpcMultiplier *= scale);
-		this.addRevoker(() => this.sim.cpcMultiplier /= scale);
-		return this;
-	}
-
-	scalesGoldenCookieEffectDuration(scale: number): this {
-		this.addApplier(() => this.sim.goldenCookieEffectDurationMultiplier *= scale);
-		this.addRevoker(() => this.sim.goldenCookieEffectDurationMultiplier /= scale);
-		return this;
-	}
-
-	scalesGoldenCookieFrequency(scale: number): this {
-		this.addApplier(() => this.sim.goldenCookieTime /= scale);
-		this.addRevoker(() => this.sim.goldenCookieTime *= scale);
-		return this;
-	}
-
-	scalesMilk(scale: number): this {
-		this.addApplier(() => this.sim.milkMultiplier *= scale);
-		this.addRevoker(() => this.sim.milkMultiplier /= scale);
-		return this;
-	}	
-	
-	scalesPrestige(scale: number): this {
-		this.addApplier(() => this.sim.prestigeScale *= scale);
-		this.addRevoker(() => this.sim.prestigeScale /= scale);
-		return this;
-	}
-
-	scalesProduction(scale: number): this {
-		this.addApplier(() => this.sim.productionScale *= scale);
-		this.addRevoker(() => this.sim.productionScale /= scale);
-		return this;
-	}
-
-	scalesUpgradePrice(scale: number): this {
-		this.addApplier(() => this.sim.upgradePriceScale *= scale);
-		this.addRevoker(() => this.sim.upgradePriceScale /= scale);
-		return this;
-	}
 }
 
-
-// LegacyModifier is the old Modifier class 
-//
-
-class NewModifier extends LegacyModifier {
+class Modifier extends LegacyModifier {
 	applicationCount: number = 0
+	components: Modifier.Component[] = []
 
-	constructor(sim: BaseSimulator, public components: NewModifier.Component[], name: string, isUnique = false) {
-		super(sim, name, isUnique);
+	constructor(sim: BaseSimulator, name: string) {
+		super(sim, name);
 	}
 	
 	get isApplied(): boolean {
@@ -183,6 +118,7 @@ class NewModifier extends LegacyModifier {
 		for (let i = 0; i < this.components.length; ++i)
 			this.components[i].apply(this.sim);
 		this.applicationCount++;
+		super.apply();
 	}
 
 	revoke(): void {
@@ -193,19 +129,20 @@ class NewModifier extends LegacyModifier {
 				this.components[i].revoke(this.sim);
 			this.applicationCount--;
 		}
+		super.revoke();
 	}
 
-	protected addComponent(component: NewModifier.Component): this {
+	protected addComponent(component: Modifier.Component): this {
 		this.components.push(component);
 		return this;
 	}
 
 	protected addScaler(field: string, scale: number): this {
-		return this.addComponent(new NewModifier.Scaler(field, scale));
+		return this.addComponent(new Modifier.Scaler(field, scale));
 	}
 
 	protected addBooster(field: string, amount: number): this {
-		return this.addComponent(new NewModifier.Booster(field, amount));
+		return this.addComponent(new Modifier.Booster(field, amount));
 	}
 
 	scalesBuildingPrice(scale: number): this				{ return this.addScaler("buildingPriceScale", scale); }
@@ -219,7 +156,7 @@ class NewModifier extends LegacyModifier {
 	scalesUpgradePrice(scale: number): this					{ return this.addScaler("upgradePriceScale", scale); }
 }
 
-module NewModifier {
+module Modifier {
 	//
 	// Each modifier consists of zero or more Components
 	//
@@ -263,34 +200,4 @@ module NewModifier {
 		apply(sim: BaseSimulator): void		{ sim[this.field] *= this.scale; }
 		revoke(sim: BaseSimulator): void	{ sim[this.field] /= this.scale; }
 	}
-}
-
-//
-// Helper functions, shorthand for creating the varions ModifierComponents, allows for a more 
-// readable and expressive way of declaring a bunch of components.
-//
-
-function scales(field: string, scale: number): NewModifier.Scaler {
-	return new NewModifier.Scaler(field, scale);
-}
-
-function boosts(field: string, amount: number = 1): NewModifier.Booster {
-	return new NewModifier.Booster(field, amount);
-}
-
-class OldModifier {
-	unsupported: boolean
-
-	isUnsupported(): void {
-		this.unsupported = true;
-	}
-
-	requires(name: string): this { 
-		// Just a documentation thing really for now, does nothing
-		return this; 
-	}
-}
-
-interface ModifiesBaseSimulator {
-	modifier: NewModifier;
 }
