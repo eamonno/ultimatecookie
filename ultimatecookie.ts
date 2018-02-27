@@ -693,18 +693,6 @@ class Buff extends Modifier {
 		return this;
 	}
 
-	scalesClickFrenzyMultiplier(scale: number): this {
-		this.addApplier(() => {	this.sim.clickFrenzyMultiplier *= scale; });
-		this.addRevoker(() => { this.sim.clickFrenzyMultiplier /= scale; });
-		return this;
-	}
-
-	scalesFrenzyMultiplier(scale: number): this {
-		this.addApplier(() => { this.sim.frenzyMultiplier *= scale; });
-		this.addRevoker(() => { this.sim.frenzyMultiplier /= scale; });
-		return this;
-	}
-
 	scalesFrenzyMultiplierPerBuilding(index: number, shrink: boolean = false): this {
 		if (this.buildingIndex)
 			console.log("Error: Buff " + this.name + " can not scale off of two different buildings.");
@@ -712,12 +700,6 @@ class Buff extends Modifier {
 		this.buildingIndex = index;
 		this.addApplier(() => { this.sim.frenzyMultiplier *= this.buildingScale; });
 		this.addRevoker(() => { this.sim.frenzyMultiplier /= this.buildingScale; });
-		return this;
-	}
-
-	scalesReindeerBuffMultiplier(scale: number): this {
-		this.addApplier(() => { this.sim.reindeerBuffMultiplier *= scale; });
-		this.addRevoker(() => { this.sim.reindeerBuffMultiplier /= scale; });
 		return this;
 	}
 
@@ -1233,16 +1215,6 @@ class PurchaseChain extends Purchase {
 // 
 
 class Upgrade extends Purchase {
-	basePrice: number
-	
-	isGoldenSwitch: boolean
-	isSeasonChanger: boolean
-	isSantaReward: boolean
-	isRareEgg: boolean
-	isEgg: boolean
-	isCookie: boolean
-	isSynergy: boolean
-
 	constructor(sim: Simulator, name: string) {
 		super(sim, name);
 
@@ -1252,6 +1224,22 @@ class Upgrade extends Purchase {
 		} else {
 			console.log("Upgrade not found: " + name);
 		}
+	}
+
+	isRandomSantaReward(): this {
+		this.isSantaReward = true;
+		this.sim.santa.randomRewards.push(this);
+		return this;
+	}
+
+	requiresSeason(name: string): this {
+		let season: Season = this.sim.seasons[name];
+		if (!season) {
+			console.log("Missing season for " + this.name + ": " + name);
+		} else {
+			season.addLock(this);
+		}
+		return this;
 	}
 
 	get price(): number {
@@ -1294,239 +1282,9 @@ class Upgrade extends Purchase {
 		return [];
 	}
 
-	//
-	// Implementation of the various upgrades themselves
-	//
-
-	angersGrandmas(): this {
-		this.addApplier(() => { this.sim.grandmatriarchLevel++; });
-		this.addRevoker(() => { this.sim.grandmatriarchLevel--; });
-		return this;
-	}
-
-	boostsBaseCps(amount: number): this {
-		this.addApplier(() => { this.sim.baseCps += amount; });
-		this.addRevoker(() => { this.sim.baseCps -= amount; });
-		return this;
-	}
-
-	scalesCenturyMultiplier(scale: number): this {
-		this.addApplier(() => { this.sim.centuryMultiplier *= scale; });
-		this.addRevoker(() => { this.sim.centuryMultiplier /= scale; });
-		return this;
-	}
-
-	boostsClickCps(amount: number): this {
-		this.addApplier(() => { this.sim.cpcCpsMultiplier += amount; });
-		this.addRevoker(() => { this.sim.cpcCpsMultiplier -= amount; });
-		return this;
-	}
-
-	boostsMaxWrinklers(amount: number): this {
-		this.addApplier(() => { this.sim.maxWrinklers += amount; });
-		this.addRevoker(() => { this.sim.maxWrinklers -= amount; });
-		return this;
-	}
-
-	boostsSantaPower(amount: number): this {
-		this.addApplier(() => { this.sim.santa.power += amount; });
-		this.addRevoker(() => { this.sim.santa.power -= amount; });
-		return this;
-	}
-
-	calmsGrandmas(): this {
-		return this;
-	}
-	
-	doublesElderPledge(): this {
-		return this;
-	}
-
-	enablesUpgradePriceCursorScale(): this {
-		this.addApplier(() => { this.sim.upgradePriceCursorScaleEnabled = true; this.sim.recalculateUpgradePriceCursorScale(); })
-		this.addRevoker(() => { this.sim.upgradePriceCursorScaleEnabled = false; this.sim.recalculateUpgradePriceCursorScale(); })
-		return this;
-	}
-
-	givesHeartCookie(): this {
-		this.addApplier(() => { this.sim.heartCookieCount++; });
-		this.addRevoker(() => { this.sim.heartCookieCount--; });
-		return this;
-	}
-
-	isACookie(): this {
-		this.isCookie = true;
-		return this;
-	}
-
-	isAGoldenSwitch(): this {
-		this.isGoldenSwitch = true;
-		return this;
-	}
-
-	isAnEgg(): this {
-		this.isEgg = true;
-		this.addApplier(() => { this.sim.eggCount++; });
-		this.addRevoker(() => { this.sim.eggCount--; });
-		return this;
-	}
-
-	isARareEgg(): this {
-		this.isRareEgg = true;
-		this.addApplier(() => { this.sim.eggCount++; });
-		this.addRevoker(() => { this.sim.eggCount--; });
-		return this;		
-	}
-
-	isASynergy(): this {
-		this.isSynergy = true;
-		return this;
-	}
-
-	isRandomSantaReward(): this {
-		this.isSantaReward = true;
-		this.sim.santa.randomRewards.push(this);
-		return this;
-	}
-
 	purchase(): void {
 		Game.Upgrades[this.name].buy(1);
 		this.apply();
-	}
-
-	requiresSeason(name: string): this {
-		let season: Season = this.sim.seasons[name];
-		if (!season) {
-			console.log("Missing season for " + this.name + ": " + name);
-		} else {
-			season.addLock(this);
-		}
-		return this;
-	}
-
-	scalesBaseClicking(scale: number): this {
-		this.addApplier(() => { this.sim.cpcBaseMultiplier *= scale; });
-		this.addRevoker(() => { this.sim.cpcBaseMultiplier /= scale; });
-		return this;
-	}
-
-	scalesBuildingCps(index: number, scale: number): this {
-		this.addApplier(() => { this.sim.buildings[index].multiplier *= scale; });
-		this.addRevoker(() => { this.sim.buildings[index].multiplier /= scale; });
-		return this;
-	}
-
-	scalesCookieUpgradePrice(scale: number): this {
-		this.addApplier(() => { this.sim.cookieUpgradePriceMultiplier *= scale; });
-		this.addRevoker(() => { this.sim.cookieUpgradePriceMultiplier /= scale; });
-		return this;
-	}
-
-	scalesGoldenCookieDuration(scale: number): this {
-		this.addApplier(() => { this.sim.goldenCookieDuration *= scale; });
-		this.addRevoker(() => { this.sim.goldenCookieDuration /= scale; });
-		return this;
-	}
-
-	scalesHeartCookies(scale: number): this {
-		this.addApplier(() => { this.sim.heartCookieScale *= scale; });
-		this.addRevoker(() => { this.sim.heartCookieScale /= scale; });
-		return this;
-	}
-
-	scalesProductionByAge(scale: number): this {
-		const GoldenCookieBirthday = new Date(2013, 7, 8).getTime();
-		let age = Math.floor((Date.now() - GoldenCookieBirthday) / (365 * 24 * 60 * 60 * 1000));
-		this.addApplier(() => { this.sim.productionScale *= (1 + scale * age); });
-		this.addRevoker(() => { this.sim.productionScale /= (1 + scale * age); });
-		return this;
-	}
-
-	scalesRandomDropFrequency(scale: number): this {
-		return this;
-	}
-
-	scalesReindeer(scale: number): this {
-		this.addApplier(() => { this.sim.reindeerMultiplier *= scale; });
-		this.addRevoker(() => { this.sim.reindeerMultiplier /= scale; });
-		return this;
-	}
-
-	scalesReindeerDuration(scale: number): this {
-		this.addApplier(() => { this.sim.reindeerDuration *= scale; });
-		this.addRevoker(() => { this.sim.reindeerDuration /= scale; });
-		return this;
-	}
-
-	scalesReindeerFrequency(scale: number): this {
-		this.addApplier(() => { this.sim.reindeerTime /= scale; });
-		this.addRevoker(() => { this.sim.reindeerTime *= scale; });
-		return this;
-	}
-
-	scalesSeasonalGoldenCookieFrequency(season: string, scale: number): this {
-		this.addApplier(() => { this.sim.seasons[season].goldenCookieFrequencyScale *= scale; });
-		this.addRevoker(() => { this.sim.seasons[season].goldenCookieFrequencyScale /= scale; });
-		return this;
-	}
-
-	scalesSynergyUpgradePrice(scale: number): this {
-		this.addApplier(() => { this.sim.synergyUpgradePriceMultiplier *= scale; });
-		this.addRevoker(() => { this.sim.synergyUpgradePriceMultiplier /= scale; });
-		return this;
-	}
-
-	setsSeason(name: string): this {
-		this.isSeasonChanger = true;
-		this.addApplier(() => {
-			this.sim.pushSeason(this.sim.seasons[name]);
-			this.sim.seasonChanges++; 
-		});
-		this.addRevoker(() => {
-			this.sim.popSeason();
-			this.sim.seasonChanges--; 
-		});
-		return this;
-	}
-
-	givesBuildingPerBuildingFlatCpsBoost(receiver: BuildingIndex, excludes: BuildingIndex[], amount: number): this {
-		this.addApplier(() => { this.sim.buildings[receiver].perBuildingFlatCpsBoostCounter.addCountMost(excludes, amount); });
-		this.addRevoker(() => { this.sim.buildings[receiver].perBuildingFlatCpsBoostCounter.subtractCountMost(excludes, amount); });
-		return this;
-	}
-
-	givesSynergy(receiver: BuildingIndex, from: BuildingIndex, amount: number, reverse: number = 0): this {
-		this.addApplier(() => { this.sim.buildings[receiver].addSynergy(from, amount); });
-		this.addRevoker(() => { this.sim.buildings[receiver].removeSynergy(from, amount); });
-		if (reverse) {
-			this.addApplier(() => { this.sim.buildings[from].addSynergy(receiver, reverse); });
-			this.addRevoker(() => { this.sim.buildings[from].removeSynergy(receiver, reverse); });				
-		}
-		return this;		
-	}
-
-	givesPerBuildingBoost(receiver: BuildingIndex, source: BuildingIndex, amount: number): this {
-		this.addApplier(() => { this.sim.buildings[receiver].scaleCounter.addCountOne(source, amount); });
-		this.addRevoker(() => { this.sim.buildings[receiver].scaleCounter.subtractCountOne(source, amount); });
-		return this;
-	}
-
-	givesPerBuildingFlatCpcBoost(excludes: BuildingIndex[], amount: number): this {
-		this.addApplier(() => { this.sim.perBuildingFlatCpcBoostCounter.addCountMost(excludes, amount); });
-		this.addRevoker(() => { this.sim.perBuildingFlatCpcBoostCounter.subtractCountMost(excludes, amount); });
-		return this;
-	}
-
-	unlocksMilk(amount: number, tier: number = 0): this {
-		this.addApplier(() => { this.sim.milkUnlocks[tier].push(amount); this.sim.milkUnlocks[tier].sort(); });
-		this.addRevoker(() => { this.sim.milkUnlocks[tier].splice(this.sim.milkUnlocks[tier].indexOf(amount), 1); });
-		return this;		
-	}
-
-	unlocksPrestige(amount: number): this {
-		this.addApplier(() => { this.sim.prestigeUnlocked += amount; });
-		this.addRevoker(() => { this.sim.prestigeUnlocked -= amount; });
-		return this;		
 	}
 }
 
