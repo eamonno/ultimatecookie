@@ -1,6 +1,7 @@
 /// <reference path="strategy.ts" />
 /// <reference path="ticker.ts" />
 /// <reference path="building.ts" />
+/// <reference path="upgrade.ts" />
 
 // General purpose constants
 const REINDEER_DURATION = 4;				// Length a reindeer lasts before upgrades
@@ -721,18 +722,13 @@ class Buff extends Modifier {
 //
 
 abstract class Purchase extends Modifier {
-	isUnlocked: boolean = false;
-
 	constructor(sim: Simulator, name: string) {
 		super(sim, name);
 	}
 
 	abstract get price(): number;
 	abstract purchase(): void;
-
-	get isAvailable(): boolean {
-		return this.isUnlocked && !this.isApplied;
-	}
+	abstract get isAvailable(): boolean;
 
 	get purchaseTime(): number {
 		return this.price / this.sim.effectiveCps();
@@ -772,6 +768,8 @@ class Building extends Purchase {
 		super(sim, name);
 		this.reset();
 	}
+
+	get isAvailable(): boolean { return true; }
 
 	purchase(): void {
 		//do {
@@ -1188,103 +1186,6 @@ class PurchaseChain extends Purchase {
 		}
 		this.revoke();
 		return price;
-	}
-}
-
-//
-// Upgrades. 
-//
-// The way these work is pretty simple, each Upgrade has a list of functions
-// that are used to apply or revoke the upgrade from a CCSimulation. Creating
-// an Upgrade involves declaring it by name then using the builder function to
-// chain all the different things it does one after the other. Each creation
-// adds an applyFunction and a revokeFunction. If both are called on a 
-// Simulation the resulting simulation should be unchanged overall. 
-//
-// While the naming on these isn't entirely consistent (sometimes things just
-// work in weird ways and it's hard to come up with a name that is specific 
-// without being overly verbose) there are some words that I try to keep to a
-// special meaning.
-//
-// Flat - A flat increase is added on its own and doesn't scale with anything.
-// Base - A base increases is added to the baseline output and scales with any
-//        scaling factors that also affect that.
-// Boost - A boost is added to another scaling factor to increase that scaling.
-// Scale - A scale is multiplied with another scaling factor to increase that
-//         scaling.
-// 
-
-class Upgrade extends Purchase {
-	constructor(sim: Simulator, name: string) {
-		super(sim, name);
-
-		let gameUpgrade = Game.Upgrades[name];
-		if (gameUpgrade) {
-			this.basePrice = gameUpgrade.basePrice;
-		} else {
-			console.log("Upgrade not found: " + name);
-		}
-	}
-
-	isRandomSantaReward(): this {
-		this.isSantaReward = true;
-		this.sim.santa.randomRewards.push(this);
-		return this;
-	}
-
-	requiresSeason(name: string): this {
-		let season: Season = this.sim.seasons[name];
-		if (!season) {
-			console.log("Missing season for " + this.name + ": " + name);
-		} else {
-			season.addLock(this);
-		}
-		return this;
-	}
-
-	get price(): number {
-		let p: number = this.basePrice;
-		if (this.name == "Elder Pledge")
-			p = Math.pow(8, Math.min(Game.pledges + 2, 14));
-		else if (this.isSantaReward)
-			p = this.sim.santa.randomRewardCost(this.sim.santa.level);
-		else if (this.isRareEgg)
-			p = Math.pow(3, this.sim.eggCount) * 999;
-		else if (this.isEgg)
-			p = Math.pow(2, this.sim.eggCount) * 999;
-		else if (this.isSeasonChanger)
-			p = this.basePrice * Math.pow(2, this.sim.seasonChanges);
-		else if (this.isGoldenSwitch)
-			p = this.sim.cps * 60 * 60;
-		if (this.isCookie)
-			p *= this.sim.cookieUpgradePriceMultiplier;
-		if (this.isSynergy)
-			p *= this.sim.synergyUpgradePriceMultiplier;
-		return Math.ceil(p * this.sim.upgradePriceScale * this.sim.upgradePriceCursorScale);
-	}
-
-	get matchErrors(): string[] {
-		if (!this.unsupported) {
-			let gameObj = Game.Upgrades[this.name];
-			if (!gameObj)
-				return ["Upgrade Name " + this.name + " has no corresponding match in store."];
-			if (!floatEqual(this.price, gameObj.getPrice()))
-				return ["Upgrade Cost " + this.name + " - Predicted: " + this.price + ", Actual: " + gameObj.getPrice()];
-			if (this.isApplied && gameObj.bought == 0)
-				return ["Upgrade " + this.name + " bought in sim but not bought in game."];
-			if (!this.isApplied && gameObj.bought == 1)
-				return ["Upgrade " + this.name + " not bought in sim but bought in game."];
-			if (this.isUnlocked && gameObj.unlocked == 0)
-				return ["Upgrade " + this.name + " unlocked but not unlocked in game."];
-			if (!this.isUnlocked && gameObj.unlocked == 1)
-				return ["Upgrade " + this.name + " locked but not locked in game."];
-		}
-		return [];
-	}
-
-	purchase(): void {
-		Game.Upgrades[this.name].buy(1);
-		this.apply();
 	}
 }
 
@@ -1710,8 +1611,8 @@ function populate_simulator(sim: Simulator): void {
 	}
 
 	// Add a new prestige upgrade to the Simulation
-	function prestige(name: string): Upgrade {
-		let prestige = new Upgrade(sim, name);
+	function prestige(name: string, extraFlags: UpgradeFlags = 0): Upgrade {
+		let prestige = new Upgrade(sim, name, UpgradeFlags.Prestige | extraFlags);
 		sim.modifiers[name] = prestige;
 		sim.prestiges[name] = prestige;
 		return prestige;
@@ -1730,28 +1631,26 @@ function populate_simulator(sim: Simulator): void {
 	}
 
 	// Add a new Toggle to the Simulation
-	function toggle(name: string): Upgrade {
-		let toggle = new Upgrade(sim, name);
-		sim.modifiers[name] = toggle;
-		sim.upgrades[name] = toggle;
+	function toggle(name: string, extraFlags: UpgradeFlags = 0): Upgrade {
+		let toggle = upgrade(name, UpgradeFlags.Toggle | extraFlags);
 		sim.toggles[name] = toggle;
 		return toggle;
 	}
 
 	// Add a new Upgrade to the Simulation
-	function upgrade(name: string): Upgrade {
-		let upgrade = new Upgrade(sim, name);
+	function upgrade(name: string, flags: UpgradeFlags = 0): Upgrade {
+		let upgrade = new Upgrade(sim, name, flags);
 		sim.modifiers[name] = upgrade;
 		sim.upgrades[name] = upgrade;
 		return upgrade;
 	}
 
-	function cookie(name: string): Upgrade {
-		return upgrade(name).isACookie();
+	function cookie(name: string, extraFlags: UpgradeFlags = 0): Upgrade {
+		return upgrade(name, UpgradeFlags.Cookie | extraFlags);
 	}
 
-	function synergy(name: string): Upgrade {
-		return upgrade(name).isASynergy();
+	function synergy(name: string, extraFlags: UpgradeFlags = 0): Upgrade {
+		return upgrade(name, UpgradeFlags.Synergy | extraFlags);
 	}
 
 	// Create all the buildings - the order matters, dont shuffle these!
@@ -2206,45 +2105,45 @@ function populate_simulator(sim: Simulator): void {
 	upgrade("A crumbly egg"			).requires("How to bake your dragon");
 
 	// Christmas season
-	upgrade("A festive hat"				).requiresSeason("christmas");
-	upgrade("Naughty list"				).requiresSeason("christmas").isRandomSantaReward().scalesBuildingCps(BuildingIndex.Grandma, 2);
-	upgrade("A lump of coal"			).requiresSeason("christmas").isRandomSantaReward().scalesProduction(1.01);
-	upgrade("An itchy sweater"			).requiresSeason("christmas").isRandomSantaReward().scalesProduction(1.01);
-	upgrade("Improved jolliness"		).requiresSeason("christmas").isRandomSantaReward().scalesProduction(1.15);
-	upgrade("Increased merriness"		).requiresSeason("christmas").isRandomSantaReward().scalesProduction(1.15);
-	upgrade("Toy workshop"				).requiresSeason("christmas").isRandomSantaReward().scalesUpgradePrice(0.95);
-	upgrade("Santa's helpers"			).requiresSeason("christmas").isRandomSantaReward().scalesClicking(1.1);
-	upgrade("Santa's milk and cookies"	).requiresSeason("christmas").isRandomSantaReward().scalesMilk(1.05);
-	upgrade("Santa's legacy"			).requiresSeason("christmas").isRandomSantaReward().boostsSantaPower(0.03);
-	upgrade("Season savings"			).requiresSeason("christmas").isRandomSantaReward().scalesBuildingPrice(0.99);
-	upgrade("Ho ho ho-flavored frosting").requiresSeason("christmas").isRandomSantaReward().scalesReindeer(2);
-	upgrade("Weighted sleighs"			).requiresSeason("christmas").isRandomSantaReward().scalesReindeerDuration(2);
-	upgrade("Reindeer baking grounds"	).requiresSeason("christmas").isRandomSantaReward().scalesReindeerFrequency(2);
-	upgrade("Santa's bottomless bag"	).requiresSeason("christmas").isRandomSantaReward().scalesRandomDropFrequency(1.1);
-	upgrade("Santa's dominion"			).requiresSeason("christmas").requires("Final Claus").scalesProduction(1.20).scalesBuildingPrice(0.99).scalesUpgradePrice(0.98);
+	upgrade("A festive hat"			).requiresSeason("christmas");
+	upgrade("Naughty list",					UpgradeFlags.SantaReward).requiresSeason("christmas").scalesBuildingCps(BuildingIndex.Grandma, 2);
+	upgrade("A lump of coal",				UpgradeFlags.SantaReward).requiresSeason("christmas").scalesProduction(1.01);
+	upgrade("An itchy sweater",				UpgradeFlags.SantaReward).requiresSeason("christmas").scalesProduction(1.01);
+	upgrade("Improved jolliness",			UpgradeFlags.SantaReward).requiresSeason("christmas").scalesProduction(1.15);
+	upgrade("Increased merriness",			UpgradeFlags.SantaReward).requiresSeason("christmas").scalesProduction(1.15);
+	upgrade("Toy workshop",					UpgradeFlags.SantaReward).requiresSeason("christmas").scalesUpgradePrice(0.95);
+	upgrade("Santa's helpers",				UpgradeFlags.SantaReward).requiresSeason("christmas").scalesClicking(1.1);
+	upgrade("Santa's milk and cookies",		UpgradeFlags.SantaReward).requiresSeason("christmas").scalesMilk(1.05);
+	upgrade("Santa's legacy",				UpgradeFlags.SantaReward).requiresSeason("christmas").boostsSantaPower(0.03);
+	upgrade("Season savings",				UpgradeFlags.SantaReward).requiresSeason("christmas").scalesBuildingPrice(0.99);
+	upgrade("Ho ho ho-flavored frosting",	UpgradeFlags.SantaReward).requiresSeason("christmas").scalesReindeer(2);
+	upgrade("Weighted sleighs",				UpgradeFlags.SantaReward).requiresSeason("christmas").scalesReindeerDuration(2);
+	upgrade("Reindeer baking grounds",		UpgradeFlags.SantaReward).requiresSeason("christmas").scalesReindeerFrequency(2);
+	upgrade("Santa's bottomless bag",		UpgradeFlags.SantaReward).requiresSeason("christmas").scalesRandomDropFrequency(1.1);
+	upgrade("Santa's dominion",				UpgradeFlags.SantaReward).requiresSeason("christmas").requires("Final Claus").scalesProduction(1.20).scalesBuildingPrice(0.99).scalesUpgradePrice(0.98);
 	sim.santa.levels[0].requires("A festive hat");
 
 	// Easter season
-	upgrade("Chicken egg"				).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
-	upgrade("Duck egg"					).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
-	upgrade("Turkey egg"				).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
-	upgrade("Robin egg"					).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
-	upgrade("Cassowary egg"				).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
-	upgrade("Ostrich egg"				).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
-	upgrade("Quail egg"					).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
-	upgrade("Salmon roe"				).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
-	upgrade("Frogspawn"					).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
-	upgrade("Shark egg"					).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
-	upgrade("Turtle egg"				).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
-	upgrade("Ant larva"					).requiresSeason("easter").isAnEgg().scalesProduction(1.01);
-	upgrade("Golden goose egg"			).requiresSeason("easter").isARareEgg().scalesGoldenCookieFrequency(1.05);
-	upgrade("Cookie egg"				).requiresSeason("easter").isARareEgg().scalesClicking(1.1);
-	upgrade("Faberge egg"				).requiresSeason("easter").isARareEgg().scalesBuildingPrice(0.99).scalesUpgradePrice(0.99);
-	upgrade("\"egg\""					).requiresSeason("easter").isARareEgg().boostsBaseCps(9);
-	upgrade("Century egg"				).requiresSeason("easter").isARareEgg().scalesCenturyMultiplier(1.1);
-	upgrade("Omelette"					).requiresSeason("easter").isARareEgg();	// Other eggs appear 10% more often
-	upgrade("Wrinklerspawn"				).requiresSeason("easter").isARareEgg();	// Wrinklers explode 5% more cookies
-	upgrade("Chocolate egg"				).requiresSeason("easter").isARareEgg();	// Spawns a lot of cookies
+	upgrade("Chicken egg",		UpgradeFlags.Egg	).requiresSeason("easter").scalesProduction(1.01);
+	upgrade("Duck egg",			UpgradeFlags.Egg	).requiresSeason("easter").scalesProduction(1.01);
+	upgrade("Turkey egg",		UpgradeFlags.Egg	).requiresSeason("easter").scalesProduction(1.01);
+	upgrade("Robin egg",		UpgradeFlags.Egg	).requiresSeason("easter").scalesProduction(1.01);
+	upgrade("Cassowary egg",	UpgradeFlags.Egg	).requiresSeason("easter").scalesProduction(1.01);
+	upgrade("Ostrich egg",		UpgradeFlags.Egg	).requiresSeason("easter").scalesProduction(1.01);
+	upgrade("Quail egg",		UpgradeFlags.Egg	).requiresSeason("easter").scalesProduction(1.01);
+	upgrade("Salmon roe",		UpgradeFlags.Egg	).requiresSeason("easter").scalesProduction(1.01);
+	upgrade("Frogspawn",		UpgradeFlags.Egg	).requiresSeason("easter").scalesProduction(1.01);
+	upgrade("Shark egg",		UpgradeFlags.Egg	).requiresSeason("easter").scalesProduction(1.01);
+	upgrade("Turtle egg",		UpgradeFlags.Egg	).requiresSeason("easter").scalesProduction(1.01);
+	upgrade("Ant larva",		UpgradeFlags.Egg	).requiresSeason("easter").scalesProduction(1.01);
+	upgrade("Golden goose egg",	UpgradeFlags.RareEgg).requiresSeason("easter").scalesGoldenCookieFrequency(1.05);
+	upgrade("Cookie egg",		UpgradeFlags.RareEgg).requiresSeason("easter").scalesClicking(1.1);
+	upgrade("Faberge egg",		UpgradeFlags.RareEgg).requiresSeason("easter").scalesBuildingPrice(0.99).scalesUpgradePrice(0.99);
+	upgrade("\"egg\"",			UpgradeFlags.RareEgg).requiresSeason("easter").boostsBaseCps(9);
+	upgrade("Century egg",		UpgradeFlags.RareEgg).requiresSeason("easter").scalesCenturyMultiplier(1.1);
+	upgrade("Omelette",			UpgradeFlags.RareEgg).requiresSeason("easter");	// Other eggs appear 10% more often
+	upgrade("Wrinklerspawn",	UpgradeFlags.RareEgg).requiresSeason("easter");	// Wrinklers explode 5% more cookies
+	upgrade("Chocolate egg",	UpgradeFlags.RareEgg).requiresSeason("easter");	// Spawns a lot of cookies
 	
 	// Halloween season
 	cookie("Bat cookies"				).requiresSeason("halloween").scalesProduction(1.02);
@@ -2256,12 +2155,12 @@ function populate_simulator(sim: Simulator): void {
 	cookie("Spider cookies"				).requiresSeason("halloween").scalesProduction(1.02);
 	
 	// Valentines Day season
-	cookie("Pure heart biscuits"		).requiresSeason("valentines").givesHeartCookie();
-	cookie("Ardent heart biscuits"		).requiresSeason("valentines").givesHeartCookie();
-	cookie("Sour heart biscuits"		).requiresSeason("valentines").givesHeartCookie();
-	cookie("Weeping heart biscuits"		).requiresSeason("valentines").givesHeartCookie();
-	cookie("Golden heart biscuits"		).requiresSeason("valentines").givesHeartCookie();
-	cookie("Eternal heart biscuits"		).requiresSeason("valentines").givesHeartCookie();
+	cookie("Pure heart biscuits",		UpgradeFlags.HeartCookie).requiresSeason("valentines");
+	cookie("Ardent heart biscuits",		UpgradeFlags.HeartCookie).requiresSeason("valentines");
+	cookie("Sour heart biscuits",		UpgradeFlags.HeartCookie).requiresSeason("valentines");
+	cookie("Weeping heart biscuits",	UpgradeFlags.HeartCookie).requiresSeason("valentines");
+	cookie("Golden heart biscuits",		UpgradeFlags.HeartCookie).requiresSeason("valentines");
+	cookie("Eternal heart biscuits",	UpgradeFlags.HeartCookie).requiresSeason("valentines");
 	
 	// Biscuits from clicking reindeer
 	cookie("Christmas tree biscuits"	).requiresSeason("christmas").scalesProduction(1.02);
@@ -2347,14 +2246,14 @@ function populate_simulator(sim: Simulator): void {
 	toggle("Background selector"			);	// Does nothing we care about
 	toggle("Milk selector"					);	// Also does nothing we care about
 	toggle("Golden cookie sound selector"	);
-	toggle("Golden switch [on]"				).isAGoldenSwitch();
-	toggle("Golden switch [off]"			).isAGoldenSwitch();
+	toggle("Golden switch [on]", UpgradeFlags.GoldenSwitch);
+	toggle("Golden switch [off]", UpgradeFlags.GoldenSwitch);
 	
 	// Just query all upgrades, gives a dump of those not supported
 	for (let gameUpgrade of Game.Upgrades) {
 		if (Game.Upgrades[gameUpgrade.name].pool != "debug") {
 			console.log("Unsupported upgrade: " + gameUpgrade.name);
-			upgrade(gameUpgrade.name).isUnsupported();
+			upgrade(gameUpgrade.name, UpgradeFlags.Unsupported);
 		}
 	}
 }

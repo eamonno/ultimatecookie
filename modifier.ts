@@ -14,13 +14,7 @@ class LegacyModifier {
 	appliers: ModifierCallback[] = []
 	revokers: ModifierCallback[] = []
 
-	isGoldenSwitch: boolean
 	isSeasonChanger: boolean
-	isSantaReward: boolean
-	isRareEgg: boolean
-	isEgg: boolean
-	isCookie: boolean
-	isSynergy: boolean
 
 	constructor(public sim: BaseSimulator, public name: string, public isUnique: boolean = false) {
 	}
@@ -44,12 +38,12 @@ class LegacyModifier {
 	}
 
 	addApplier(func: ModifierCallback): void {
-		console.log("Adding legacy applier.");
+		console.log("Adding legacy applier: " + this.name);
 		this.appliers.push(func);
 	}
 
 	addRevoker(func: ModifierCallback): void {
-		console.log("Adding legacy revoker.");
+		console.log("Adding legacy revoker: " + this.name);
 		this.revokers.push(func);
 	}
 
@@ -77,10 +71,6 @@ class LegacyModifier {
 	// Modification functions
 	//
 
-	isUnsupported(): void {
-		this.unsupported = true;
-	}
-
 	requires(name: string): this { 
 		// Just a documentation thing really for now, does nothing
 		return this; 
@@ -97,35 +87,6 @@ class LegacyModifier {
 	enablesUpgradePriceCursorScale(): this {
 		this.addApplier(() => { this.sim.upgradePriceCursorScaleEnabled = true; this.sim.recalculateUpgradePriceCursorScale(); })
 		this.addRevoker(() => { this.sim.upgradePriceCursorScaleEnabled = false; this.sim.recalculateUpgradePriceCursorScale(); })
-		return this;
-	}
-
-	isACookie(): this {
-		this.isCookie = true;
-		return this;
-	}
-
-	isAGoldenSwitch(): this {
-		this.isGoldenSwitch = true;
-		return this;
-	}
-
-	isAnEgg(): this {
-		this.isEgg = true;
-		this.addApplier(() => { this.sim.eggCount++; });
-		this.addRevoker(() => { this.sim.eggCount--; });
-		return this;
-	}
-
-	isARareEgg(): this {
-		this.isRareEgg = true;
-		this.addApplier(() => { this.sim.eggCount++; });
-		this.addRevoker(() => { this.sim.eggCount--; });
-		return this;		
-	}
-
-	isASynergy(): this {
-		this.isSynergy = true;
 		return this;
 	}
 
@@ -269,8 +230,9 @@ class Modifier extends LegacyModifier {
 	angersGrandmas(): this									{ return this.addBooster("grandmatriarchLevel", 1); }
 	boostsBaseCps(amount: number): this 					{ return this.addBooster("baseCps", amount); }
 	boostsClickCps(amount: number): this					{ return this.addBooster("cpcCpsMultiplier", amount); }
+	boostsEggCount(amount: number = 1): this				{ return this.addBooster("eggCount", amount); }
+	boostsHeartCookieCount(amount: number = 1): this		{ return this.addBooster("heartCookieCount", amount); }
 	boostsMaxWrinklers(amount: number): this				{ return this.addBooster("maxWrinklers", amount); }
-	givesHeartCookie(): this								{ return this.addBooster("heartCookieCount", 1); }
 	scalesBaseClicking(scale: number): this 				{ return this.addScaler("cpcBaseMultiplier", scale); }
 	scalesBuildingPrice(scale: number): this				{ return this.addScaler("buildingPriceScale", scale); }
 	scalesBuildingRefundRate(scale: number): this			{ return this.addScaler("buildingRefundRate", scale); }
