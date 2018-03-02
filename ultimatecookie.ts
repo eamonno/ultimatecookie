@@ -1,6 +1,7 @@
 /// <reference path="strategy.ts" />
 /// <reference path="ticker.ts" />
 /// <reference path="building.ts" />
+/// <reference path="purchase.ts" />
 /// <reference path="upgrade.ts" />
 
 // General purpose constants
@@ -715,35 +716,6 @@ class Buff extends Modifier {
 }
 
 //
-// Purchases.
-//
-// Purchases are a subtype of modifier that can be bought in the game. They provide
-// information about costing that can be used to prioritise what to buy next.
-//
-
-abstract class Purchase extends Modifier {
-	constructor(sim: Simulator, name: string) {
-		super(sim, name);
-	}
-
-	abstract get price(): number;
-	abstract purchase(): void;
-	abstract get isAvailable(): boolean;
-
-	get purchaseTime(): number {
-		return this.price / this.sim.effectiveCps();
-	}
-
-	get pbr(): number {
-		return this.benefit / this.price;
-	}
-
-	get pvr(): number {
-		return this.value / this.price;
-	}
-}
-
-//
 // Building.
 //
 // Represents one of the building types in the game.
@@ -906,6 +878,13 @@ class DragonAura extends Purchase {
 		return index == -1 ? 0 : this.sim.buildings[index].nthPrice(this.sim.buildings[index].quantity - 1);
 	}
 
+	get isAvailable(): boolean {
+		const firstDragonAuraLevel = 5;
+		if ((this.sim.dragonAura1 && this.sim.dragonAura1.index == this.index) || (this.sim.dragonAura2 && this.sim.dragonAura2.index == this.index))
+			return false;
+		return this.index >= this.sim.dragon.level - firstDragonAuraLevel;
+	}
+
 	purchase(): void {
 		Game.dragonAura = this.index;
 		let index: BuildingIndex = this.sacrificialBuildingIndex;
@@ -951,6 +930,10 @@ class DragonLevel extends Purchase {
 		super(dragon.sim, name);
 		this.addApplier(() => { this.sim.dragon.level++; });
 		this.addRevoker(() => { this.sim.dragon.level--; });
+	}
+
+	get isAvailable() {
+		return this.sim.dragon.level == this.num;
 	}
 
 	get price(): number {
@@ -1063,6 +1046,10 @@ class SantaLevel extends Purchase {
 		this.addRevoker(() => { this.sim.santa.level--; });
 	}
 
+	get isAvailable(): boolean {
+		return this.santa.level == this.num;
+	}
+
 	purchase(): void {
 		Game.specialTab = "santa";
 		Game.UpgradeSanta();
@@ -1148,6 +1135,10 @@ class PurchaseChain extends Purchase {
 		super(sim, purchases.map(p => p.name).join(" -> "));
 	}
 
+	get isAvailable(): boolean {
+		return this.purchases.every(p => p.isAvailable);
+	}
+
 	apply(): void {
 		for (let i = 0; i < this.purchases.length; ++i) {
 			this.purchases[i].apply();
@@ -1196,6 +1187,8 @@ class BuildingLevel extends Purchase {
 		this.addRevoker(() => this.sim.buildings[this.index].level--);
 	}
 
+	get isAvailable(): boolean { return true; }
+
 	get longName() {
 		return this.name + " " + (this.sim.buildings[this.index].level + 1);
 	}
@@ -1225,7 +1218,7 @@ class Season extends Modifier {
 	constructor(sim: Simulator, name: string, toggleName?: string) {
 		super(sim, name);
 		if (toggleName) {
-			this.toggle = new Upgrade(sim, toggleName);
+			this.toggle = new Upgrade(sim, toggleName, UpgradeFlags.SeasonChanger);
 			this.toggle.setsSeason(name);
 		}
 		this.reset();

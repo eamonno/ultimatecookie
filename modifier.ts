@@ -121,7 +121,6 @@ class LegacyModifier {
 	}
 
 	setsSeason(name: string): this {
-		this.isSeasonChanger = true;
 		this.addApplier(() => {
 			this.sim.pushSeason(this.sim.seasons[name]);
 			this.sim.seasonChanges++; 
