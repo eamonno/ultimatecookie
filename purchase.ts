@@ -8,13 +8,18 @@
 //
 
 abstract class Purchase extends Modifier {
-	constructor(sim: Simulator, name: string) {
-		super(sim, name);
+	constructor(sim: Simulator) {
+		super(sim);
 	}
 
+    abstract get name(): string;
 	abstract get price(): number;
-	abstract purchase(): void;
 	abstract get isAvailable(): boolean;
+	abstract purchase(): void;
+
+    get longName(): string {
+        return this.name;
+    }
 
 	get purchaseTime(): number {
 		return this.price / this.sim.effectiveCps();
@@ -38,7 +43,7 @@ abstract class Purchase extends Modifier {
 
 class PurchaseChain extends Purchase {
 	constructor(sim: Simulator, public purchases: Purchase[]) {
-		super(sim, purchases.map(p => p.name).join(" -> "));
+        super(sim);
 	}
 
 	get isAvailable(): boolean {
@@ -57,7 +62,7 @@ class PurchaseChain extends Purchase {
 		}
 	}
 
-	get longName(): string {
+    get name(): string {
 		return this.purchases.map(p => p.longName).join(" -> ");
 	}
 

@@ -8,15 +8,12 @@
 type ModifierCallback = () => void;
 
 class LegacyModifier {
-	basePrice: number
-	
-	unsupported: boolean
 	appliers: ModifierCallback[] = []
 	revokers: ModifierCallback[] = []
 
 	isSeasonChanger: boolean
 
-	constructor(public sim: BaseSimulator, public name: string, public isUnique: boolean = false) {
+	constructor(public sim: BaseSimulator, public isUnique: boolean = false) {
 	}
 
 	apply(): void {
@@ -38,18 +35,11 @@ class LegacyModifier {
 	}
 
 	addApplier(func: ModifierCallback): void {
-		console.log("Adding legacy applier: " + this.name);
 		this.appliers.push(func);
 	}
 
 	addRevoker(func: ModifierCallback): void {
-		console.log("Adding legacy revoker: " + this.name);
 		this.revokers.push(func);
-	}
-
-	// A longer name that can contain extra information about the modifier used for logging etc.
-	get longName(): string {
-		return this.name;
 	}
 
 	// Value is slightly different to benefit. It lets items that might not provide any direct
@@ -58,7 +48,7 @@ class LegacyModifier {
 	// available it is used, if not, just treat it as a lump of coal.
 	get value(): number {
 		let ben: number = this.benefit;
-		if (ben > 0 || this.name == "Chocolate egg") 
+		if (ben > 0) 
 			return ben;
 		let cps: number = this.sim.effectiveCps();
 		this.sim.productionScale *= 1.01;
@@ -171,8 +161,8 @@ class Modifier extends LegacyModifier {
 	applicationCount: number = 0
 	components: Modifier.Component[] = []
 
-	constructor(sim: BaseSimulator, name: string) {
-		super(sim, name);
+	constructor(sim: BaseSimulator) {
+		super(sim);
 	}
 	
 	get isApplied(): boolean {

@@ -664,8 +664,8 @@ class Buff extends Modifier {
 	cachedScale?: number
 	isAGoldenCookieBuff?: boolean
 
-	constructor(sim: Simulator, name: string, public baseDuration: number) {
-		super(sim, name);
+	constructor(sim: Simulator, public name: string, public baseDuration: number) {
+		super(sim);
 		this.addApplier(() => { this.sim.buffCount++; })
 		this.addRevoker(() => { this.sim.buffCount--; })
 	}
@@ -720,8 +720,8 @@ class Buff extends Modifier {
 //
 
 class DragonAura extends Purchase {
-	constructor(sim: Simulator, public index: number, name: string) {
-		super(sim, name);
+	constructor(sim: Simulator, public index: number, public name: string) {
+		super(sim);
 	}
 
 	get sacrificialBuildingIndex(): BuildingIndex {
@@ -785,8 +785,8 @@ class DragonAura extends Purchase {
 }
 
 class DragonLevel extends Purchase {
-	constructor(public dragon: Dragon, public num: number, name: string) {
-		super(dragon.sim, name);
+	constructor(public dragon: Dragon, public num: number, public name: string) {
+		super(dragon.sim);
 		this.addApplier(() => { this.sim.dragon.level++; });
 		this.addRevoker(() => { this.sim.dragon.level--; });
 	}
@@ -899,8 +899,8 @@ class Dragon {
 //
 
 class SantaLevel extends Purchase {
-	constructor(public santa: Santa, public num: number, name: string) {
-		super(santa.sim, name);
+	constructor(public santa: Santa, public num: number, public name: string) {
+		super(santa.sim);
 		this.addApplier(() => { this.sim.santa.level++; });
 		this.addRevoker(() => { this.sim.santa.level--; });
 	}
@@ -983,8 +983,10 @@ class Santa {
 }
 
 class BuildingLevel extends Purchase {
+	readonly name: string
 	constructor(sim: Simulator, public index: BuildingIndex) {
-		super(sim, sim.buildings[index].name + " level");
+		super(sim);
+		this.name = sim.buildings[index].name + " level";
 		this.addApplier(() => this.sim.buildings[this.index].level++);
 		this.addRevoker(() => this.sim.buildings[this.index].level--);
 	}
@@ -1017,8 +1019,8 @@ class Season extends Modifier {
 	goldenCookieFrequencyScale: number
 	locks: Upgrade[]
 
-	constructor(sim: Simulator, name: string, toggleName?: string) {
-		super(sim, name);
+	constructor(sim: Simulator, public name: string, toggleName?: string) {
+		super(sim);
 		if (toggleName) {
 			this.toggle = new Upgrade(sim, toggleName, UpgradeFlags.SeasonChanger);
 			this.toggle.setsSeason(name);

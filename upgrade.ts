@@ -22,9 +22,13 @@ enum UpgradeFlags {
 }
 
 class Upgrade extends Purchase {
-	constructor(sim: Simulator, name: string, private flags: UpgradeFlags = 0) {
-		super(sim, name);
+    readonly basePrice: number
+    readonly longName: string
 
+	constructor(sim: Simulator, public name: string, private flags: UpgradeFlags = 0) {
+		super(sim);
+
+        this.longName = this.name;
 		let gameUpgrade = Game.Upgrades[name];
 		if (gameUpgrade) {
 			this.basePrice = gameUpgrade.basePrice;
@@ -97,7 +101,7 @@ class Upgrade extends Purchase {
 	}
 
 	get matchErrors(): string[] {
-		if (!this.unsupported) {
+		if (!(this.flags & UpgradeFlags.Unsupported)) {
 			let gameObj = Game.Upgrades[this.name];
 			if (!gameObj)
 				return ["Upgrade Name " + this.name + " has no corresponding match in store."];
@@ -114,6 +118,12 @@ class Upgrade extends Purchase {
 		}
 		return [];
 	}
+
+    get value(): number {
+        if (this.name == "Chocolate egg")
+            return 0;
+        return super.value;
+    }
 
 	purchase(): void {
 		Game.Upgrades[this.name].buy(1);

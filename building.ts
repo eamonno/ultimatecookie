@@ -101,8 +101,8 @@ class Building extends Purchase {
 	buildingScaler: BuildingCounter = new BuildingCounter();
 	scaleCounter: BuildingCounter = new BuildingCounter();
 
-	constructor(sim: Simulator, public index: BuildingIndex, name: string, public basePrice: number, public baseCps: number) {
-		super(sim, name);
+	constructor(sim: Simulator, public index: BuildingIndex, public name: string, public basePrice: number, public baseCps: number) {
+		super(sim);
 		this.reset();
 	}
 
