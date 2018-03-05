@@ -42,12 +42,6 @@ class LegacyModifier {
 		return this;
 	}
 
-	boostsSantaPower(amount: number): this {
-		this.addApplier(() => { this.sim.santa.power += amount; });
-		this.addRevoker(() => { this.sim.santa.power -= amount; });
-		return this;
-	}
-
 	scalesBuildingCps(index: number, scale: number): this {
 		this.addApplier(() => { this.sim.buildings[index].multiplier *= scale; });
 		this.addRevoker(() => { this.sim.buildings[index].multiplier /= scale; });
@@ -178,6 +172,11 @@ class Modifier extends LegacyModifier {
 		return this.addComponent(new Modifier.Booster(field, amount));
 	}
 
+	protected addCustom(applier: Modifier.CustomComponentCallback, revoker: Modifier.CustomComponentCallback): this {
+		return this.addComponent(new Modifier.Custom(applier, revoker));
+	}
+
+	// Simple Modifier functions
 	angersGrandmas(): this									{ return this.addBooster("grandmatriarchLevel", 1); }
 	boostsBaseCps(amount: number): this 					{ return this.addBooster("baseCps", amount); }
 	boostsClickCps(amount: number): this					{ return this.addBooster("cpcCpsMultiplier", amount); }
@@ -208,6 +207,14 @@ class Modifier extends LegacyModifier {
 	scalesSynergyUpgradePrice(scale: number): this 			{ return this.addScaler("synergyUpgradePriceMultiplier", scale); }
 	scalesUpgradePrice(scale: number): this					{ return this.addScaler("upgradePriceScale", scale); }
 	unlocksPrestige(amount: number): this					{ return this.addBooster("prestigeUnlocked", amount); }
+
+	// Custom Modifier functions
+	boostsSantaPower(amount: number): this { 
+		return this.addCustom(
+			(sim: BaseSimulator) => { sim.santa.power += amount; },
+			(sim: BaseSimulator) => { sim.santa.power -= amount; }
+		);
+	}
 }
 
 module Modifier {
@@ -253,5 +260,13 @@ module Modifier {
 	
 		apply(sim: BaseSimulator): void		{ sim[this.field] *= this.scale; }
 		revoke(sim: BaseSimulator): void	{ sim[this.field] /= this.scale; }
+	}
+
+	//
+	// Custom components take a custom apply and revoke functions
+	//
+	export type CustomComponentCallback = (sim: BaseSimulator) => void;
+	export class Custom implements Component {
+		constructor(public apply: CustomComponentCallback, public revoke: CustomComponentCallback) {}
 	}
 }
