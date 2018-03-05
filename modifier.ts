@@ -172,17 +172,13 @@ class Modifier extends LegacyModifier {
 		return this.addComponent(new Modifier.Booster(field, amount));
 	}
 
-	protected addCustom(applier: Modifier.CustomComponentCallback, revoker: Modifier.CustomComponentCallback): this {
-		return this.addComponent(new Modifier.Custom(applier, revoker));
-	}
-
-	// Simple Modifier functions
 	angersGrandmas(): this									{ return this.addBooster("grandmatriarchLevel", 1); }
 	boostsBaseCps(amount: number): this 					{ return this.addBooster("baseCps", amount); }
 	boostsClickCps(amount: number): this					{ return this.addBooster("cpcCpsMultiplier", amount); }
 	boostsEggCount(amount: number = 1): this				{ return this.addBooster("eggCount", amount); }
 	boostsHeartCookieCount(amount: number = 1): this		{ return this.addBooster("heartCookieCount", amount); }
 	boostsMaxWrinklers(amount: number): this				{ return this.addBooster("maxWrinklers", amount); }
+	boostsSantaPower(amount: number): this					{ return this.addComponent(new Modifier.SantaPowerBooster(amount)); }
 	calmsGrandmas(): this 									{ return this; }
 	scalesBaseClicking(scale: number): this 				{ return this.addScaler("cpcBaseMultiplier", scale); }
 	scalesBuildingPrice(scale: number): this				{ return this.addScaler("buildingPriceScale", scale); }
@@ -207,28 +203,16 @@ class Modifier extends LegacyModifier {
 	scalesSynergyUpgradePrice(scale: number): this 			{ return this.addScaler("synergyUpgradePriceMultiplier", scale); }
 	scalesUpgradePrice(scale: number): this					{ return this.addScaler("upgradePriceScale", scale); }
 	unlocksPrestige(amount: number): this					{ return this.addBooster("prestigeUnlocked", amount); }
-
-	// Custom Modifier functions
-	boostsSantaPower(amount: number): this { 
-		return this.addCustom(
-			(sim: BaseSimulator) => { sim.santa.power += amount; },
-			(sim: BaseSimulator) => { sim.santa.power -= amount; }
-		);
-	}
 }
 
 module Modifier {
-	//
 	// Each modifier consists of zero or more Components
-	//
 	export interface Component {
 		apply(sim: BaseSimulator): void;
 		revoke(sim: BaseSimulator): void;
 	}
 	
-	//
 	// Booster components add a value to a given BaseSimulator field.
-	//
 	export class Booster implements Component {
 		constructor(public field: string, public amount: number = 1) {}
 	
@@ -236,9 +220,7 @@ module Modifier {
 		revoke(sim: BaseSimulator): void	{ sim[this.field] -= this.amount; }
 	}
 
-	//
 	// Pusher components push a value to a given BaseSimulator array.
-	//
 	export class Pusher implements Component {
 		constructor(public field: string, public value: string | number) {}
 	
@@ -252,9 +234,7 @@ module Modifier {
 		}
 	}	
 
-	//
 	// Scaler components multiply a BaseSimulator field by a given value.
-	//
 	export class Scaler implements Component {
 		constructor(public field: string, public scale: number) {}
 	
@@ -262,11 +242,10 @@ module Modifier {
 		revoke(sim: BaseSimulator): void	{ sim[this.field] /= this.scale; }
 	}
 
-	//
-	// Custom components take a custom apply and revoke functions
-	//
-	export type CustomComponentCallback = (sim: BaseSimulator) => void;
-	export class Custom implements Component {
-		constructor(public apply: CustomComponentCallback, public revoke: CustomComponentCallback) {}
+	// Increase the santa level of the simulator
+	export class SantaPowerBooster implements Component {
+		constructor(public amount: number) {}
+		apply(sim: BaseSimulator): void		{ sim.santa.power += this.amount; }
+		revoke(sim: BaseSimulator): void	{ sim.santa.power -= this.amount; }
 	}
 }
