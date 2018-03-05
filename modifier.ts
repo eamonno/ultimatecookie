@@ -223,20 +223,6 @@ module Modifier {
 		revoke(sim: BaseSimulator): void	{ sim.buildings[this.index].multiplier /= this.scale; }
 	}
 
-	// Pusher components push a value to a given BaseSimulator array.
-	export class Pusher implements Component {
-		constructor(public field: string, public value: string | number) {}
-	
-		apply(sim: BaseSimulator): void		{ sim[this.field].push(this.value); }
-		revoke(sim: BaseSimulator): void	{ 
-			if (sim[this.field].length == 0)
-				throw new Error("Can't pop " + this.field + " as length is 0.");
-			if (sim[this.field][0] != this.value)
-				throw new Error("Popping " + this.field + " expected " + this.value + " got " + sim[this.field][0] + ".");
-			sim[this.field].pop(); 
-		}
-	}	
-
 	// Increase the santa level of the simulator
 	export class SantaPowerBooster implements Component {
 		constructor(public amount: number) {}
