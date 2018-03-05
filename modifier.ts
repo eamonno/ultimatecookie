@@ -42,12 +42,6 @@ class LegacyModifier {
 		return this;
 	}
 
-	scalesBuildingCps(index: number, scale: number): this {
-		this.addApplier(() => { this.sim.buildings[index].multiplier *= scale; });
-		this.addRevoker(() => { this.sim.buildings[index].multiplier /= scale; });
-		return this;
-	}
-
 	scalesProductionByAge(scale: number): this {
 		const GoldenCookieBirthday = new Date(2013, 7, 8).getTime();
 		let age = Math.floor((Date.now() - GoldenCookieBirthday) / (365 * 24 * 60 * 60 * 1000));
@@ -181,6 +175,7 @@ class Modifier extends LegacyModifier {
 	boostsSantaPower(amount: number): this					{ return this.addComponent(new Modifier.SantaPowerBooster(amount)); }
 	calmsGrandmas(): this 									{ return this; }
 	scalesBaseClicking(scale: number): this 				{ return this.addScaler("cpcBaseMultiplier", scale); }
+	scalesBuildingCps(index: BuildingIndex, scale: number): this	{ return this.addComponent(new Modifier.BuildingCpsScaler(index, scale)); }
 	scalesBuildingPrice(scale: number): this				{ return this.addScaler("buildingPriceScale", scale); }
 	scalesBuildingRefundRate(scale: number): this			{ return this.addScaler("buildingRefundRate", scale); }
 	scalesCenturyMultiplier(scale: number): this 			{ return this.addScaler("centuryMultiplier", scale); }
@@ -220,6 +215,14 @@ module Modifier {
 		revoke(sim: BaseSimulator): void	{ sim[this.field] -= this.amount; }
 	}
 
+	// Increase a buildings cps
+	export class BuildingCpsScaler implements Component {
+		constructor(public index: BuildingIndex, public scale: number) {}
+
+		apply(sim: BaseSimulator): void		{ sim.buildings[this.index].multiplier *= this.scale; }
+		revoke(sim: BaseSimulator): void	{ sim.buildings[this.index].multiplier /= this.scale; }
+	}
+
 	// Pusher components push a value to a given BaseSimulator array.
 	export class Pusher implements Component {
 		constructor(public field: string, public value: string | number) {}
@@ -234,18 +237,18 @@ module Modifier {
 		}
 	}	
 
+	// Increase the santa level of the simulator
+	export class SantaPowerBooster implements Component {
+		constructor(public amount: number) {}
+		apply(sim: BaseSimulator): void		{ sim.santa.power += this.amount; }
+		revoke(sim: BaseSimulator): void	{ sim.santa.power -= this.amount; }
+	}
+
 	// Scaler components multiply a BaseSimulator field by a given value.
 	export class Scaler implements Component {
 		constructor(public field: string, public scale: number) {}
 	
 		apply(sim: BaseSimulator): void		{ sim[this.field] *= this.scale; }
 		revoke(sim: BaseSimulator): void	{ sim[this.field] /= this.scale; }
-	}
-
-	// Increase the santa level of the simulator
-	export class SantaPowerBooster implements Component {
-		constructor(public amount: number) {}
-		apply(sim: BaseSimulator): void		{ sim.santa.power += this.amount; }
-		revoke(sim: BaseSimulator): void	{ sim.santa.power -= this.amount; }
 	}
 }
