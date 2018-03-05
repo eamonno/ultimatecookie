@@ -570,7 +570,7 @@ class UltimateCookie {
 					upgrade.revoke();
 			} else {
 				console.log("Can't find upgrade " + gameUpgrade.name + " to apply.");
-				this.sim.upgrades[gameUpgrade.name] = new Upgrade(this.sim, gameUpgrade.name);
+				this.sim.upgrades[gameUpgrade.name] = new Upgrade(this.sim, gameUpgrade.name, UpgradeFlags.Unsupported);
 			}
 		}
 	}
@@ -2047,14 +2047,6 @@ function populate_simulator(sim: Simulator): void {
 	toggle("Golden cookie sound selector"	);
 	toggle("Golden switch [on]", UpgradeFlags.GoldenSwitch);
 	toggle("Golden switch [off]", UpgradeFlags.GoldenSwitch);
-	
-	// Just query all upgrades, gives a dump of those not supported
-	for (let gameUpgrade of Game.Upgrades) {
-		if (Game.Upgrades[gameUpgrade.name].pool != "debug") {
-			console.log("Unsupported upgrade: " + gameUpgrade.name);
-			upgrade(gameUpgrade.name, UpgradeFlags.Unsupported);
-		}
-	}
 }
 
 //
