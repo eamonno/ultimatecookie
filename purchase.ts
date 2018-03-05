@@ -31,7 +31,13 @@ abstract class Purchase extends Modifier {
 
 	get pvr(): number {
 		return this.value / this.price;
-	}
+    }
+    
+    // Benefit returns the exact per second cookie generation increase. Value is used to quantify how 
+    // much a Purchase is worth when what it offers doesn't alter the per-second gains.
+    get value(): number {
+        return this.benefit;
+    }
 }
 
 //

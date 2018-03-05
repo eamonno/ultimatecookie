@@ -42,21 +42,6 @@ class LegacyModifier {
 		this.revokers.push(func);
 	}
 
-	// Value is slightly different to benefit. It lets items that might not provide any direct
-	// benefit still be included in the purchase rankings and also provides a slight boost to
-	// the purchase order of things like discounts etc. Basically if a measurable benefit is 
-	// available it is used, if not, just treat it as a lump of coal.
-	get value(): number {
-		let ben: number = this.benefit;
-		if (ben > 0) 
-			return ben;
-		let cps: number = this.sim.effectiveCps();
-		this.sim.productionScale *= 1.01;
-		cps = this.sim.effectiveCps() - cps;
-		this.sim.productionScale /= 1.01;
-		return cps;
-	}
-
 	//
 	// Modification functions
 	//

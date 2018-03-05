@@ -23,12 +23,10 @@ enum UpgradeFlags {
 
 class Upgrade extends Purchase {
     readonly basePrice: number
-    readonly longName: string
 
-	constructor(sim: Simulator, public name: string, private flags: UpgradeFlags = 0) {
+    constructor(sim: Simulator, public name: string, private flags: UpgradeFlags = 0) {
 		super(sim);
 
-        this.longName = this.name;
 		let gameUpgrade = Game.Upgrades[name];
 		if (gameUpgrade) {
 			this.basePrice = gameUpgrade.basePrice;
@@ -120,9 +118,14 @@ class Upgrade extends Purchase {
 	}
 
     get value(): number {
-        if (this.name == "Chocolate egg")
+        if (this.name == "Chocolate egg" || (this.flags & UpgradeFlags.Unsupported))
             return 0;
-        return super.value;
+
+		let ben: number = this.benefit;
+		if (ben > 0) 
+			return ben;
+        let m = new Modifier(this.sim).scalesProduction(1.01);
+        return m.benefit;
     }
 
 	purchase(): void {
