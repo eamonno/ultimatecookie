@@ -26,14 +26,6 @@ class LegacyModifier {
 			this.revokers[i]();
 	}
 
-	get benefit(): number {
-		let cps: number = this.sim.effectiveCps();
-		this.apply();
-		cps = this.sim.effectiveCps() - cps;
-		this.revoke();
-		return cps;
-	}
-
 	addApplier(func: ModifierCallback): void {
 		this.appliers.push(func);
 	}
