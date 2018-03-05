@@ -11,8 +11,6 @@ class LegacyModifier {
 	appliers: ModifierCallback[] = []
 	revokers: ModifierCallback[] = []
 
-	isSeasonChanger: boolean
-
 	constructor(public sim: BaseSimulator, public isUnique: boolean = false) {
 	}
 
