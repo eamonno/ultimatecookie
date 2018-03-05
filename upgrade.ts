@@ -131,5 +131,5 @@ class Upgrade extends Purchase {
 	purchase(): void {
 		Game.Upgrades[this.name].buy(1);
 		this.apply();
-	}
+    }
 }

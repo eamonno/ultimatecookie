@@ -1075,6 +1075,7 @@ class BaseSimulator {
 	cursedFingerCount: number
 	dragonAura1?: DragonAura
 	dragonAura2?: DragonAura
+	elderPledgeDurationScale: number
 	eggCount: number
 	frenzyMultiplier: number
 	goldenCookieDuration: number
@@ -1193,6 +1194,7 @@ class BaseSimulator {
 		this.reindeerBuffMultiplier = 1;
 
 		// Grandmatriarch stuff
+		this.elderPledgeDurationScale = 1;
 		this.grandmatriarchLevel = GrandmatriarchLevel.Appeased;
 		this.wrinklerMultiplier = 1;
 		this.maxWrinklers = 10;
@@ -1852,7 +1854,7 @@ function populate_simulator(sim: Simulator): void {
 	upgrade("Communal brainsweep"			).givesPerBuildingBoost(BuildingIndex.Grandma, BuildingIndex.Grandma, 0.02).angersGrandmas();
 	upgrade("Arcane sugar"					).scalesProduction(1.05);
 	upgrade("Elder Pact"					).givesPerBuildingBoost(BuildingIndex.Grandma, BuildingIndex.Portal, 0.05).angersGrandmas();
-	upgrade("Sacrificial rolling pins"		).doublesElderPledge();
+	upgrade("Sacrificial rolling pins"		).scalesElderPledgeDuration(2);
 
 	// Assorted cursor / clicking upgrades
 	upgrade("Reinforced index finger"		).scalesBaseClicking(2).scalesBuildingCps(BuildingIndex.Cursor, 2);

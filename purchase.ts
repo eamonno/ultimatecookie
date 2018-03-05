@@ -33,6 +33,11 @@ abstract class Purchase extends Modifier {
 		return this.value / this.price;
     }
     
+    // Do nothing to save deleting all the requires calls since they may be useful some day
+    requires(name: string): this { 
+        return this; 
+    }
+
     // Benefit returns the exact per second cookie generation increase. Value is used to quantify how 
     // much a Purchase is worth when what it offers doesn't alter the per-second gains.
     get value(): number {

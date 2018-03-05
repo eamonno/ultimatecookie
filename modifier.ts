@@ -46,19 +46,6 @@ class LegacyModifier {
 	// Modification functions
 	//
 
-	requires(name: string): this { 
-		// Just a documentation thing really for now, does nothing
-		return this; 
-	}
-
-	calmsGrandmas(): this {
-		return this;
-	}
-	
-	doublesElderPledge(): this {
-		return this;
-	}
-
 	enablesUpgradePriceCursorScale(): this {
 		this.addApplier(() => { this.sim.upgradePriceCursorScaleEnabled = true; this.sim.recalculateUpgradePriceCursorScale(); })
 		this.addRevoker(() => { this.sim.upgradePriceCursorScaleEnabled = false; this.sim.recalculateUpgradePriceCursorScale(); })
@@ -207,6 +194,7 @@ class Modifier extends LegacyModifier {
 	boostsEggCount(amount: number = 1): this				{ return this.addBooster("eggCount", amount); }
 	boostsHeartCookieCount(amount: number = 1): this		{ return this.addBooster("heartCookieCount", amount); }
 	boostsMaxWrinklers(amount: number): this				{ return this.addBooster("maxWrinklers", amount); }
+	calmsGrandmas(): this 									{ return this; }
 	scalesBaseClicking(scale: number): this 				{ return this.addScaler("cpcBaseMultiplier", scale); }
 	scalesBuildingPrice(scale: number): this				{ return this.addScaler("buildingPriceScale", scale); }
 	scalesBuildingRefundRate(scale: number): this			{ return this.addScaler("buildingRefundRate", scale); }
@@ -214,6 +202,7 @@ class Modifier extends LegacyModifier {
 	scalesClickFrenzyMultiplier(scale: number): this		{ return this.addScaler("clickFrenzyMultiplier", scale); }
 	scalesClicking(scale: number): this						{ return this.addScaler("cpcMultiplier", scale); }
 	scalesCookieUpgradePrice(scale: number): this 			{ return this.addScaler("cookieUpgradePriceMultiplier", scale); }
+	scalesElderPledgeDuration(scale: number): this			{ return this.addScaler("elderPledgeDurationScale", scale); }
 	scalesFrenzyMultiplier(scale: number): this				{ return this.addScaler("frenzyMultiplier", scale); }
 	scalesGoldenCookieDuration(scale: number): this			{ return this.addScaler("goldenCookieDuration", scale); }
 	scalesHeartCookies(scale: number): this					{ return this.addScaler("heartCookieScale", scale); }
