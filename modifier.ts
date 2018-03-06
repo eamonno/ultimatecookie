@@ -78,16 +78,6 @@ class LegacyModifier {
 		return this;
 	}
 
-	givesSynergy(receiver: BuildingIndex, from: BuildingIndex, amount: number, reverse: number = 0): this {
-		this.addApplier(() => { this.sim.buildings[receiver].addSynergy(from, amount); });
-		this.addRevoker(() => { this.sim.buildings[receiver].removeSynergy(from, amount); });
-		if (reverse) {
-			this.addApplier(() => { this.sim.buildings[from].addSynergy(receiver, reverse); });
-			this.addRevoker(() => { this.sim.buildings[from].removeSynergy(receiver, reverse); });				
-		}
-		return this;		
-	}
-
 	givesPerBuildingBoost(receiver: BuildingIndex, source: BuildingIndex, amount: number): this {
 		this.addApplier(() => { this.sim.buildings[receiver].scaleCounter.addCountOne(source, amount); });
 		this.addRevoker(() => { this.sim.buildings[receiver].scaleCounter.subtractCountOne(source, amount); });
@@ -198,6 +188,13 @@ class Modifier extends LegacyModifier {
 	scalesSynergyUpgradePrice(scale: number): this 			{ return this.addScaler("synergyUpgradePriceMultiplier", scale); }
 	scalesUpgradePrice(scale: number): this					{ return this.addScaler("upgradePriceScale", scale); }
 	unlocksPrestige(amount: number): this					{ return this.addBooster("prestigeUnlocked", amount); }
+
+	givesSynergy(receiver: BuildingIndex, giver: BuildingIndex, amount: number, reverse: number = 0): this {
+		this.addComponent(new Modifier.Synergy(receiver, giver, amount));
+		if (reverse != 0)
+			this.addComponent(new Modifier.Synergy(giver, receiver, reverse));
+		return this;
+	}
 }
 
 module Modifier {
@@ -236,5 +233,13 @@ module Modifier {
 	
 		apply(sim: BaseSimulator): void		{ sim[this.field] *= this.scale; }
 		revoke(sim: BaseSimulator): void	{ sim[this.field] /= this.scale; }
+	}
+
+	// Synergies give buildings boosts based on the count of another building
+	export class Synergy implements Component {
+		constructor(public receiver: BuildingIndex, public giver: BuildingIndex, public amount: number) {}
+
+		apply(sim: BaseSimulator): void		{ sim.buildings[this.receiver].addSynergy(this.giver, this.amount); }
+		revoke(sim: BaseSimulator): void	{ sim.buildings[this.receiver].removeSynergy(this.giver, this.amount); }
 	}
 }
