@@ -1128,14 +1128,6 @@ class BaseSimulator {
 		this.reset();
 	}
 
-	pushSeason(season: string): void {
-		this.seasonStack.push(season);
-	}
-
-	popSeason(): void {
-		this.seasonStack.pop();
-	}
-
 	reset(): void {
 		// Reset anything that needs resetting
 		for (let i = 0; i < this.buildings.length; ++i)
