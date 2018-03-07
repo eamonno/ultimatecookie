@@ -50,10 +50,6 @@ class LegacyModifier {
 		return this;
 	}
 
-	scalesRandomDropFrequency(scale: number): this {
-		return this;
-	}
-
 	scalesSeasonalGoldenCookieFrequency(season: string, scale: number): this {
 		this.addApplier(() => { this.sim.seasons[season].goldenCookieFrequencyScale *= scale; });
 		this.addRevoker(() => { this.sim.seasons[season].goldenCookieFrequencyScale /= scale; });
@@ -181,6 +177,7 @@ class Modifier extends LegacyModifier {
 	scalesMilk(scale: number): this 						{ return this.addScaler("milkMultiplier", scale); }
 	scalesPrestige(scale: number): this 					{ return this.addScaler("prestigeScale", scale); }
 	scalesProduction(scale: number): this 					{ return this.addScaler("productionScale", scale); }
+	scalesRandomDropFrequency(scale: number): this			{ return this; }
 	scalesReindeer(scale: number): this 					{ return this.addScaler("reindeerMultiplier", scale); }
 	scalesReindeerBuffMultiplier(scale: number): this		{ return this.addScaler("reindeerBuffMultiplier", scale); }
 	scalesReindeerDuration(scale: number): this				{ return this.addScaler("reindeerDuration", scale); }
