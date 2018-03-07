@@ -547,7 +547,7 @@ class UltimateCookie {
 	syncSeason(): void {
 		// Sync the season, needs to be done because the season buffs expire eventually
 		this.sim.seasonChanges = Game.seasonUses;
-		this.sim.seasonStack = [this.sim.seasons[""], this.sim.seasons[Game.season]];
+		this.sim.seasonStack = ["", Game.season];
 	}
 
 	syncStore(): void {
@@ -1099,7 +1099,7 @@ class BaseSimulator {
 	reindeerMultiplier: number
 	reindeerTime: number
 	seasonChanges: number
-	seasonStack: Season[]
+	seasonStack: string[]
 	synergyUpgradePriceMultiplier: number
 	upgradePriceScale: number
 	upgradePriceCursorScale: number
@@ -1128,7 +1128,7 @@ class BaseSimulator {
 		this.reset();
 	}
 
-	pushSeason(season: Season): void {
+	pushSeason(season: string): void {
 		this.seasonStack.push(season);
 	}
 
@@ -1221,7 +1221,7 @@ class BaseSimulator {
 
 		// Current season
 		this.seasonChanges = 0;
-		this.seasonStack = [this.seasons[""]];	// Default to no season
+		this.seasonStack = [""];	// Default to no season
 	}
 
 	get cpc(): number {
@@ -1291,7 +1291,7 @@ class BaseSimulator {
 	}
 
 	get season(): Season {
-		return this.seasonStack[this.seasonStack.length - 1];
+		return this.seasons[this.seasonStack[this.seasonStack.length - 1]];
 	}
 
 	//

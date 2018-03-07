@@ -56,18 +56,6 @@ class LegacyModifier {
 		return this;
 	}
 
-	setsSeason(name: string): this {
-		this.addApplier(() => {
-			this.sim.pushSeason(this.sim.seasons[name]);
-			this.sim.seasonChanges++; 
-		});
-		this.addRevoker(() => {
-			this.sim.popSeason();
-			this.sim.seasonChanges--; 
-		});
-		return this;
-	}
-
 	givesBuildingPerBuildingFlatCpsBoost(receiver: BuildingIndex, excludes: BuildingIndex[], amount: number): this {
 		this.addApplier(() => { this.sim.buildings[receiver].perBuildingFlatCpsBoostCounter.addCountMost(excludes, amount); });
 		this.addRevoker(() => { this.sim.buildings[receiver].perBuildingFlatCpsBoostCounter.subtractCountMost(excludes, amount); });
@@ -184,6 +172,7 @@ class Modifier extends LegacyModifier {
 	scalesReindeerFrequency(scale: number): this			{ return this.addScaler("reindeerTime", scale); }
 	scalesSynergyUpgradePrice(scale: number): this 			{ return this.addScaler("synergyUpgradePriceMultiplier", scale); }
 	scalesUpgradePrice(scale: number): this					{ return this.addScaler("upgradePriceScale", scale); }
+	setsSeason(name: string): this							{ return this.addComponent(new Modifier.SeasonChanger(name)); }
 	unlocksPrestige(amount: number): this					{ return this.addBooster("prestigeUnlocked", amount); }
 
 	givesSynergy(receiver: BuildingIndex, giver: BuildingIndex, amount: number, reverse: number = 0): this {
@@ -192,6 +181,7 @@ class Modifier extends LegacyModifier {
 			this.addComponent(new Modifier.Synergy(giver, receiver, reverse));
 		return this;
 	}
+
 }
 
 module Modifier {
@@ -230,6 +220,14 @@ module Modifier {
 	
 		apply(sim: BaseSimulator): void		{ sim[this.field] *= this.scale; }
 		revoke(sim: BaseSimulator): void	{ sim[this.field] /= this.scale; }
+	}
+
+	// SeasonChanger component sets the season
+	export class SeasonChanger implements Component {
+		constructor(public name: string) {}
+
+		apply(sim: BaseSimulator): void		{ sim.seasonStack.push(name); sim.seasonChanges++; }
+		revoke(sim: BaseSimulator): void	{ sim.seasonStack.pop(); sim.seasonChanges--; }
 	}
 
 	// Synergies give buildings boosts based on the count of another building
