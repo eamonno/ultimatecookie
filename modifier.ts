@@ -36,26 +36,6 @@ class LegacyModifier {
 	// Modification functions
 	//
 
-	enablesUpgradePriceCursorScale(): this {
-		this.addApplier(() => { this.sim.upgradePriceCursorScaleEnabled = true; this.sim.recalculateUpgradePriceCursorScale(); })
-		this.addRevoker(() => { this.sim.upgradePriceCursorScaleEnabled = false; this.sim.recalculateUpgradePriceCursorScale(); })
-		return this;
-	}
-
-	scalesProductionByAge(scale: number): this {
-		const GoldenCookieBirthday = new Date(2013, 7, 8).getTime();
-		let age = Math.floor((Date.now() - GoldenCookieBirthday) / (365 * 24 * 60 * 60 * 1000));
-		this.addApplier(() => { this.sim.productionScale *= (1 + scale * age); });
-		this.addRevoker(() => { this.sim.productionScale /= (1 + scale * age); });
-		return this;
-	}
-
-	scalesSeasonalGoldenCookieFrequency(season: string, scale: number): this {
-		this.addApplier(() => { this.sim.seasons[season].goldenCookieFrequencyScale *= scale; });
-		this.addRevoker(() => { this.sim.seasons[season].goldenCookieFrequencyScale /= scale; });
-		return this;
-	}
-
 	givesBuildingPerBuildingFlatCpsBoost(receiver: BuildingIndex, excludes: BuildingIndex[], amount: number): this {
 		this.addApplier(() => { this.sim.buildings[receiver].perBuildingFlatCpsBoostCounter.addCountMost(excludes, amount); });
 		this.addRevoker(() => { this.sim.buildings[receiver].perBuildingFlatCpsBoostCounter.subtractCountMost(excludes, amount); });
@@ -72,12 +52,6 @@ class LegacyModifier {
 		this.addApplier(() => { this.sim.perBuildingFlatCpcBoostCounter.addCountMost(excludes, amount); });
 		this.addRevoker(() => { this.sim.perBuildingFlatCpcBoostCounter.subtractCountMost(excludes, amount); });
 		return this;
-	}
-
-	unlocksMilk(amount: number, tier: number = 0): this {
-		this.addApplier(() => { this.sim.milkUnlocks[tier].push(amount); this.sim.milkUnlocks[tier].sort(); });
-		this.addRevoker(() => { this.sim.milkUnlocks[tier].splice(this.sim.milkUnlocks[tier].indexOf(amount), 1); });
-		return this;		
 	}
 }
 
@@ -148,8 +122,8 @@ class Modifier extends LegacyModifier {
 	boostsMaxWrinklers(amount: number): this				{ return this.addBooster("maxWrinklers", amount); }
 	boostsSantaPower(amount: number): this					{ return this.addComponent(new Modifier.SantaPowerBooster(amount)); }
 	calmsGrandmas(): this 									{ return this; }
+	enablesUpgradePriceCursorScale(): this					{ return this.addBooster("upgradePriceCursorScaleEnables", 1); }
 	scalesBaseClicking(scale: number): this 				{ return this.addScaler("cpcBaseMultiplier", scale); }
-	scalesBuildingCps(index: BuildingIndex, scale: number): this	{ return this.addComponent(new Modifier.BuildingCpsScaler(index, scale)); }
 	scalesBuildingPrice(scale: number): this				{ return this.addScaler("buildingPriceScale", scale); }
 	scalesBuildingRefundRate(scale: number): this			{ return this.addScaler("buildingRefundRate", scale); }
 	scalesCenturyMultiplier(scale: number): this 			{ return this.addScaler("centuryMultiplier", scale); }
@@ -173,7 +147,16 @@ class Modifier extends LegacyModifier {
 	scalesSynergyUpgradePrice(scale: number): this 			{ return this.addScaler("synergyUpgradePriceMultiplier", scale); }
 	scalesUpgradePrice(scale: number): this					{ return this.addScaler("upgradePriceScale", scale); }
 	setsSeason(name: string): this							{ return this.addComponent(new Modifier.SeasonChanger(name)); }
+	unlocksMilk(amount: number, tier: number = 0): this 	{ return this.addComponent(new Modifier.MilkScaler(amount, tier)); }
 	unlocksPrestige(amount: number): this					{ return this.addBooster("prestigeUnlocked", amount); }
+
+	scalesBuildingCps(index: BuildingIndex, scale: number): this {
+		return this.addComponent(new Modifier.BuildingCpsScaler(index, scale)); 
+	}
+
+	scalesSeasonalGoldenCookieFrequency(season: string, scale: number): this {
+		return this.addComponent(new Modifier.SeasonScaler(season, "goldenCookieFrequencyScale", scale));
+	}
 
 	givesSynergy(receiver: BuildingIndex, giver: BuildingIndex, amount: number, reverse: number = 0): this {
 		this.addComponent(new Modifier.Synergy(receiver, giver, amount));
@@ -207,6 +190,14 @@ module Modifier {
 		revoke(sim: BaseSimulator): void	{ sim.buildings[this.index].multiplier /= this.scale; }
 	}
 
+	// Increase milk
+	export class MilkScaler implements Component {
+		constructor(public amount: number, public tier: number) {}
+
+		apply(sim: BaseSimulator): void		{ sim.milkUnlocks[this.tier].push(this.amount); sim.milkUnlocks[this.tier].sort(); }
+		revoke(sim: BaseSimulator): void	{ sim.milkUnlocks[this.tier].splice(sim.milkUnlocks[this.tier].indexOf(this.amount), 1); }
+	}
+
 	// Increase the santa level of the simulator
 	export class SantaPowerBooster implements Component {
 		constructor(public amount: number) {}
@@ -220,6 +211,14 @@ module Modifier {
 	
 		apply(sim: BaseSimulator): void		{ sim[this.field] *= this.scale; }
 		revoke(sim: BaseSimulator): void	{ sim[this.field] /= this.scale; }
+	}
+
+	// Scaler a field of a season by an amount
+	export class SeasonScaler implements Component {
+		constructor(public season: string, public field: string, public scale: number) {}
+	
+		apply(sim: BaseSimulator): void		{ sim.seasons[this.season][this.field] *= this.scale; }
+		revoke(sim: BaseSimulator): void	{ sim.seasons[this.season][this.field] /= this.scale; }
 	}
 
 	// SeasonChanger component sets the season

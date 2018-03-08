@@ -503,6 +503,7 @@ class UltimateCookie {
 			this.sim.buildings[i].level = Game.ObjectsById[i].level;
 		}
 		this.syncUpgrades();
+		this.sim.recalculateUpgradePriceCursorScale();
 		this.sim.heavenlyChips = Game.heavenlyChips;
 		this.sim.prestige = Game.prestige;
 		this.sim.milkAmount = Game.AchievementsOwned / AchievementsPerMilk;
@@ -1103,7 +1104,7 @@ class BaseSimulator {
 	synergyUpgradePriceMultiplier: number
 	upgradePriceScale: number
 	upgradePriceCursorScale: number
-	upgradePriceCursorScaleEnabled: boolean
+	upgradePriceCursorScaleEnables: number
 	wrinklerMultiplier: number
 
 	// Time and century multiplier cache
@@ -1209,7 +1210,7 @@ class BaseSimulator {
 		this.upgradePriceCursorScale = 1;
 		this.cookieUpgradePriceMultiplier = 1;
 		this.synergyUpgradePriceMultiplier = 1;
-		this.upgradePriceCursorScaleEnabled = false;
+		this.upgradePriceCursorScaleEnables = 0;
 
 		// Current season
 		this.seasonChanges = 0;
@@ -1275,7 +1276,7 @@ class BaseSimulator {
 	}
 
 	recalculateUpgradePriceCursorScale(): void {
-		if (this.upgradePriceCursorScaleEnabled) {
+		if (this.upgradePriceCursorScaleEnables > 0) {
 			this.upgradePriceCursorScale = Math.pow(0.99, this.buildings[BuildingIndex.Cursor].quantity / 100);
 		} else {
 			this.upgradePriceCursorScale = 1;
@@ -1379,6 +1380,8 @@ class Simulator extends BaseSimulator {
 //class SyncedSimulator extends Simulator
 
 function populate_simulator(sim: Simulator): void {
+	const GoldenCookieBirthday = new Date(2013, 7, 8).getTime();
+
 	// Add a new Buff to the Simulation
 	function buff(name: string, duration: number): Buff {
 		let buff = new Buff(sim, name, duration);
@@ -1828,7 +1831,7 @@ function populate_simulator(sim: Simulator): void {
 	cookie("White chocolate butter biscuit"			).scalesProduction(1.10);
 	cookie("Ruby chocolate butter biscuit"			).scalesProduction(1.10);
 	cookie("Lavender chocolate butter biscuit"		).scalesProduction(1.10);
-	cookie("Birthday cookie"						).scalesProductionByAge(0.01);
+	cookie("Birthday cookie"						).scalesProduction(1 + (0.01 * Math.floor((Date.now() - GoldenCookieBirthday) / (365 * 24 * 60 * 60 * 1000))));
 
 	// Golden cookie upgrade functions
 	upgrade("Lucky day"						).scalesGoldenCookieFrequency(2).scalesGoldenCookieDuration(2);
