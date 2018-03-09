@@ -29,13 +29,26 @@ enum BuildingIndex {
 //
 
 class BuildingCounter {
+	static ForOne(index: BuildingIndex, scale: number = 1): BuildingCounter {
+		let bc = new BuildingCounter();
+		bc.scales[index] = scale;
+		return bc;
+	}
+
+	static ForMost(index: BuildingIndex, scale: number = 1): BuildingCounter {
+		let bc = new BuildingCounter();
+		bc.scales.fill(scale);
+		bc.scales[index] = 0;
+		return bc;
+	}
+
 	scales: number[] = new Array(BuildingIndex.NumBuildings).fill(0)
 
 	clear() { 
 		this.scales.fill(0);
 	}
 
-	getCount(buildings: Building[]): number {
+	count(buildings: Building[]): number {
 		let count = 0;
 		for (let i = 0; i < this.scales.length; ++i) {
 			count += this.scales[i] * buildings[i].quantity;
@@ -43,40 +56,17 @@ class BuildingCounter {
 		return count;
 	}
 
-	addCounter(counter: BuildingCounter): BuildingCounter {
-		for (let i = 0; i < this.scales.length; ++i) {
-			this.scales[i] += counter.scales[i];
-		}
+	add(bc: BuildingCounter): BuildingCounter {
+		for (let i = 0; i < BuildingIndex.NumBuildings; ++i)
+			this.scales[i] += bc.scales[i];
 		return this;
 	}
 	
-	addCountOne(index: BuildingIndex, scale: number = 1): BuildingCounter {
-		this.scales[index] += scale;
+	subtract(bc: BuildingCounter): BuildingCounter {
+		for (let i = 0; i < BuildingIndex.NumBuildings; ++i)
+			this.scales[i] -= bc.scales[i];
 		return this;
 	}
-	
-	addCountMost(excludes: BuildingIndex[], scale: number = 1): BuildingCounter {
-		for (let i = 0; i < this.scales.length; ++i) {
-			if (excludes.indexOf(i) == -1)
-				this.scales[i] += scale;
-		}
-		return this;
-	}
-	
-	subtractCounter(counter: BuildingCounter): BuildingCounter {
-		for (let i = 0; i < this.scales.length; ++i) {
-			this.scales[i] -= counter.scales[i];
-		}
-		return this;
-	}
-	
-	subtractCountOne(index: BuildingIndex, scale: number = 1): BuildingCounter {
-		return this.addCountOne(index, -scale);
-	}
-	
-	subtractCountMost(excludes: BuildingIndex[], scale: number = 1): BuildingCounter {
-		return this.addCountMost(excludes, -scale);
-	}	
 }
 
 //
@@ -109,10 +99,8 @@ class Building extends Purchase {
 	get isAvailable(): boolean { return true; }
 
 	purchase(): void {
-		//do {
-			Game.ObjectsById[this.index].buy(1);
-			this.apply();
-		//} while (this.price <= Game.cookies && this.price <= this.sim.cps);
+		Game.ObjectsById[this.index].buy(1);
+		this.apply();
 	}
 
 	apply() {
@@ -155,7 +143,7 @@ class Building extends Purchase {
 	}
 
 	get individualCps(): number {
-		return this.perBuildingFlatCpsBoostCounter.getCount(this.sim.buildings) + this.baseCps * (1 + this.scaleCounter.getCount(this.sim.buildings)) * this.synergyMultiplier * (1 + this.buildingScaler.getCount(this.sim.buildings)) * this.multiplier;
+		return this.perBuildingFlatCpsBoostCounter.count(this.sim.buildings) + this.baseCps * (1 + this.scaleCounter.count(this.sim.buildings)) * this.synergyMultiplier * (1 + this.buildingScaler.count(this.sim.buildings)) * this.multiplier;
 	}
 
 	get levelMultiplier(): number {

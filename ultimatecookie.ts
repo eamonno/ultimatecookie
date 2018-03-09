@@ -1231,7 +1231,7 @@ class BaseSimulator {
 	// Get the current cookies per click amount
 	get preCurseCpc(): number {
 		// Add the per building flat boost first
-		let cpc: number = this.perBuildingFlatCpcBoostCounter.getCount(this.buildings);
+		let cpc: number = this.perBuildingFlatCpcBoostCounter.count(this.buildings);
 		
 		// Add percentage of recular CpS
 		cpc += this.preCurseCps * this.cpcCpsMultiplier;
@@ -1844,26 +1844,26 @@ function populate_simulator(sim: Simulator): void {
 	upgrade("Designer cocoa beans"			).scalesProduction(1.02);
 	upgrade("Ritual rolling pins"			).scalesBuildingCps(BuildingIndex.Grandma, 2);
 	upgrade("Underworld ovens"				).scalesProduction(1.03);
-	upgrade("One mind"						).givesPerBuildingBoost(BuildingIndex.Grandma, BuildingIndex.Grandma, 0.02).angersGrandmas();
+	upgrade("One mind"						).givesBuildingPerBuildingBoost(BuildingIndex.Grandma, BuildingIndex.Grandma, 0.02).angersGrandmas();
 	upgrade("Exotic nuts"					).scalesProduction(1.04);
-	upgrade("Communal brainsweep"			).givesPerBuildingBoost(BuildingIndex.Grandma, BuildingIndex.Grandma, 0.02).angersGrandmas();
+	upgrade("Communal brainsweep"			).givesBuildingPerBuildingBoost(BuildingIndex.Grandma, BuildingIndex.Grandma, 0.02).angersGrandmas();
 	upgrade("Arcane sugar"					).scalesProduction(1.05);
-	upgrade("Elder Pact"					).givesPerBuildingBoost(BuildingIndex.Grandma, BuildingIndex.Portal, 0.05).angersGrandmas();
+	upgrade("Elder Pact"					).givesBuildingPerBuildingBoost(BuildingIndex.Grandma, BuildingIndex.Portal, 0.05).angersGrandmas();
 	upgrade("Sacrificial rolling pins"		).scalesElderPledgeDuration(2);
 
 	// Assorted cursor / clicking upgrades
 	upgrade("Reinforced index finger"		).scalesBaseClicking(2).scalesBuildingCps(BuildingIndex.Cursor, 2);
 	upgrade("Carpal tunnel prevention cream").scalesBaseClicking(2).scalesBuildingCps(BuildingIndex.Cursor, 2);
 	upgrade("Ambidextrous"					).scalesBaseClicking(2).scalesBuildingCps(BuildingIndex.Cursor, 2);
-	upgrade("Thousand fingers"				).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 0.1).givesPerBuildingFlatCpcBoost([BuildingIndex.Cursor], 0.1);
-	upgrade("Million fingers"				).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 0.5).givesPerBuildingFlatCpcBoost([BuildingIndex.Cursor], 0.5);
-	upgrade("Billion fingers"				).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 5).givesPerBuildingFlatCpcBoost([BuildingIndex.Cursor], 5);
-	upgrade("Trillion fingers"				).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 50).givesPerBuildingFlatCpcBoost([BuildingIndex.Cursor], 50);
-	upgrade("Quadrillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 500).givesPerBuildingFlatCpcBoost([BuildingIndex.Cursor], 500);
-	upgrade("Quintillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 5000).givesPerBuildingFlatCpcBoost([BuildingIndex.Cursor], 5000);
-	upgrade("Sextillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 50000).givesPerBuildingFlatCpcBoost([BuildingIndex.Cursor], 50000);
-	upgrade("Septillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 500000).givesPerBuildingFlatCpcBoost([BuildingIndex.Cursor], 500000);
-	upgrade("Octillion fingers"				).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 5000000).givesPerBuildingFlatCpcBoost([BuildingIndex.Cursor], 5000000);
+	upgrade("Thousand fingers"				).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 0.1).givesPerBuildingFlatCpcBoost(BuildingIndex.Cursor, 0.1);
+	upgrade("Million fingers"				).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 0.5).givesPerBuildingFlatCpcBoost(BuildingIndex.Cursor, 0.5);
+	upgrade("Billion fingers"				).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 5).givesPerBuildingFlatCpcBoost(BuildingIndex.Cursor, 5);
+	upgrade("Trillion fingers"				).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 50).givesPerBuildingFlatCpcBoost(BuildingIndex.Cursor, 50);
+	upgrade("Quadrillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 500).givesPerBuildingFlatCpcBoost(BuildingIndex.Cursor, 500);
+	upgrade("Quintillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 5000).givesPerBuildingFlatCpcBoost(BuildingIndex.Cursor, 5000);
+	upgrade("Sextillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 50000).givesPerBuildingFlatCpcBoost(BuildingIndex.Cursor, 50000);
+	upgrade("Septillion fingers"			).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 500000).givesPerBuildingFlatCpcBoost(BuildingIndex.Cursor, 500000);
+	upgrade("Octillion fingers"				).givesBuildingPerBuildingFlatCpsBoost(BuildingIndex.Cursor, [BuildingIndex.Cursor], 5000000).givesPerBuildingFlatCpcBoost(BuildingIndex.Cursor, 5000000);
 	upgrade("Plastic mouse"					).boostsClickCps(0.01);
 	upgrade("Iron mouse"					).boostsClickCps(0.01);
 	upgrade("Titanium mouse"				).boostsClickCps(0.01);

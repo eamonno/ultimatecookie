@@ -31,28 +31,6 @@ class LegacyModifier {
 	addRevoker(func: ModifierCallback): void {
 		this.revokers.push(func);
 	}
-
-	//
-	// Modification functions
-	//
-
-	givesBuildingPerBuildingFlatCpsBoost(receiver: BuildingIndex, excludes: BuildingIndex[], amount: number): this {
-		this.addApplier(() => { this.sim.buildings[receiver].perBuildingFlatCpsBoostCounter.addCountMost(excludes, amount); });
-		this.addRevoker(() => { this.sim.buildings[receiver].perBuildingFlatCpsBoostCounter.subtractCountMost(excludes, amount); });
-		return this;
-	}
-
-	givesPerBuildingBoost(receiver: BuildingIndex, source: BuildingIndex, amount: number): this {
-		this.addApplier(() => { this.sim.buildings[receiver].scaleCounter.addCountOne(source, amount); });
-		this.addRevoker(() => { this.sim.buildings[receiver].scaleCounter.subtractCountOne(source, amount); });
-		return this;
-	}
-
-	givesPerBuildingFlatCpcBoost(excludes: BuildingIndex[], amount: number): this {
-		this.addApplier(() => { this.sim.perBuildingFlatCpcBoostCounter.addCountMost(excludes, amount); });
-		this.addRevoker(() => { this.sim.perBuildingFlatCpcBoostCounter.subtractCountMost(excludes, amount); });
-		return this;
-	}
 }
 
 class Modifier extends LegacyModifier {
@@ -150,6 +128,18 @@ class Modifier extends LegacyModifier {
 	unlocksMilk(amount: number, tier: number = 0): this 	{ return this.addComponent(new Modifier.MilkScaler(amount, tier)); }
 	unlocksPrestige(amount: number): this					{ return this.addBooster("prestigeUnlocked", amount); }
 
+	givesBuildingPerBuildingFlatCpsBoost(receiver: BuildingIndex, excludes: BuildingIndex[], amount: number): this {
+		return this.addComponent(new Modifier.BuildingCountBooster(receiver, "perBuildingFlatCpsBoostCounter", BuildingCounter.ForMost(receiver, amount)));
+	}
+	
+	givesBuildingPerBuildingBoost(receiver: BuildingIndex, source: BuildingIndex, amount: number): this {
+		return this.addComponent(new Modifier.BuildingCountBooster(receiver, "scaleCounter", BuildingCounter.ForMost(source, amount)));
+	}
+
+	givesPerBuildingFlatCpcBoost(source: BuildingIndex, amount: number): this {
+		return this.addComponent(new Modifier.BuildingCountBooster(null, "perBuildingFlatCpcBoostCounter", BuildingCounter.ForOne(source, amount)));
+	}
+
 	scalesBuildingCps(index: BuildingIndex, scale: number): this {
 		return this.addComponent(new Modifier.BuildingCpsScaler(index, scale)); 
 	}
@@ -180,6 +170,25 @@ module Modifier {
 	
 		apply(sim: BaseSimulator): void		{ sim[this.field] += this.amount; }
 		revoke(sim: BaseSimulator): void	{ sim[this.field] -= this.amount; }
+	}
+
+	// Add to a building counter
+	export class BuildingCountBooster implements Component {
+		constructor(public building: BuildingIndex | null, public field: string, public counter: BuildingCounter) {}
+
+		apply(sim: BaseSimulator): void	{ 
+			if (this.building != null) 
+				sim.buildings[this.building][this.field].add(this.counter);
+			else 
+				sim[this.field].add(this.counter);
+		}
+	
+		revoke(sim: BaseSimulator): void {
+			if (this.building != null) 
+				sim.buildings[this.building][this.field].add(this.counter);
+			else 
+				sim[this.field].subtract(this.counter);
+		}
 	}
 
 	// Increase a buildings cps
