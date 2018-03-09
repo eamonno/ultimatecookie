@@ -11,7 +11,7 @@ class LegacyModifier {
 	appliers: ModifierCallback[] = []
 	revokers: ModifierCallback[] = []
 
-	constructor(public sim: BaseSimulator, public isUnique: boolean = false) {
+	constructor(public sim: BaseSimulator) {
 	}
 
 	apply(): void {
@@ -37,7 +37,7 @@ class Modifier extends LegacyModifier {
 	applicationCount: number = 0
 	components: Modifier.Component[] = []
 
-	constructor(sim: BaseSimulator) {
+	constructor(sim: BaseSimulator, public isUnique?: boolean) {
 		super(sim);
 	}
 	
@@ -100,6 +100,7 @@ class Modifier extends LegacyModifier {
 	boostsMaxWrinklers(amount: number): this				{ return this.addBooster("maxWrinklers", amount); }
 	boostsSantaPower(amount: number): this					{ return this.addComponent(new Modifier.SantaPowerBooster(amount)); }
 	calmsGrandmas(): this 									{ return this; }
+	cursesFinger(): this									{ return this.addBooster("cursedFingerCount", 1); }
 	enablesUpgradePriceCursorScale(): this					{ return this.addBooster("upgradePriceCursorScaleEnables", 1); }
 	scalesBaseClicking(scale: number): this 				{ return this.addScaler("cpcBaseMultiplier", scale); }
 	scalesBuildingPrice(scale: number): this				{ return this.addScaler("buildingPriceScale", scale); }
@@ -128,8 +129,8 @@ class Modifier extends LegacyModifier {
 	unlocksMilk(amount: number, tier: number = 0): this 	{ return this.addComponent(new Modifier.MilkScaler(amount, tier)); }
 	unlocksPrestige(amount: number): this					{ return this.addBooster("prestigeUnlocked", amount); }
 
-	givesBuildingPerBuildingFlatCpsBoost(receiver: BuildingIndex, excludes: BuildingIndex[], amount: number): this {
-		return this.addComponent(new Modifier.BuildingCountBooster(receiver, "perBuildingFlatCpsBoostCounter", BuildingCounter.ForMost(receiver, amount)));
+	givesBuildingPerBuildingFlatCpsBoost(receiver: BuildingIndex, source: BuildingIndex, amount: number): this {
+		return this.addComponent(new Modifier.BuildingCountBooster(receiver, "perBuildingFlatCpsBoostCounter", BuildingCounter.ForMost(source, amount)));
 	}
 	
 	givesBuildingPerBuildingBoost(receiver: BuildingIndex, source: BuildingIndex, amount: number): this {
