@@ -659,11 +659,16 @@ class UltimateCookie {
 // throughput for a short duration.
 //
 
+enum BuffFlags {
+	BuildingScaler = 0x1,
+	BuildingShrinker = 0x2,
+	GoldenCookieBuff = 0x4,
+}
+
 class Buff extends Modifier {
-	shrink: boolean
+	flags: BuffFlags = 0
 	buildingIndex: number
 	cachedScale?: number
-	isAGoldenCookieBuff?: boolean
 
 	constructor(sim: Simulator, public name: string, public baseDuration: number) {
 		super(sim);
@@ -673,34 +678,45 @@ class Buff extends Modifier {
 	get buildingScale(): number {
 		if (this.cachedScale)
 			return this.cachedScale;
-		let scale = 1 + this.sim.buildings[this.buildingIndex].quantity * 0.1;
-		return this.shrink ? 1 / scale : scale;
+		if (this.flags & BuffFlags.BuildingScaler)
+			return 1 + this.sim.buildings[this.buildingIndex].quantity * 0.1;
+		if (this.flags & BuffFlags.BuildingShrinker)
+			return 1 / (1 + this.sim.buildings[this.buildingIndex].quantity * 0.1);
+		return 1;
 	}
 
 	get duration(): number {
-		if (this.isAGoldenCookieBuff) {
+		if (this.flags & BuffFlags.GoldenCookieBuff) {
 			return this.baseDuration * this.sim.goldenCookieEffectDurationMultiplier;
 		}
 		return this.duration;
 	}
 
+	apply() {
+		this.sim.frenzyMultiplier *= this.buildingScale;
+		super.apply();
+	}
+
+	revoke() {
+		super.revoke();
+		this.sim.frenzyMultiplier *= this.buildingScale;
+	}
+
 	isGoldenCookieBuff(): this {
-		this.isAGoldenCookieBuff = true;
+		this.flags |= BuffFlags.GoldenCookieBuff;
 		return this;
 	}
 
-	scalesFrenzyMultiplierPerBuilding(index: number, shrink: boolean = false): this {
-		if (this.buildingIndex)
-			console.log("Error: Buff " + this.name + " can not scale off of two different buildings.");
-		this.shrink = shrink;
+	scalesFrenzyMultiplierPerBuilding(index: number): this {
+		this.flags |= BuffFlags.BuildingScaler;
 		this.buildingIndex = index;
-		this.addApplier(() => { this.sim.frenzyMultiplier *= this.buildingScale; });
-		this.addRevoker(() => { this.sim.frenzyMultiplier /= this.buildingScale; });
 		return this;
 	}
 
 	shrinksFrenzyMultiplierPerBuilding(index: number): this {
-		return this.scalesFrenzyMultiplierPerBuilding(index, true);
+		this.flags |= BuffFlags.BuildingShrinker;
+		this.buildingIndex = index;
+		return this;
 	}
 
 	reset(): void {
@@ -781,8 +797,7 @@ class DragonAura extends Purchase {
 class DragonLevel extends Purchase {
 	constructor(public dragon: Dragon, public num: number, public name: string) {
 		super(dragon.sim);
-		this.addApplier(() => { this.sim.dragon.level++; });
-		this.addRevoker(() => { this.sim.dragon.level--; });
+		this.addNestedBooster("dragon", "level", 1);
 	}
 
 	get isAvailable() {
@@ -895,8 +910,7 @@ class Dragon {
 class SantaLevel extends Purchase {
 	constructor(public santa: Santa, public num: number, public name: string) {
 		super(santa.sim);
-		this.addApplier(() => { this.sim.santa.level++; });
-		this.addRevoker(() => { this.sim.santa.level--; });
+		this.addNestedBooster("santa", "level", 1);
 	}
 
 	get isAvailable(): boolean {
@@ -981,8 +995,6 @@ class BuildingLevel extends Purchase {
 	constructor(sim: Simulator, public index: BuildingIndex) {
 		super(sim);
 		this.name = sim.buildings[index].name + " level";
-		this.addApplier(() => this.sim.buildings[this.index].level++);
-		this.addRevoker(() => this.sim.buildings[this.index].level--);
 	}
 
 	get isAvailable(): boolean { return true; }
@@ -995,9 +1007,19 @@ class BuildingLevel extends Purchase {
 		return this.sim.buildings[this.index].level + 1;
 	}
 
+	apply() {
+		this.sim.buildings[this.index].level++;
+		super.apply();
+	}
+
 	purchase() {
 		Game.ObjectsById[this.index].levelUp();
 		this.apply();
+	}
+
+	revoke() {
+		this.sim.buildings[this.index].level--;
+		super.revoke();
 	}
 }
 

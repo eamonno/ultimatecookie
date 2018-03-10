@@ -5,41 +5,11 @@
 // of the games various upgrades, buildings, buffs etc. 
 //
 
-type ModifierCallback = () => void;
-
-class LegacyModifier {
-	appliers: ModifierCallback[] = []
-	revokers: ModifierCallback[] = []
-
-	constructor(public sim: BaseSimulator) {
-	}
-
-	apply(): void {
-		for (let i = 0; i < this.appliers.length; ++i)
-			this.appliers[i]();
-	}
-
-	revoke(): void {
-		for (let i = this.revokers.length - 1; i >= 0; --i)
-			this.revokers[i]();
-	}
-
-	addApplier(func: ModifierCallback): void {
-		this.appliers.push(func);
-	}
-
-	addRevoker(func: ModifierCallback): void {
-		this.revokers.push(func);
-	}
-}
-
-class Modifier extends LegacyModifier {
+class Modifier {
 	applicationCount: number = 0
 	components: Modifier.Component[] = []
 
-	constructor(sim: BaseSimulator, public isUnique?: boolean) {
-		super(sim);
-	}
+	constructor(public sim: BaseSimulator, public isUnique?: boolean) {}
 	
 	get isApplied(): boolean {
 		return this.applicationCount > 0;
@@ -65,7 +35,6 @@ class Modifier extends LegacyModifier {
 		for (let i = 0; i < this.components.length; ++i)
 			this.components[i].apply(this.sim);
 		this.applicationCount++;
-		super.apply();
 	}
 
 	revoke(): void {
@@ -76,7 +45,6 @@ class Modifier extends LegacyModifier {
 				this.components[i].revoke(this.sim);
 			this.applicationCount--;
 		}
-		super.revoke();
 	}
 
 	protected addComponent(component: Modifier.Component): this {
@@ -92,13 +60,17 @@ class Modifier extends LegacyModifier {
 		return this.addComponent(new Modifier.Booster(field, amount));
 	}
 
+	protected addNestedBooster(field: string, subfield: string, amount: number): this {
+		return this.addComponent(new Modifier.NestedBooster(field, subfield, amount));
+	}
+
 	angersGrandmas(): this									{ return this.addBooster("grandmatriarchLevel", 1); }
 	boostsBaseCps(amount: number): this 					{ return this.addBooster("baseCps", amount); }
 	boostsClickCps(amount: number): this					{ return this.addBooster("cpcCpsMultiplier", amount); }
 	boostsEggCount(amount: number = 1): this				{ return this.addBooster("eggCount", amount); }
 	boostsHeartCookieCount(amount: number = 1): this		{ return this.addBooster("heartCookieCount", amount); }
 	boostsMaxWrinklers(amount: number): this				{ return this.addBooster("maxWrinklers", amount); }
-	boostsSantaPower(amount: number): this					{ return this.addComponent(new Modifier.SantaPowerBooster(amount)); }
+	boostsSantaPower(amount: number): this					{ return this.addNestedBooster("santa", "power", amount); }
 	calmsGrandmas(): this 									{ return this; }
 	cursesFinger(): this									{ return this.addBooster("cursedFingerCount", 1); }
 	enablesUpgradePriceCursorScale(): this					{ return this.addBooster("upgradePriceCursorScaleEnables", 1); }
@@ -208,11 +180,12 @@ module Modifier {
 		revoke(sim: BaseSimulator): void	{ sim.milkUnlocks[this.tier].splice(sim.milkUnlocks[this.tier].indexOf(this.amount), 1); }
 	}
 
-	// Increase the santa level of the simulator
-	export class SantaPowerBooster implements Component {
-		constructor(public amount: number) {}
-		apply(sim: BaseSimulator): void		{ sim.santa.power += this.amount; }
-		revoke(sim: BaseSimulator): void	{ sim.santa.power -= this.amount; }
+	// Increase a field of a sub field
+	export class NestedBooster implements Component {
+		constructor(public field: string, public subfield: string, public amount: number) {}
+
+		apply(sim: BaseSimulator): void		{ sim[this.field][this.subfield] += this.amount; }
+		revoke(sim: BaseSimulator): void	{ sim[this.field][this.subfield] -= this.amount; }
 	}
 
 	// Scaler components multiply a BaseSimulator field by a given value.
