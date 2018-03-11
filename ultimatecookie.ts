@@ -1847,6 +1847,18 @@ function populate_simulator(sim: Simulator): void {
 	cookie("Ruby chocolate butter biscuit"			).scalesProduction(1.10);
 	cookie("Lavender chocolate butter biscuit"		).scalesProduction(1.10);
 	cookie("Birthday cookie"						).scalesProduction(1 + (0.01 * Math.floor((Date.now() - GoldenCookieBirthday) / (365 * 24 * 60 * 60 * 1000))));
+	cookie("Pink biscuits"							).scalesProduction(1.04);
+	cookie("Whole-grain cookies"					).scalesProduction(1.04);
+	cookie("Candy cookies"							).scalesProduction(1.04);
+	cookie("Big chip cookies"						).scalesProduction(1.04);
+	cookie("One chip cookies"						).scalesProduction(1.01);
+	cookie("Sprinkles cookies"						).scalesProduction(1.04);
+	cookie("Peanut butter blossoms"					).scalesProduction(1.04);
+	cookie("No-bake cookies"						).scalesProduction(1.04);
+	cookie("Florentines"							).scalesProduction(1.04);
+	cookie("Chocolate crinkles"						).scalesProduction(1.04);
+	cookie("Maple cookies"							).scalesProduction(1.04);
+
 
 	// Golden cookie upgrade functions
 	upgrade("Lucky day"						).scalesGoldenCookieFrequency(2).scalesGoldenCookieDuration(2);
