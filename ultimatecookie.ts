@@ -523,6 +523,7 @@ class UltimateCookie {
 		}
 		this.sim.sessionStartTime = Game.startDate;
 		this.sim.updateCenturyMultiplier();
+		this.sim.lumps = Game.lumps;
 	}
 
 	syncBuffs(): void {
@@ -1101,6 +1102,7 @@ class BaseSimulator {
 	heartCookieCount: number
 	heartCookieScale: number
 	heavenlyChips: number
+	lumps: number
 	maxWrinklers: number
 	milkAmount: number
 	milkMultiplier: number
@@ -1230,6 +1232,9 @@ class BaseSimulator {
 		// Current season
 		this.seasonChanges = 0;
 		this.seasonStack = [""];	// Default to no season
+
+		// Sugar lumps
+		this.lumps = 0;
 	}
 
 	get cpc(): number {
