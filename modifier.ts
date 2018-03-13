@@ -69,6 +69,8 @@ class Modifier {
 	boostsClickCps(amount: number): this					{ return this.addBooster("cpcCpsMultiplier", amount); }
 	boostsEggCount(amount: number = 1): this				{ return this.addBooster("eggCount", amount); }
 	boostsHeartCookieCount(amount: number = 1): this		{ return this.addBooster("heartCookieCount", amount); }
+	boostsLumpScale(amount: number): this					{ return this.addBooster("lumpScale", amount); }
+	boostsLumpScaleLimit(amount: number): this				{ return this.addBooster("lumpScaleLimit", amount); }
 	boostsMaxWrinklers(amount: number): this				{ return this.addBooster("maxWrinklers", amount); }
 	boostsSantaPower(amount: number): this					{ return this.addNestedBooster("santa", "power", amount); }
 	calmsGrandmas(): this 									{ return this; }

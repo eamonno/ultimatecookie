@@ -1103,6 +1103,8 @@ class BaseSimulator {
 	heartCookieScale: number
 	heavenlyChips: number
 	lumps: number
+	lumpScale: number
+	lumpScaleLimit: number
 	maxWrinklers: number
 	milkAmount: number
 	milkMultiplier: number
