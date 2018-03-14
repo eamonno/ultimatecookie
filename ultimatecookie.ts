@@ -1655,6 +1655,11 @@ function populate_simulator(sim: Simulator): void {
 	prestige("Basic wallpaper assortment"	).requires("Classic dairy selection");
 	prestige("Fanciful dairy selection"		).requires("Classic dairy selection");
 	
+	// Sugar lump scaling added in 2.045
+	prestige("Sugar baking"					).requires("Stevia Caelestis").boostsLumpScale(0.01).boostsLumpScaleLimit(100);
+	prestige("Sugar craving"				).requires("Sugar baking");										// Unlocks sugar frenzy
+	prestige("Sugar aging process"			).requires("Sugar craving").requires("Diabetica Daemonicus");	// Each grandma makes sugar lumps ripen 6 seconds sooner
+	
 	//
 	// Create all the regular upgrades
 	//
