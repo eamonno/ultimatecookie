@@ -190,8 +190,9 @@ class UltimateCookie {
 			}
 			// Now only change seasons if the season change costs less than the next purchase
 			if (seasonPref != "" && Game.season != seasonPref) {
-				if (this.sim.seasons[seasonPref].toggle.price <= purchases[0].price) {
-					purchases.splice(0, 0, this.sim.seasons[seasonPref].toggle);
+				let toggle = this.sim.toggles[this.sim.seasons[seasonPref].toggleName];
+				if (toggle.price <= purchases[0].price) {
+					purchases.splice(0, 0, toggle);
 				}
 			}
 		}
@@ -1010,6 +1011,7 @@ class BuildingLevel extends Purchase {
 
 	apply() {
 		this.sim.buildings[this.index].level++;
+		this.sim.lumps -= this.sim.buildings[this.index].level;
 		super.apply();
 	}
 
@@ -1019,6 +1021,7 @@ class BuildingLevel extends Purchase {
 	}
 
 	revoke() {
+		this.sim.lumps += this.sim.buildings[this.index].level;
 		this.sim.buildings[this.index].level--;
 		super.revoke();
 	}
@@ -1031,22 +1034,15 @@ class BuildingLevel extends Purchase {
 // new shimmers, new buffs and a bunch of lockable items to unlock. 
 //
 
-class Season extends Modifier {
-	toggle?: Upgrade
+class Season {
 	goldenCookieFrequencyScale: number
 	locks: Upgrade[]
 
-	constructor(sim: Simulator, public name: string, toggleName?: string) {
-		super(sim);
-		if (toggleName) {
-			this.toggle = new Upgrade(sim, toggleName, UpgradeFlags.SeasonChanger);
-			this.toggle.setsSeason(name);
-		}
+	constructor(sim: Simulator, public name: string, public toggleName?: string) {
 		this.reset();
 	}
 
 	reset(): void {
-		super.reset();
 		this.goldenCookieFrequencyScale = 1;
 	}
 
@@ -1237,6 +1233,8 @@ class BaseSimulator {
 
 		// Sugar lumps
 		this.lumps = 0;
+		this.lumpScale = 0;
+		this.lumpScaleLimit = 0;
 	}
 
 	get cpc(): number {
@@ -1287,6 +1285,9 @@ class BaseSimulator {
 		// Scale it for global production
 		scale *= this.cachedCenturyMultiplier;
 		scale *= this.frenzyMultiplier;
+
+		// Scale it for lumps
+		scale *= 1 + (this.lumpScale + Math.max(this.lumpScaleLimit, this.lumps) * this.lumpScale);
 
 		return cps * scale;
 	}
@@ -1437,11 +1438,6 @@ function populate_simulator(sim: Simulator): void {
 	// Add a new Season to the Simulation
 	function season(name: string, toggle?: string): Season {
 		let season = new Season(sim, name, toggle);
-		if (season.toggle) {
-			sim.modifiers[toggle] = season.toggle;
-			sim.upgrades[toggle] = season.toggle;
-			sim.toggles[toggle] = season.toggle;
-		}
 		sim.seasons[name] = season;
 		return season;
 	}
@@ -1937,6 +1933,13 @@ function populate_simulator(sim: Simulator): void {
 	// Dragon unlock
 	upgrade("A crumbly egg"			).requires("How to bake your dragon");
 
+	// Season setters
+	upgrade("Festive biscuit",	UpgradeFlags.SeasonChanger).setsSeason("christmas");
+	upgrade("Fool's biscuit",	UpgradeFlags.SeasonChanger).setsSeason("fools");
+	upgrade("Lovesick biscuit",	UpgradeFlags.SeasonChanger).setsSeason("valentines");
+	upgrade("Bunny biscuit",	UpgradeFlags.SeasonChanger).setsSeason("easter");
+	upgrade("Ghostly biscuit",	UpgradeFlags.SeasonChanger).setsSeason("halloween");
+	
 	// Christmas season
 	upgrade("A festive hat"			).requiresSeason("christmas");
 	upgrade("Naughty list",					UpgradeFlags.SantaReward).requiresSeason("christmas").scalesBuildingCps(BuildingIndex.Grandma, 2);
