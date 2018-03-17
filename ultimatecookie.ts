@@ -278,15 +278,18 @@ class UltimateCookie {
 		const LuckyPayoutEnding = 777777;
 		const LuckyUnlockMultiplier = 20;
 		
+		let ending = 0;
+		if (Game.prestige > LuckyPayoutEnding * LuckyUnlockMultiplier && !Game.Has("Lucky payout")) {
+			ending = LuckyPayoutEnding;
+		} else if (Game.prestige > LuckyNumberEnding * LuckyUnlockMultiplier && !Game.Has("Lucky number")) {
+			ending = LuckyNumberEnding;
+		} else if (Game.prestige > LuckyDigitEnding * LuckyUnlockMultiplier && !Game.Has("Lucky digit")) {
+			ending = LuckyDigitEnding;
+		}
 
-		// let ending = 0;
-		// if (!this.sim.upgrades['Lucky payout'].isApplied && newPrestige > LuckyPayoutEnding * LuckyUnlockMultiplier) {
-		// 	ending = LuckyPayoutEnding;
-		// } else if (!this.sim.upgrades['Lucky number'].isApplied && newPrestige > LuckyNumberEnding * LuckyUnlockMultiplier) {
-		// 	ending = LuckyNumberEnding;
-		// } else if (!this.sim.upgrades['Lucky digit'].isApplied && newPrestige > LuckyDigitEnding * LuckyUnlockMultiplier) {
-		// 	ending = LuckyDigitEnding;
-		// } 
+		if (ending) {
+			//this.state = UltimateCookieState.AscendWait;
+		}
 	}
 
 	// reset(): void {
