@@ -60,6 +60,7 @@ class Spell {
 //
 
 class UltimateCookie {
+
 	// Click rate tracking 
 	clickCount: number = Game.cookieClicks;
 	clickRate: number = 100;
@@ -266,29 +267,33 @@ class UltimateCookie {
 		// 3 - Prestige bought - waiting for counter to hit zero to avoid bugging out
 		// 0 - Back to zero again
 
-		// Buy the dragon aura that refunds more cookies
-		if (this.sim.upgrades["Chocolate egg"].isAvailable) {
-			if (this.sim.dragonAuras['Earth Shatterer'].isAvailableToPurchase) {
-				this.sim.dragonAuras['Earth Shatterer'].purchase();
+		if (this.state == UltimateCookieState.Farming) {
+			// Buy the dragon aura that refunds more cookies
+			if (this.sim.upgrades["Chocolate egg"].isAvailable) {
+				if (this.sim.dragonAuras['Earth Shatterer'].isAvailableToPurchase) {
+					this.sim.dragonAuras['Earth Shatterer'].purchase();
+				}
 			}
-		}
-		
-		const LuckyDigitEnding = 7;
-		const LuckyNumberEnding = 777;
-		const LuckyPayoutEnding = 777777;
-		const LuckyUnlockMultiplier = 20;
-		
-		let ending = 0;
-		if (Game.prestige > LuckyPayoutEnding * LuckyUnlockMultiplier && !Game.Has("Lucky payout")) {
-			ending = LuckyPayoutEnding;
-		} else if (Game.prestige > LuckyNumberEnding * LuckyUnlockMultiplier && !Game.Has("Lucky number")) {
-			ending = LuckyNumberEnding;
-		} else if (Game.prestige > LuckyDigitEnding * LuckyUnlockMultiplier && !Game.Has("Lucky digit")) {
-			ending = LuckyDigitEnding;
-		}
+			
+			const LuckyDigitEnding = 7;
+			const LuckyNumberEnding = 777;
+			const LuckyPayoutEnding = 777777;
+			const LuckyUnlockMultiplier = 20;
+			
+			let ending = 0;
+			if (Game.prestige > LuckyPayoutEnding * LuckyUnlockMultiplier && !Game.Has("Lucky payout")) {
+				ending = LuckyPayoutEnding;
+			} else if (Game.prestige > LuckyNumberEnding * LuckyUnlockMultiplier && !Game.Has("Lucky number")) {
+				ending = LuckyNumberEnding;
+			} else if (Game.prestige > LuckyDigitEnding * LuckyUnlockMultiplier && !Game.Has("Lucky digit")) {
+				ending = LuckyDigitEnding;
+			}
 
-		if (ending) {
-			//this.state = UltimateCookieState.AscendWait;
+			if (ending) {
+				this.state = UltimateCookieState.AscendWait;
+			}
+		} else if (this.state == UltimateCookieState.AscendWait) {
+
 		}
 	}
 
