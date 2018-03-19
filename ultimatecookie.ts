@@ -326,6 +326,38 @@ class UltimateCookie {
 		return refund;
 	}
 
+	currentAscendPrestige(): number {
+		if (this.sim.upgrades["Chocolate egg"].isAvailable) {
+			if (this.sim.dragonAuras['Earth Shatterer'].isAvailableToPurchase) {
+				this.sim.dragonAuras['Earth Shatterer'].purchase();
+			}
+		}
+		return 0;
+	}
+
+	optimalAscendPrestige(): number {
+		// TODO: Do more than just look at lucky cookies
+		const LuckyDigitEnding = 7;
+		const LuckyNumberEnding = 777;
+		const LuckyPayoutEnding = 777777;
+		const LuckyUnlockMultiplier = 20;
+		
+		let ending = 0;
+		let elen = 0;
+		if (Game.prestige > LuckyPayoutEnding * LuckyUnlockMultiplier && !Game.Has("Lucky payout")) {
+			ending = LuckyPayoutEnding;
+			elen = 6;
+		} else if (Game.prestige > LuckyNumberEnding * LuckyUnlockMultiplier && !Game.Has("Lucky number")) {
+			ending = LuckyNumberEnding;
+			elen = 3;
+		} else if (Game.prestige > LuckyDigitEnding * LuckyUnlockMultiplier && !Game.Has("Lucky digit")) {
+			ending = LuckyDigitEnding;
+			elen = 1;
+		}
+		let str = Game.prestige.toString();
+		return Number(str.substr(0, str.length - elen) + ending);
+	}
+
 	sellAllBuildings(): void {
 		for (let i = 0; i < BuildingIndex.NumBuildings; ++i) {
 			Game.ObjectsById[i].sell(Game.ObjectsById[i].amount);
