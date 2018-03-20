@@ -326,7 +326,7 @@ class UltimateCookie {
 		return refund;
 	}
 
-	currentAscendPrestige(): number {
+	get currentAscendPrestige(): number {
 		if (this.sim.upgrades["Chocolate egg"].isAvailable) {
 			if (this.sim.dragonAuras['Earth Shatterer'].isAvailableToPurchase) {
 				this.sim.dragonAuras['Earth Shatterer'].purchase();
@@ -335,15 +335,23 @@ class UltimateCookie {
 		return 0;
 	}
 
-	optimalAscendPrestige(): number {
-		// TODO: Do more than just look at lucky cookies
+	get targetAscendPrestige(): number {
+		// TODO: Calculate reset scale instead of just targetting a 10% increase
 		const LuckyDigitEnding = 7;
 		const LuckyNumberEnding = 777;
 		const LuckyPayoutEnding = 777777;
 		const LuckyUnlockMultiplier = 20;
-		
+		const MinimumResetMultiplier = 1.1;
+
+		let currentScale = 1 + Game.prestige * 0.01;
+		let targetScale = currentScale * MinimumResetMultiplier;
+		let targetPrestige = Math.ceil((((1 + Game.prestige * 0.01) * MinimumResetMultiplier) - 1) * 100);
 		let ending = 0;
 		let elen = 0;
+
+		if (this.currentAscendPrestige > targetPrestige)
+			targetPrestige = this.currentAscendPrestige;
+
 		if (Game.prestige > LuckyPayoutEnding * LuckyUnlockMultiplier && !Game.Has("Lucky payout")) {
 			ending = LuckyPayoutEnding;
 			elen = 6;
@@ -354,8 +362,15 @@ class UltimateCookie {
 			ending = LuckyDigitEnding;
 			elen = 1;
 		}
-		let str = Game.prestige.toString();
-		return Number(str.substr(0, str.length - elen) + ending);
+
+		if (ending) {
+			let mod = Math.pow(10, elen);
+			let currentEnding = targetPrestige % mod;
+			if (currentEnding > ending)
+				targetPrestige += mod;
+			targetPrestige += ending - currentEnding;
+		}
+		return targetPrestige;
 	}
 
 	sellAllBuildings(): void {
