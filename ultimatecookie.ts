@@ -327,12 +327,28 @@ class UltimateCookie {
 	}
 
 	get currentAscendPrestige(): number {
-		if (this.sim.upgrades["Chocolate egg"].isAvailable) {
-			if (this.sim.dragonAuras['Earth Shatterer'].isAvailableToPurchase) {
-				this.sim.dragonAuras['Earth Shatterer'].purchase();
+		const ChocolateEggMultiplier = 0.05;
+
+		let chocolateEgg = this.sim.upgrades["Chocolate egg"];
+		let earthShatterer = this.sim.dragonAuras["Earth Shatterer"];
+		let prestigeCookies = Game.cookiesEarned;
+	
+		if (earthShatterer.isAvailable) {
+			let refundBank = Game.cookies;
+			let revokeEarthShatterer = false;
+
+			if (earthShatterer.isAvailableToPurchase) {
+				refundBank -= earthShatterer.price();
+				earthShatterer.apply();
+				revokeEarthShatterer = true;
 			}
+			for (let b of this.sim.buildings)
+				refundBank += b.refundValue();
+			if (revokeEarthShatterer)
+				earthShatterer.revoke();
+			prestigeCookies += refundBank * ChocolateEggMultiplier;
 		}
-		return 0;
+		return Game.prestige + Game.HowMuchPrestige(prestigeCookies);
 	}
 
 	get targetAscendPrestige(): number {
