@@ -2155,6 +2155,7 @@ function populate_simulator(sim: Simulator): void {
 	toggle("Golden cookie sound selector"	);
 	toggle("Golden switch [on]", UpgradeFlags.GoldenSwitch);
 	toggle("Golden switch [off]", UpgradeFlags.GoldenSwitch);
+	upgrade("Sugar frenzy"					);	// 
 }
 
 //
