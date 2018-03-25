@@ -192,7 +192,7 @@ class UltimateCookie {
 			// Now only change seasons if the season change costs less than the next purchase
 			if (seasonPref != "" && Game.season != seasonPref) {
 				let toggle = this.sim.toggles[this.sim.seasons[seasonPref].toggleName];
-				if (toggle.price <= purchases[0].price) {
+				if (toggle && toggle.price <= purchases[0].price) {
 					purchases.splice(0, 0, toggle);
 				}
 			}
