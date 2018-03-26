@@ -539,6 +539,25 @@ class UltimateCookie {
 	}
 
 	update(): void {
+		let state = /* this.state */ UltimateCookieState.Farming;
+		
+		switch (this.state) {
+			case UltimateCookieState.Farming:
+				this.updateFarm();
+			case UltimateCookieState.AscendWait:
+				this.updateAscendWait();
+			case UltimateCookieState.AscendPurchase:
+				this.updateAscendPurchase();
+			case UltimateCookieState.AscendReset:
+				this.updateReset();
+		}
+	}
+
+	updateAscendWait(): void {}
+	updateAscendPurchase(): void {}
+	updateReset(): void {}
+
+	updateFarm(): void {
 		this.doClicking();
 		this.doSyncing();
 		this.doPurchasing();
