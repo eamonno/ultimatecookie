@@ -538,12 +538,17 @@ class UltimateCookie {
 		}
 	}
 
+	//
+	// Update Functions
+	//
+
 	update(): void {
-		let state = /* this.state */ UltimateCookieState.Farming;
-		
 		switch (this.state) {
 			case UltimateCookieState.Farming:
 				this.updateFarm();
+				if (this.ascensionFlag || this.ascensionTicker.ticked) {
+					this.considerAscending();
+				}
 			case UltimateCookieState.AscendWait:
 				this.updateAscendWait();
 			case UltimateCookieState.AscendPurchase:
@@ -553,10 +558,7 @@ class UltimateCookie {
 		}
 	}
 
-	updateAscendWait(): void {}
-	updateAscendPurchase(): void {}
-	updateReset(): void {}
-
+	// Normal farming, most of the time this should be what's going on
 	updateFarm(): void {
 		this.doClicking();
 		this.doSyncing();
@@ -571,11 +573,19 @@ class UltimateCookie {
 		if (this.spellTicker.ticked) {
 			this.spendMagic();
 		}
+	}
 
-		// Check if it is time to ascend
-		if (this.ascensionFlag || this.ascensionTicker.ticked) {
-			this.considerAscending();
-		}
+	// Still farming but with checks to see if the prestige target for this ascension has been hit
+	updateAscendWait(): void {
+		this.updateFarm();	// For now just keep farming
+	}
+
+	updateAscendPurchase(): void {
+		this.updateFarm();	// For now just keep farming
+	}
+
+	updateReset(): void {
+		this.updateFarm();	// For now just keep farming
 	}
 
 	//
