@@ -25,9 +25,9 @@ enum GrandmatriarchLevel {
 
 enum UltimateCookieState {
 	Farming = 0,
-	AscendWait = 1,
-	AscendPurchase = 2,
-	AscendReset = 3,
+	StartAscending = 1,
+	SpendPrestige = 2,
+	Reset = 3,
 }
 
 class SyncError {
@@ -243,22 +243,6 @@ class UltimateCookie {
 		//}
 	}
 
-	considerAscending(): void {
-		let currentPrestige = Game.prestige;
-		let newPrestige = Math.floor(Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned));
-		let remainPrestige = Math.floor(Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned * 2));
-		let ascendPrestige = Math.floor(Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned * 2));
-
-		if (this.state == UltimateCookieState.Farming) {
-			if (newPrestige > remainPrestige)
-				this.state = UltimateCookieState.AscendWait;
-		} else if (this.state == UltimateCookieState.AscendWait) {
-			this.state = UltimateCookieState.AscendPurchase;
-		} else if (this.state == UltimateCookieState.AscendReset) {
-			this.state = UltimateCookieState.Farming;
-		}
-	}
-
 	ascend(): void {
 		// Ascension stages
 		// 0 - Waiting for decision to ascend
@@ -288,12 +272,6 @@ class UltimateCookie {
 			} else if (Game.prestige > LuckyDigitEnding * LuckyUnlockMultiplier && !Game.Has("Lucky digit")) {
 				ending = LuckyDigitEnding;
 			}
-
-			if (ending) {
-				this.state = UltimateCookieState.AscendWait;
-			}
-		} else if (this.state == UltimateCookieState.AscendWait) {
-
 		}
 	}
 
@@ -546,14 +524,15 @@ class UltimateCookie {
 		switch (this.state) {
 			case UltimateCookieState.Farming:
 				this.updateFarm();
-				if (this.ascensionFlag || this.ascensionTicker.ticked) {
-					this.considerAscending();
+				if (this.currentAscendPrestige == this.currentAscendPrestige) {
+					console.log("Prestige target hit. Starting Ascending.");
+					this.state = UltimateCookieState.StartAscending;
 				}
-			case UltimateCookieState.AscendWait:
-				this.updateAscendWait();
-			case UltimateCookieState.AscendPurchase:
+			case UltimateCookieState.StartAscending:
+				this.updateFarm();
+			case UltimateCookieState.SpendPrestige:
 				this.updateAscendPurchase();
-			case UltimateCookieState.AscendReset:
+			case UltimateCookieState.Reset:
 				this.updateReset();
 		}
 	}
