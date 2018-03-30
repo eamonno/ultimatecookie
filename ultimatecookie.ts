@@ -23,13 +23,6 @@ enum GrandmatriarchLevel {
 	Angered = 3,
 }
 
-enum UltimateCookieState {
-	Farming = 0,
-	StartAscending = 1,
-	SpendPrestige = 2,
-	Reset = 3,
-}
-
 class SyncError {
 	count: number
 	message: string
@@ -85,8 +78,7 @@ class UltimateCookie {
 	ascensionFlag: boolean = false;
 	ascensionTicker: Ticker = new Ticker(5000);
 	
-	// Errors and State
-	state: UltimateCookieState = UltimateCookieState.Farming;
+	// Errors
 	errorArray: SyncError[] = [];
 	errorDict: { [index: string]: SyncError } = {};
 	purchaseOrder: string[] = []
@@ -251,27 +243,25 @@ class UltimateCookie {
 		// 3 - Prestige bought - waiting for counter to hit zero to avoid bugging out
 		// 0 - Back to zero again
 
-		if (this.state == UltimateCookieState.Farming) {
-			// Buy the dragon aura that refunds more cookies
-			if (this.sim.upgrades["Chocolate egg"].isAvailable) {
-				if (this.sim.dragonAuras['Earth Shatterer'].isAvailableToPurchase) {
-					this.sim.dragonAuras['Earth Shatterer'].purchase();
-				}
+		// Buy the dragon aura that refunds more cookies
+		if (this.sim.upgrades["Chocolate egg"].isAvailable) {
+			if (this.sim.dragonAuras['Earth Shatterer'].isAvailableToPurchase) {
+				this.sim.dragonAuras['Earth Shatterer'].purchase();
 			}
-			
-			const LuckyDigitEnding = 7;
-			const LuckyNumberEnding = 777;
-			const LuckyPayoutEnding = 777777;
-			const LuckyUnlockMultiplier = 20;
-			
-			let ending = 0;
-			if (Game.prestige > LuckyPayoutEnding * LuckyUnlockMultiplier && !Game.Has("Lucky payout")) {
-				ending = LuckyPayoutEnding;
-			} else if (Game.prestige > LuckyNumberEnding * LuckyUnlockMultiplier && !Game.Has("Lucky number")) {
-				ending = LuckyNumberEnding;
-			} else if (Game.prestige > LuckyDigitEnding * LuckyUnlockMultiplier && !Game.Has("Lucky digit")) {
-				ending = LuckyDigitEnding;
-			}
+		}
+		
+		const LuckyDigitEnding = 7;
+		const LuckyNumberEnding = 777;
+		const LuckyPayoutEnding = 777777;
+		const LuckyUnlockMultiplier = 20;
+		
+		let ending = 0;
+		if (Game.prestige > LuckyPayoutEnding * LuckyUnlockMultiplier && !Game.Has("Lucky payout")) {
+			ending = LuckyPayoutEnding;
+		} else if (Game.prestige > LuckyNumberEnding * LuckyUnlockMultiplier && !Game.Has("Lucky number")) {
+			ending = LuckyNumberEnding;
+		} else if (Game.prestige > LuckyDigitEnding * LuckyUnlockMultiplier && !Game.Has("Lucky digit")) {
+			ending = LuckyDigitEnding;
 		}
 	}
 
@@ -520,22 +510,7 @@ class UltimateCookie {
 	// Update Functions
 	//
 
-	update(): void {
-		switch (this.state) {
-			case UltimateCookieState.Farming:
-				this.updateFarm();
-				if (this.currentAscendPrestige == this.currentAscendPrestige) {
-					console.log("Prestige target hit. Starting Ascending.");
-					this.state = UltimateCookieState.StartAscending;
-				}
-			case UltimateCookieState.StartAscending:
-				this.updateFarm();
-			case UltimateCookieState.SpendPrestige:
-				this.updateAscendPurchase();
-			case UltimateCookieState.Reset:
-				this.updateReset();
-		}
-	}
+	update: () => void = this.updateFarm;
 
 	// Normal farming, most of the time this should be what's going on
 	updateFarm(): void {
@@ -543,15 +518,19 @@ class UltimateCookie {
 		this.doSyncing();
 		this.doPurchasing();
 
-		// Choose which auras to apply
 		if (this.auraTicker.ticked) {
 			this.chooseAuras();
 		}
 
-		// Cast spells
 		if (this.spellTicker.ticked) {
 			this.spendMagic();
 		}
+
+		if (this.currentAscendPrestige == this.currentAscendPrestige) {
+			console.log("Prestige target hit. Starting Ascending.");
+			this.update = this.updateAscendWait;
+		}
+
 	}
 
 	// Still farming but with checks to see if the prestige target for this ascension has been hit
