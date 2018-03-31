@@ -526,11 +526,10 @@ class UltimateCookie {
 			this.spendMagic();
 		}
 
-		if (this.currentAscendPrestige == this.currentAscendPrestige) {
+		if (this.sim.strategy.autoAscend && this.currentAscendPrestige == this.currentAscendPrestige) {
 			console.log("Prestige target hit. Starting Ascending.");
 			this.update = this.updateAscendWait;
 		}
-
 	}
 
 	// Still farming but with checks to see if the prestige target for this ascension has been hit

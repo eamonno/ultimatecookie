@@ -7,6 +7,7 @@
 //
 
 class Strategy {
+    autoAscend: boolean
     autoBuy: boolean
     autoClick: boolean
     autoClickGoldenCookies : boolean
@@ -21,6 +22,7 @@ class Strategy {
     dragonAura2: string
 
 	constructor(public name: string, {
+        autoAscend = true,
         autoBuy = true,
         autoClick = true,
         autoClickGoldenCookies = true,
@@ -32,6 +34,7 @@ class Strategy {
         dragonAura1 = null,
         dragonAura2 = null, 
     } = {}) {
+        this.autoAscend = autoAscend;
         this.autoBuy = autoBuy;
         this.autoClick = autoClick;
         this.autoClickGoldenCookies = autoClickGoldenCookies;
@@ -46,6 +49,7 @@ class Strategy {
 
     static Default: Strategy = new Strategy("default");
     static Passive: Strategy = new Strategy("passive", { 
+        autoAscend: false,
         autoBuy: false, 
         autoClick: false, 
         autoClickGoldenCookies: false, 
