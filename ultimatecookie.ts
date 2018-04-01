@@ -83,6 +83,9 @@ class UltimateCookie {
 	errorDict: { [index: string]: SyncError } = {};
 	purchaseOrder: string[] = []
 
+	// Cached values - values that are recalculated occasionally
+	cachedTargetAscendPrestige: number = -1;
+
 	constructor() {
 		const AutoUpdateInterval = 1;
 
@@ -320,6 +323,12 @@ class UltimateCookie {
 	}
 
 	get targetAscendPrestige(): number {
+		if (this.currentAscendPrestige > this.cachedTargetAscendPrestige)
+			this.cachedTargetAscendPrestige = this.calculateTargetAscendPrestige;
+		return this.cachedTargetAscendPrestige;
+	}
+
+	get calculateTargetAscendPrestige(): number {
 		// TODO: Calculate reset scale instead of just targetting a 10% increase
 		const LuckyDigitEnding = 7;
 		const LuckyNumberEnding = 777;
