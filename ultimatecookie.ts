@@ -252,20 +252,6 @@ class UltimateCookie {
 				this.sim.dragonAuras['Earth Shatterer'].purchase();
 			}
 		}
-		
-		const LuckyDigitEnding = 7;
-		const LuckyNumberEnding = 777;
-		const LuckyPayoutEnding = 777777;
-		const LuckyUnlockMultiplier = 20;
-		
-		let ending = 0;
-		if (Game.prestige > LuckyPayoutEnding * LuckyUnlockMultiplier && !Game.Has("Lucky payout")) {
-			ending = LuckyPayoutEnding;
-		} else if (Game.prestige > LuckyNumberEnding * LuckyUnlockMultiplier && !Game.Has("Lucky number")) {
-			ending = LuckyNumberEnding;
-		} else if (Game.prestige > LuckyDigitEnding * LuckyUnlockMultiplier && !Game.Has("Lucky digit")) {
-			ending = LuckyDigitEnding;
-		}
 	}
 
 	// reset(): void {
