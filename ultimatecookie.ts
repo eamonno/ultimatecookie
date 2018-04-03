@@ -239,13 +239,6 @@ class UltimateCookie {
 	}
 
 	ascend(): void {
-		// Ascension stages
-		// 0 - Waiting for decision to ascend
-		// 1 - Decision made, waiting for right amount of prestige
-		// 2 - Prestige - buying prestige upgrades
-		// 3 - Prestige bought - waiting for counter to hit zero to avoid bugging out
-		// 0 - Back to zero again
-
 		// Buy the dragon aura that refunds more cookies
 		if (this.sim.upgrades["Chocolate egg"].isAvailable) {
 			if (this.sim.dragonAuras['Earth Shatterer'].isAvailableToPurchase) {
@@ -523,16 +516,16 @@ class UltimateCookie {
 
 		if (this.sim.strategy.autoAscend && this.currentAscendPrestige == this.currentAscendPrestige) {
 			console.log("Prestige target hit. Starting Ascending.");
-			this.update = this.updateAscendWait;
+			this.update = this.updateAscend;
 		}
 	}
 
 	// Still farming but with checks to see if the prestige target for this ascension has been hit
-	updateAscendWait(): void {
+	updateAscend(): void {
 		this.updateFarm();	// For now just keep farming
 	}
 
-	updateAscendPurchase(): void {
+	updateSpendHeavenlyChips(): void {
 		this.updateFarm();	// For now just keep farming
 	}
 
