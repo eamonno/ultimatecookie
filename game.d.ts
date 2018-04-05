@@ -1,4 +1,4 @@
-// Definitions for Cookie Clicker v2.0042
+// Definitions for Cookie Clicker v2.0045
 // Project: Cookie Clicker, http://orteil.dashnet.org/cookieclicker
 // Partial definitions by Eamonn O'Brien, github.com/eamonno
 //
@@ -9,7 +9,7 @@ declare namespace Game {
     class Spell {
         name: string
     }
-    
+
     class MiniGame {
         spells: Spell[]
         castSpell(spell, obj): void

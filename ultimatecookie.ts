@@ -497,13 +497,11 @@ class UltimateCookie {
 		this.doSyncing();
 		this.doPurchasing();
 
-		if (this.auraTicker.ticked) {
+		if (this.auraTicker.ticked)
 			this.chooseAuras();
-		}
 
-		if (this.spellTicker.ticked) {
+		if (this.spellTicker.ticked)
 			this.spendMagic();
-		}
 
 		if (this.sim.strategy.autoAscend && this.currentAscendPrestige == this.currentAscendPrestige) {
 			console.log("Prestige target hit. Starting Ascending.");
