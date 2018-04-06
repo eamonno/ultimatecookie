@@ -49,7 +49,7 @@ class Spell {
 }
 
 //
-// UltimateCookie represents the app itself
+// UltimateCookie plays the game.
 //
 
 class UltimateCookie {
