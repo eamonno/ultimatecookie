@@ -4,18 +4,6 @@
 /// <reference path="building.ts" />
 /// <reference path="upgrade.ts" />
 
-// General purpose constants
-const REINDEER_DURATION = 4;				// Length a reindeer lasts before upgrades
-const GOLDEN_COOKIE_DURATION = 13;			// Golden cookies last 13 seconds by default
-const GOLDEN_COOKIE_MIN_INTERVAL = 60 * 5;	// Minimum time between golden cookies
-const GOLDEN_COOKIE_MAX_INTERVAL = 60 * 15;	// Maximum time between golden cookies
-const GOLDEN_COOKIE_AVG_INTERVAL = (GOLDEN_COOKIE_MIN_INTERVAL + GOLDEN_COOKIE_MAX_INTERVAL) / 2;
-const LUCKY_COOKIE_CPS_SECONDS = 60 * 15;	// Lucky provides up to 15 minutes CpS based on bank
-const LUCKY_COOKIE_FLAT_BONUS = 13;			// Lucky provides 13 additional seconds of CpS regardless
-const LUCKY_COOKIE_BANK_LIMIT = 0.15;		// Lucky provides 0.15 times bank at most
-const COOKIE_CHAIN_BANK_SCALE = 4;			// Bank needs 4 times the Cookie Chain limit to payout in full
-const RESET_PAUSE_TIME = 1000;				// Time to pause so reset can complete correctly
-
 enum GrandmatriarchLevel {
 	Appeased = 0,
 	Awoken = 1,
@@ -1185,6 +1173,12 @@ class BaseSimulator {
 	}
 
 	reset(): void {
+		const GoldenCookieDuration = 13;
+		const GoldenCookieMinInterval = 60 * 5;
+		const GoldenCookieMaxInterval = 60 * 15;
+		const GoldenCookieAverageInterval = (GoldenCookieMinInterval + GoldenCookieMaxInterval) / 2;
+		const ReindeerDuration = 4;
+
 		// Reset anything that needs resetting
 		for (let i = 0; i < this.buildings.length; ++i)
 			this.buildings[i].reset();
@@ -1231,12 +1225,12 @@ class BaseSimulator {
 		this.cursedFingerCount = 0;
 
 		// Golden cookie stuff information
-		this.goldenCookieTime = GOLDEN_COOKIE_AVG_INTERVAL;
-		this.goldenCookieDuration = GOLDEN_COOKIE_DURATION;
+		this.goldenCookieTime = GoldenCookieAverageInterval;
+		this.goldenCookieDuration = GoldenCookieDuration;
 		this.goldenCookieEffectDurationMultiplier = 1;
 
 		// Reindeer stuff
-		this.reindeerDuration = REINDEER_DURATION;
+		this.reindeerDuration = ReindeerDuration;
 		this.reindeerTime = 180;
 		this.reindeerMultiplier = 1;
 		this.reindeerBuffMultiplier = 1;
@@ -1410,15 +1404,18 @@ class BaseSimulator {
 
 	// REFACTOR: THIS IS PROBABLY WRONG
 	cookiesPerLucky(): number {
+		const LuckyCookieCpsSeconds = 60 * 15;
+		const LuckyCookieFlatBonus = 13;
+
 		// If we dont click them, they don't work
 		if (!this.strategy.autoClickGoldenCookies) {
 			return 0;
 		}
 
-		let cookies1 = this.cps * LUCKY_COOKIE_CPS_SECONDS;
+		let cookies1 = this.cps * LuckyCookieCpsSeconds;
 		let cookies2 = cookies1; // cookieBank * 0.15;
 
-		return Math.min(cookies1, cookies2) + LUCKY_COOKIE_FLAT_BONUS;
+		return Math.min(cookies1, cookies2) + LuckyCookieFlatBonus;
 	}
 
 	// getCookieChainMax() {
