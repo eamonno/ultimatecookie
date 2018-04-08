@@ -500,9 +500,12 @@ class UltimateCookie {
 	// Still farming but with checks to see if the prestige target for this ascension has been hit
 	updateAscend(): void {
 		// Buy the dragon aura that refunds more cookies
-		if (this.sim.upgrades["Chocolate egg"].isAvailable) {
-			if (this.sim.dragonAuras['Earth Shatterer'].isAvailableToPurchase) {
-				this.sim.dragonAuras['Earth Shatterer'].purchase();
+		let chocolateEgg = this.sim.upgrades["Chocolate egg"];
+
+		if (chocolateEgg.isAvailable) {
+			let earthShatterer = this.sim.dragonAuras['Earth Shatterer'];
+			if (earthShatterer.isAvailableToPurchase) {
+				earthShatterer.purchase();
 			}
 		}
 		this.updateFarm();	// For now just keep farming
