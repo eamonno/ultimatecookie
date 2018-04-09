@@ -1023,41 +1023,6 @@ class Santa {
 	}
 }
 
-class BuildingLevel extends Purchase {
-	readonly name: string
-	constructor(sim: Simulator, public index: BuildingIndex) {
-		super(sim);
-		this.name = sim.buildings[index].name + " level";
-	}
-
-	get isAvailable(): boolean { return true; }
-
-	get longName() {
-		return this.name + " " + (this.sim.buildings[this.index].level + 1);
-	}
-
-	get price() {
-		return this.sim.buildings[this.index].level + 1;
-	}
-
-	apply() {
-		this.sim.buildings[this.index].level++;
-		this.sim.lumps -= this.sim.buildings[this.index].level;
-		super.apply();
-	}
-
-	purchase() {
-		Game.ObjectsById[this.index].levelUp();
-		this.apply();
-	}
-
-	revoke() {
-		this.sim.lumps += this.sim.buildings[this.index].level;
-		this.sim.buildings[this.index].level--;
-		super.revoke();
-	}
-}
-
 //
 // Seasons
 //
