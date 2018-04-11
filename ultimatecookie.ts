@@ -388,34 +388,27 @@ class UltimateCookie {
 
 	doClicking() {
 		// Click the cookie
-		if (this.sim.strategy.autoClick) {
+		if (this.sim.strategy.autoClick) 
 			Game.ClickCookie();
-		}
 
 		// Click any golden cookies
-		if (this.sim.strategy.autoClickGoldenCookies) {
+		if (this.sim.strategy.autoClickGoldenCookies)
 			this.popShimmer("golden");
-		}
 
 		// Click any reindeer
-		if (this.sim.strategy.autoClickReindeer) {
+		if (this.sim.strategy.autoClickReindeer)
 			this.popShimmer("reindeer");
-		}
 
 		// Click the sugar lump - the ticker is needed as it is possible to get multiple lumps
 		// if you spam this just as it ripens.
-		if (this.sugarTicker.ticked && Game.time - Game.lumpT > Game.lumpRipeAge) {
+		if (this.sugarTicker.ticked && Game.time - Game.lumpT > Game.lumpRipeAge)
 			Game.clickLump();
-		}
 
 		// Pop wrinklers during halloween if upgrades need unlocking
-		if (this.sim.season.name == "halloween" && this.sim.strategy.unlockSeasonUpgrades) {
-			for (let w in Game.wrinklers) {
-				if (Game.wrinklers[w].sucked > 0) {
+		if (this.sim.season.name == "halloween" && this.sim.strategy.unlockSeasonUpgrades)
+			for (let w in Game.wrinklers)
+				if (Game.wrinklers[w].sucked > 0)
 					Game.wrinklers[w].hp = 0;
-				}
-			}
-		}
 
 		// Update the click rate
 		if (this.clickRateTicker.ticked) {
@@ -458,9 +451,8 @@ class UltimateCookie {
 
 	doPurchasing(): void {
 		// Recheck the best purchase if purchaseTicker has ticked
-		if (this.purchaseTicker.ticked) {
+		if (this.purchaseTicker.ticked)
 			this.nextPurchase = this.rankPurchases()[0];
-		}
 
 		// Do any purchasing. Dont purchase during 'Cursed finger'. The game freezes its CpS numbers while it is active so it will just desync
 		if (this.sim.strategy.autoBuy && !Game.hasBuff('Cursed finger')) {
