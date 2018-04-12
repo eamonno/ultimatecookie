@@ -845,8 +845,8 @@ class Santa {
 //
 // Seasons
 //
-// Seasons are a class of modifier that make pretty big changes to the game, often enabling
-// new shimmers, new buffs and a bunch of lockable items to unlock. 
+// Seasons make pretty big changes to the game, often enabling new shimmers, new buffs 
+// and a bunch of lockable items to unlock. 
 //
 
 class Season {
