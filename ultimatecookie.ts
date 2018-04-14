@@ -792,7 +792,7 @@ class Santa {
 	randomRewards: Upgrade[]
 	power: number
 
-	constructor(public sim: Simulator) {
+	constructor(public sim: BaseSimulator) {
 		this.levels = [];
 		this.randomRewards = [];
 
@@ -946,7 +946,6 @@ class BaseSimulator {
 	buildings: Building[] = []
 	dragonAuras: { [index: number]: DragonAura } = {}
 	buffs: { [index: string]: Buff } = {}
-	modifiers: { [index: string]: Modifier } = {}
 	prestiges: { [index: string]: Upgrade } = {}
 	upgrades: { [index: string]: Upgrade } = {}
 	toggles: { [index: string]: Upgrade } = {}
@@ -968,8 +967,6 @@ class BaseSimulator {
 		// Reset anything that needs resetting
 		for (let i = 0; i < this.buildings.length; ++i)
 			this.buildings[i].reset();
-		for (let key in this.modifiers)
-			this.modifiers[key].reset();
 		for (let key in this.seasons)
 			this.seasons[key].reset();
 		for (let key in this.dragonAuras)
@@ -1218,9 +1215,18 @@ class BaseSimulator {
 //
 
 class Simulator extends BaseSimulator {
+	modifiers: { [index: string]: Modifier } = {}
+
 	constructor(strategy: Strategy) {
 		super(strategy);
 		populate_simulator(this);
+	}
+
+	reset(): void {
+		super.reset();
+
+		for (let key in this.modifiers)
+			this.modifiers[key].reset();		
 	}
 }
 
