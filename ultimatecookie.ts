@@ -846,7 +846,7 @@ class Santa {
 // Seasons
 //
 // Seasons make pretty big changes to the game, often enabling new shimmers, new buffs 
-// and a bunch of lockable items to unlock. 
+// and a bunch of lockable items to unlock. This class represents them in game.
 //
 
 class Season {
