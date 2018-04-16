@@ -792,7 +792,7 @@ class Santa {
 	randomRewards: Upgrade[]
 	power: number
 
-	constructor(public sim: BaseSimulator) {
+	constructor(public sim: Simulator) {
 		this.levels = [];
 		this.randomRewards = [];
 
@@ -880,14 +880,13 @@ class Season {
 }
 
 //
-// BaseSimulator
+// Simulator
 //
-// The BaseSimulator class is the foundation for all simulators. It knows nothing about the various
-// upgrades, buffs etc. but contains all the various state variables that would be required to perform
-// the necessary CpC and CpS calculations
+// The Simulator class is used to simulate the game. It can sync to the game, has representations for
+// the current state of all in-game entities and can use that state to calculate CpC, CpS etc.
 //
 
-class BaseSimulator {
+class Simulator {
 	// State variables
 	baseCps: number
 	buffCount: number
@@ -947,6 +946,7 @@ class BaseSimulator {
 	dragonAuras: { [index: number]: DragonAura } = {}
 	buffs: { [index: string]: Buff } = {}
 	prestiges: { [index: string]: Upgrade } = {}
+	modifiers: { [index: string]: Modifier } = {}
 	upgrades: { [index: string]: Upgrade } = {}
 	toggles: { [index: string]: Upgrade } = {}
 	seasons: { [index: string]: Season } = {}
@@ -954,6 +954,7 @@ class BaseSimulator {
 	dragon: Dragon = new Dragon(this)
 
 	constructor(public strategy: Strategy) {
+		populate_simulator(this);
 		this.reset();
 	}
 
@@ -967,6 +968,8 @@ class BaseSimulator {
 		// Reset anything that needs resetting
 		for (let i = 0; i < this.buildings.length; ++i)
 			this.buildings[i].reset();
+		for (let key in this.modifiers)
+			this.modifiers[key].reset();		
 		for (let key in this.seasons)
 			this.seasons[key].reset();
 		for (let key in this.dragonAuras)
@@ -1205,29 +1208,6 @@ class BaseSimulator {
 	// 	const CookieChainMultiplier = 60 * 60 * 3;	// Verify this
 	// 	return this.preCurseCps * CookieChainMultiplier;
 	// }
-}
-
-//
-// Simulator
-//
-// The Simulator class extends on the BaseSimulator by containing definitions for all of the
-// various upgrades that exist in the cookie clicker game. 
-//
-
-class Simulator extends BaseSimulator {
-	modifiers: { [index: string]: Modifier } = {}
-
-	constructor(strategy: Strategy) {
-		super(strategy);
-		populate_simulator(this);
-	}
-
-	reset(): void {
-		super.reset();
-
-		for (let key in this.modifiers)
-			this.modifiers[key].reset();		
-	}
 }
 
 // Compare floats with an epsilon value

@@ -9,7 +9,7 @@ class Modifier {
 	applicationCount: number = 0
 	components: Modifier.Component[] = []
 
-	constructor(public sim: BaseSimulator, public isUnique?: boolean) {}
+	constructor(public sim: Simulator, public isUnique?: boolean) {}
 	
 	get isApplied(): boolean {
 		return this.applicationCount > 0;
@@ -135,30 +135,30 @@ class Modifier {
 module Modifier {
 	// Each modifier consists of zero or more Components
 	export interface Component {
-		apply(sim: BaseSimulator): void;
-		revoke(sim: BaseSimulator): void;
+		apply(sim: Simulator): void;
+		revoke(sim: Simulator): void;
 	}
 	
 	// Booster components add a value to a given BaseSimulator field.
 	export class Booster implements Component {
 		constructor(public field: string, public amount: number = 1) {}
 	
-		apply(sim: BaseSimulator): void		{ sim[this.field] += this.amount; }
-		revoke(sim: BaseSimulator): void	{ sim[this.field] -= this.amount; }
+		apply(sim: Simulator): void		{ sim[this.field] += this.amount; }
+		revoke(sim: Simulator): void	{ sim[this.field] -= this.amount; }
 	}
 
 	// Add to a building counter
 	export class BuildingCountBooster implements Component {
 		constructor(public building: BuildingIndex | null, public field: string, public counter: BuildingCounter) {}
 
-		apply(sim: BaseSimulator): void	{ 
+		apply(sim: Simulator): void	{ 
 			if (this.building != null) 
 				sim.buildings[this.building][this.field].add(this.counter);
 			else 
 				sim[this.field].add(this.counter);
 		}
 	
-		revoke(sim: BaseSimulator): void {
+		revoke(sim: Simulator): void {
 			if (this.building != null) 
 				sim.buildings[this.building][this.field].add(this.counter);
 			else 
@@ -170,55 +170,55 @@ module Modifier {
 	export class BuildingCpsScaler implements Component {
 		constructor(public index: BuildingIndex, public scale: number) {}
 
-		apply(sim: BaseSimulator): void		{ sim.buildings[this.index].multiplier *= this.scale; }
-		revoke(sim: BaseSimulator): void	{ sim.buildings[this.index].multiplier /= this.scale; }
+		apply(sim: Simulator): void		{ sim.buildings[this.index].multiplier *= this.scale; }
+		revoke(sim: Simulator): void	{ sim.buildings[this.index].multiplier /= this.scale; }
 	}
 
 	// Increase milk
 	export class MilkScaler implements Component {
 		constructor(public amount: number, public tier: number) {}
 
-		apply(sim: BaseSimulator): void		{ sim.milkUnlocks[this.tier].push(this.amount); sim.milkUnlocks[this.tier].sort(); }
-		revoke(sim: BaseSimulator): void	{ sim.milkUnlocks[this.tier].splice(sim.milkUnlocks[this.tier].indexOf(this.amount), 1); }
+		apply(sim: Simulator): void		{ sim.milkUnlocks[this.tier].push(this.amount); sim.milkUnlocks[this.tier].sort(); }
+		revoke(sim: Simulator): void	{ sim.milkUnlocks[this.tier].splice(sim.milkUnlocks[this.tier].indexOf(this.amount), 1); }
 	}
 
 	// Increase a field of a sub field
 	export class NestedBooster implements Component {
 		constructor(public field: string, public subfield: string, public amount: number) {}
 
-		apply(sim: BaseSimulator): void		{ sim[this.field][this.subfield] += this.amount; }
-		revoke(sim: BaseSimulator): void	{ sim[this.field][this.subfield] -= this.amount; }
+		apply(sim: Simulator): void		{ sim[this.field][this.subfield] += this.amount; }
+		revoke(sim: Simulator): void	{ sim[this.field][this.subfield] -= this.amount; }
 	}
 
 	// Scaler components multiply a BaseSimulator field by a given value.
 	export class Scaler implements Component {
 		constructor(public field: string, public scale: number) {}
 	
-		apply(sim: BaseSimulator): void		{ sim[this.field] *= this.scale; }
-		revoke(sim: BaseSimulator): void	{ sim[this.field] /= this.scale; }
+		apply(sim: Simulator): void		{ sim[this.field] *= this.scale; }
+		revoke(sim: Simulator): void	{ sim[this.field] /= this.scale; }
 	}
 
 	// Scaler a field of a season by an amount
 	export class SeasonScaler implements Component {
 		constructor(public season: string, public field: string, public scale: number) {}
 	
-		apply(sim: BaseSimulator): void		{ sim.seasons[this.season][this.field] *= this.scale; }
-		revoke(sim: BaseSimulator): void	{ sim.seasons[this.season][this.field] /= this.scale; }
+		apply(sim: Simulator): void		{ sim.seasons[this.season][this.field] *= this.scale; }
+		revoke(sim: Simulator): void	{ sim.seasons[this.season][this.field] /= this.scale; }
 	}
 
 	// SeasonChanger component sets the season
 	export class SeasonChanger implements Component {
 		constructor(public name: string) {}
 
-		apply(sim: BaseSimulator): void		{ sim.seasonStack.push(name); sim.seasonChanges++; }
-		revoke(sim: BaseSimulator): void	{ sim.seasonStack.pop(); sim.seasonChanges--; }
+		apply(sim: Simulator): void		{ sim.seasonStack.push(name); sim.seasonChanges++; }
+		revoke(sim: Simulator): void	{ sim.seasonStack.pop(); sim.seasonChanges--; }
 	}
 
 	// Synergies give buildings boosts based on the count of another building
 	export class Synergy implements Component {
 		constructor(public receiver: BuildingIndex, public giver: BuildingIndex, public amount: number) {}
 
-		apply(sim: BaseSimulator): void		{ sim.buildings[this.receiver].addSynergy(this.giver, this.amount); }
-		revoke(sim: BaseSimulator): void	{ sim.buildings[this.receiver].removeSynergy(this.giver, this.amount); }
+		apply(sim: Simulator): void		{ sim.buildings[this.receiver].addSynergy(this.giver, this.amount); }
+		revoke(sim: Simulator): void	{ sim.buildings[this.receiver].removeSynergy(this.giver, this.amount); }
 	}
 }
