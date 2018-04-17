@@ -23,7 +23,7 @@ in rough order of priority.
 4. Valuation for buffs that unlock other buffs.
 5. [line-through]#Prestige upgrades. Right now only the baseline Legacy upgrade is supported. It would be easy enough to add support for
    the upgrades themselves but it relies on being able to accurately value buffs that unlock other buffs.#
-6. Building levels and sugar. Decide how to spend sugar and when.
+6. [line-through]#Building levels and sugar. Decide how to spend sugar and when.#
 7. Mini games. Play them passively and efficiently.
 8. GUI for addon. Allow for configuration and information without needing to use the javascript console.
 9. Strategies - let users choose play style, elder pledge on off, preferred season, spells etc.
