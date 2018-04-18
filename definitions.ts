@@ -427,8 +427,10 @@ function populate_simulator(sim: Simulator): void {
 	cookie("Sabl&eacute;s"							).scalesProduction(1.02);
 	cookie("Gingerbread men"						).scalesProduction(1.02);
 	cookie("Gingerbread trees"						).scalesProduction(1.02);
+	cookie("Festivity loops"						).scalesProduction(1.02);
 	cookie("Pure black chocolate cookies"			).scalesProduction(1.04);
 	cookie("Pure white chocolate cookies"			).scalesProduction(1.04);
+	cookie("Persian rice cookies"       			).scalesProduction(1.04);
 	cookie("Ladyfingers"							).scalesProduction(1.03);
 	cookie("Tuiles"									).scalesProduction(1.03);
 	cookie("Chocolate-stuffed biscuits"				).scalesProduction(1.03);
