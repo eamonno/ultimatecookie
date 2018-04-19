@@ -408,13 +408,12 @@ function populate_simulator(sim: Simulator): void {
 	cookie("Oatmeal raisin cookies"					).scalesProduction(1.01);
 	cookie("Peanut butter cookies"					).scalesProduction(1.01);
 	cookie("Coconut cookies"						).scalesProduction(1.01);
+	cookie("One chip cookies"						).scalesProduction(1.01);
 	cookie("White chocolate cookies"				).scalesProduction(1.02);
 	cookie("Macadamia nut cookies"					).scalesProduction(1.02);
 	cookie("Double-chip cookies"					).scalesProduction(1.02);
 	cookie("White chocolate macadamia nut cookies"	).scalesProduction(1.02);
 	cookie("All-chocolate cookies"					).scalesProduction(1.02);
-	cookie("Dark chocolate-coated cookies"			).scalesProduction(1.04);
-	cookie("White chocolate-coated cookies"			).scalesProduction(1.04);
 	cookie("Eclipse cookies"						).scalesProduction(1.02);
 	cookie("Zebra cookies"							).scalesProduction(1.02);
 	cookie("Snickerdoodles"							).scalesProduction(1.02);
@@ -428,15 +427,17 @@ function populate_simulator(sim: Simulator): void {
 	cookie("Gingerbread men"						).scalesProduction(1.02);
 	cookie("Gingerbread trees"						).scalesProduction(1.02);
 	cookie("Festivity loops"						).scalesProduction(1.02);
-	cookie("Pure black chocolate cookies"			).scalesProduction(1.04);
-	cookie("Pure white chocolate cookies"			).scalesProduction(1.04);
-	cookie("Persian rice cookies"       			).scalesProduction(1.04);
 	cookie("Ladyfingers"							).scalesProduction(1.03);
 	cookie("Tuiles"									).scalesProduction(1.03);
 	cookie("Chocolate-stuffed biscuits"				).scalesProduction(1.03);
 	cookie("Checker cookies"						).scalesProduction(1.03);
 	cookie("Butter cookies"							).scalesProduction(1.03);
 	cookie("Cream cookies"							).scalesProduction(1.03);
+	cookie("Dark chocolate-coated cookies"			).scalesProduction(1.04);
+	cookie("White chocolate-coated cookies"			).scalesProduction(1.04);
+	cookie("Pure black chocolate cookies"			).scalesProduction(1.04);
+	cookie("Pure white chocolate cookies"			).scalesProduction(1.04);
+	cookie("Persian rice cookies"       			).scalesProduction(1.04);
 	cookie("Gingersnaps"							).scalesProduction(1.04);
 	cookie("Cinnamon cookies"						).scalesProduction(1.04);
 	cookie("Vanity cookies"							).scalesProduction(1.04);
@@ -448,27 +449,26 @@ function populate_simulator(sim: Simulator): void {
 	cookie("Caramel cookies"						).scalesProduction(1.04);
 	cookie("Pecan sandies"							).scalesProduction(1.04);
 	cookie("Moravian spice cookies"					).scalesProduction(1.04);
-	cookie("Milk chocolate butter biscuit"			).scalesProduction(1.10);
 	cookie("Anzac biscuits"							).scalesProduction(1.04);
 	cookie("Buttercakes"							).scalesProduction(1.04);
 	cookie("Ice cream sandwiches"					).scalesProduction(1.04);
-	cookie("Dragon cookie"							).scalesProduction(1.05);
-	cookie("Dark chocolate butter biscuit"			).scalesProduction(1.10);
-	cookie("White chocolate butter biscuit"			).scalesProduction(1.10);
-	cookie("Ruby chocolate butter biscuit"			).scalesProduction(1.10);
-	cookie("Lavender chocolate butter biscuit"		).scalesProduction(1.10);
-	cookie("Birthday cookie"						).scalesProduction(1 + (0.01 * Math.floor((Date.now() - GoldenCookieBirthday) / (365 * 24 * 60 * 60 * 1000))));
 	cookie("Pink biscuits"							).scalesProduction(1.04);
 	cookie("Whole-grain cookies"					).scalesProduction(1.04);
 	cookie("Candy cookies"							).scalesProduction(1.04);
 	cookie("Big chip cookies"						).scalesProduction(1.04);
-	cookie("One chip cookies"						).scalesProduction(1.01);
 	cookie("Sprinkles cookies"						).scalesProduction(1.04);
 	cookie("Peanut butter blossoms"					).scalesProduction(1.04);
 	cookie("No-bake cookies"						).scalesProduction(1.04);
 	cookie("Florentines"							).scalesProduction(1.04);
 	cookie("Chocolate crinkles"						).scalesProduction(1.04);
 	cookie("Maple cookies"							).scalesProduction(1.04);
+	cookie("Dragon cookie"							).scalesProduction(1.05);
+	cookie("Milk chocolate butter biscuit"			).scalesProduction(1.10);
+	cookie("Dark chocolate butter biscuit"			).scalesProduction(1.10);
+	cookie("White chocolate butter biscuit"			).scalesProduction(1.10);
+	cookie("Ruby chocolate butter biscuit"			).scalesProduction(1.10);
+	cookie("Lavender chocolate butter biscuit"		).scalesProduction(1.10);
+	cookie("Birthday cookie"						).scalesProduction(1 + (0.01 * Math.floor((Date.now() - GoldenCookieBirthday) / (365 * 24 * 60 * 60 * 1000))));
 
 
 	// Golden cookie upgrade functions
@@ -507,12 +507,12 @@ function populate_simulator(sim: Simulator): void {
 	upgrade("Titanium mouse"				).boostsClickCps(0.01);
 	upgrade("Adamantium mouse"				).boostsClickCps(0.01);
 	upgrade("Unobtainium mouse"				).boostsClickCps(0.01);
-	upgrade("Unobtainium mouse"				).boostsClickCps(0.01);
 	upgrade("Eludium mouse"					).boostsClickCps(0.01);
 	upgrade("Wishalloy mouse"				).boostsClickCps(0.01);
 	upgrade("Fantasteel mouse"				).boostsClickCps(0.01);
 	upgrade("Nevercrack mouse"				).boostsClickCps(0.01);
 	upgrade("Armythril mouse"				).boostsClickCps(0.01);
+	upgrade("Technobsidian mouse"			).boostsClickCps(0.01);
 
 	// Milk increases
 	upgrade("Kitten helpers"							).unlocksMilk(0.1);
